@@ -1,0 +1,30 @@
+syntax = "proto3";
+package ory.keto.relation_tuples.v1alpha2;
+
+message Subject {
+  oneof ref {
+    string id = 1;
+  }
+}
+
+message RelationTuple {
+  string namespace = 1;
+  string object = 2;
+  string relation = 3;
+  Subject subject = 4;
+}
+
+message CheckRequest {
+  RelationTuple tuple = 1;
+  bool latest = 2;
+  string snaptoken = 3;
+}
+
+message CheckResponse {
+  bool allowed = 1;
+  string snaptoken = 2;
+}
+
+service CheckService {
+  rpc Check(CheckRequest) returns (CheckResponse);
+}

@@ -1,0 +1,72 @@
+version: '3.9'
+
+services:
+  kratos-migrate:
+    image: oryd/kratos:v1.1.0
+    environment:
+      - DSN=sqlite:///var/lib/sqlite/kratos.sqlite?_fk=true&mode=rwc&_journal_mode=WAL
+    volumes:
+      - kratos-sqlite:/var/lib/sqlite
+      - type: bind
+        source: ./kratos
+        target: /etc/config/kratos
+    command: -c /etc/config/kratos/kratos.yaml migrate sql -e --yes
+    restart: on-failure
+
+  kratos:
+    image: oryd/kratos:v1.1.0
+    depends_on:
+      kratos-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "4433:4433" # public
+      - "4434:4434" # admin
+    environment:
+      - DSN=sqlite:///var/lib/sqlite/kratos.sqlite?_fk=true&mode=rwc&_journal_mode=WAL
+    command: serve -c /etc/config/kratos/kratos.yaml --dev
+    volumes:
+      - kratos-sqlite:/var/lib/sqlite
+      - type: bind
+        source: ./kratos
+        target: /etc/config/kratos
+    restart: unless-stopped
+
+  keto-migrate:
+    image: oryd/keto:v0.11.1
+    environment:
+      - DSN=sqlite:///var/lib/sqlite/keto.sqlite?_fk=true&mode=rwc&_journal_mode=WAL
+    volumes:
+      - keto-sqlite:/var/lib/sqlite
+      - type: bind
+        source: ./keto
+        target: /etc/config/keto
+    command: migrate up -c /etc/config/keto/keto.yaml -y
+    restart: on-failure
+
+  keto:
+    image: oryd/keto:v0.11.1
+    depends_on:
+      keto-migrate:
+        condition: service_completed_successfully
+    ports:
+      - "4466:4466" # read
+      - "4467:4467" # write
+    environment:
+      - DSN=sqlite:///var/lib/sqlite/keto.sqlite?_fk=true&mode=rwc&_journal_mode=WAL
+    command: serve -c /etc/config/keto/keto.yaml
+    volumes:
+      - keto-sqlite:/var/lib/sqlite
+      - type: bind
+        source: ./keto
+        target: /etc/config/keto
+    restart: unless-stopped
+
+  mailslurper:
+    image: oryd/mailslurper:latest-smtps
+    ports:
+      - "4436:4436"
+      - "4437:4437"
+
+volumes:
+  kratos-sqlite:
+  keto-sqlite:

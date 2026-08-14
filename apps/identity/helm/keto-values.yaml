@@ -1,0 +1,32 @@
+keto:
+  config:
+    dsn: "sqlite:///var/lib/sqlite/keto.sqlite?_fk=true&mode=rwc&_journal_mode=WAL"
+    serve:
+      read:
+        port: 4466
+      write:
+        port: 4467
+
+deployment:
+  extraVolumes:
+    - name: keto-sqlite
+      persistentVolumeClaim:
+        claimName: keto-sqlite-pvc
+  extraVolumeMounts:
+    - name: keto-sqlite
+      mountPath: /var/lib/sqlite
+
+# gRPC Ingress for Keto Read/Write APIs
+ingress:
+  read:
+    enabled: true
+    className: "nginx"
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "GRPC"
+    hosts:
+      - host: keto-read.motif.ai
+        paths:
+          - path: /
+            pathType: Prefix
+  write:
+    enabled: false # Usually not exposed publicly, only internal Gateway should write

@@ -1,0 +1,30 @@
+kratos:
+  config:
+    dsn: "sqlite:///var/lib/sqlite/kratos.sqlite?_fk=true&mode=rwc&_journal_mode=WAL"
+    serve:
+      public:
+        base_url: https://auth.motif.ai/
+      admin:
+        base_url: http://kratos-admin/
+    identity:
+      default_schema_id: default
+
+deployment:
+  extraVolumes:
+    - name: kratos-sqlite
+      persistentVolumeClaim:
+        claimName: kratos-sqlite-pvc
+  extraVolumeMounts:
+    - name: kratos-sqlite
+      mountPath: /var/lib/sqlite
+
+# Ingress for Kratos Public API
+ingress:
+  public:
+    enabled: true
+    className: "nginx"
+    hosts:
+      - host: auth.motif.ai
+        paths:
+          - path: /
+            pathType: Prefix

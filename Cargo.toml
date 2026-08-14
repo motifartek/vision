@@ -1,0 +1,14 @@
+[workspace]
+members = [
+    "apps/gateway",
+    "apps/identity",
+    "apps/stream",
+    "apps/ai/orchestrator",
+    "apps/ai/inference",
+    "apps/ai/memory",
+    "packages/optics",
+    "packages/database",
+    "packages/event-sdk",
+    "packages/core"
+]
+resolver = "2"
