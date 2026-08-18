@@ -1,0 +1,71 @@
+use std::sync::Arc;
+
+use tower_http::cors::CorsLayer;
+use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+
+use inference::api::{self, AppState};
+use inference::config::{Config, PROFILES};
+use inference::model;
+
+#[tokio::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tracing_subscriber::registry()
+        .with(
+            tracing_subscriber::EnvFilter::try_from_default_env()
+                .unwrap_or_else(|_| "inference=debug,tower_http=debug".into()),
+        )
+        .with(tracing_subscriber::fmt::layer())
+        .init();
+
+    let cfg = Config::from_env();
+    tracing::info!(?cfg, "yapılandırma yüklendi");
+
+    let labels_path = cfg.models_dir.join(&cfg.model).join("class_labels_indices.csv");
+    let labels = model::labels::load(&labels_path)?;
+
+    let mut loaded = model::ced::load(&cfg)?;
+
+    // Profillerin pencere boyutları için oturumu ısıt (GPU'da şekil başına
+    // çekirdek derlemesi ilk isteği yavaşlatıyordu).
+    let window_frames: Vec<usize> = PROFILES
+        .iter()
+        .map(|p| (p.window_sec * 100.0).round() as usize)
+        .collect();
+    let warmup_started = std::time::Instant::now();
+    model::ced::warmup(&mut loaded.session, cfg.batch_size, &window_frames);
+    tracing::info!(
+        ms = warmup_started.elapsed().as_millis(),
+        sekil = window_frames.len(),
+        "model ısıtıldı"
+    );
+
+    let state = Arc::new(AppState::new(
+        &cfg,
+        labels,
+        loaded.session,
+        loaded.model_name,
+        loaded.weights_file,
+        loaded.providers,
+    ));
+
+    if cfg.media_root.is_none() {
+        tracing::warn!(
+            "INFERENCE_MEDIA_ROOT ayarlı değil; analyze uç noktası yerel dosya \
+             sistemindeki herhangi bir yolu okuyabilir"
+        );
+    }
+
+    // Dashboard ve yerel geliştirme için esnek CORS (localhost, 127.0.0.1 ve yerel ağ)
+    let cors = CorsLayer::permissive();
+
+    // Video yüklemeleri için boyut limitini tamamen kaldırıyoruz (3GB, 10GB vs. sınırsız)
+    let app = api::router(state)
+        .layer(axum::extract::DefaultBodyLimit::disable())
+        .layer(cors);
+
+    let listener = tokio::net::TcpListener::bind((cfg.host, cfg.port)).await?;
+    tracing::info!("inference servisi {} adresinde dinliyor", listener.local_addr()?);
+    axum::serve(listener, app).await?;
+
+    Ok(())
+}

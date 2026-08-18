@@ -22,7 +22,7 @@ function SidebarItem({ item, active }: { item: (typeof nav)[number]; active: boo
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <span onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
-        <PopoverTrigger render={<Link href={item.href} aria-label={item.label} className={cn("flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", active && "bg-accent text-primary")} />}>
+        <PopoverTrigger nativeButton={false} render={<Link href={item.href} aria-label={item.label} className={cn("flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", active && "bg-accent text-primary")} />}>
           <item.icon className="size-5" />
         </PopoverTrigger>
       </span>

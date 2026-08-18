@@ -1,0 +1,80 @@
+use std::net::Ipv4Addr;
+use std::path::PathBuf;
+
+/// Pencere/adım profilleri.
+/// Çıkarım maliyeti ≈ pencere × (süre/adım); uzun pencere orantılı adımla daha ucuzdur.
+#[derive(Debug, Clone, Copy, PartialEq, serde::Serialize)]
+pub struct WindowProfile {
+    pub name: &'static str,
+    pub window_sec: f32,
+    pub hop_sec: f32,
+}
+
+pub const PROFILES: [WindowProfile; 3] = [
+    WindowProfile { name: "hassas",   window_sec: 1.0,  hop_sec: 0.25 },
+    WindowProfile { name: "dengeli",  window_sec: 2.0,  hop_sec: 0.5  },
+    WindowProfile { name: "isabetli", window_sec: 10.0, hop_sec: 5.0  },
+];
+
+pub const DEFAULT_PROFILE: &str = "dengeli";
+
+#[allow(dead_code)] // faz 2'de /v1/audio/analyze profil seçiminde kullanılacak
+pub fn profile(name: &str) -> Option<WindowProfile> {
+    PROFILES.iter().copied().find(|p| p.name == name)
+}
+
+#[derive(Debug, Clone)]
+pub struct Config {
+    /// Servisin kendi kimlik doğrulaması yok; dışarıya tek kapı gateway olduğundan
+    /// dinleme adresi 127.0.0.1'e sabittir ve yapılandırılamaz.
+    pub host: Ipv4Addr,
+    pub port: u16,
+    pub models_dir: PathBuf,
+    pub model: String,
+    pub prefer_int8: bool,
+    pub intra_threads: usize,
+    /// Tek ONNX çağrısındaki pencere sayısı. GPU'da büyük batch, başlatma
+    /// maliyetini pencerelere bölerek asıl kazancı sağlar.
+    pub batch_size: usize,
+    pub media_root: Option<PathBuf>,
+}
+
+impl Config {
+    pub fn from_env() -> Self {
+        let models_dir = std::env::var_os("INFERENCE_MODELS_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models"));
+
+        // GPU derlemelerinde fp32 varsayılır; int8 CPU'ya özgüdür.
+        let gpu = cfg!(any(feature = "cuda", feature = "tensorrt", feature = "directml"));
+        let default_int8 = !gpu;
+        // GPU'da batch 256, CED-Base ile 6 GB'lık bir karta sığmıyor: ölçüldü,
+        // DirectML `HRESULT 0x887A0006` (cihaz askıda) ile düşüyor. 64 hem
+        // mütevazı kartlarda güvenli hem de başlatma maliyetini yeterince
+        // amorti ediyor. Bol VRAM'li makinede INFERENCE_BATCH ile yükseltin.
+        let default_batch = if gpu { 64 } else { 32 };
+
+        Self {
+            host: Ipv4Addr::LOCALHOST,
+            port: env_parse("INFERENCE_PORT", 8081),
+            models_dir,
+            // Varsayılan CED-Base: aynı videoda Tiny'nin ürettiği yanlış
+            // pozitifleri (At %81, Kalp atışı, Hapşırık, Baykuş) hiç üretmiyor,
+            // gerçek sesleri ise koruyor. Hız bedeli var ama 9 dakikalık video
+            // yine 7 saniyenin altında bitiyor.
+            // Hız öncelikliyse: INFERENCE_MODEL=ced-tiny
+            model: std::env::var("INFERENCE_MODEL").unwrap_or_else(|_| "ced-base".into()),
+            prefer_int8: env_parse("INFERENCE_INT8", default_int8),
+            intra_threads: env_parse(
+                "INFERENCE_THREADS",
+                std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4),
+            ),
+            batch_size: env_parse("INFERENCE_BATCH", default_batch),
+            media_root: std::env::var_os("INFERENCE_MEDIA_ROOT").map(PathBuf::from),
+        }
+    }
+}
+
+fn env_parse<T: std::str::FromStr>(key: &str, default: T) -> T {
+    std::env::var(key).ok().and_then(|v| v.parse().ok()).unwrap_or(default)
+}
