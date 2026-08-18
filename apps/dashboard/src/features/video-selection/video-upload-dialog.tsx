@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation"
 import { Upload, X, FileVideo, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "http://127.0.0.1:8081"
+const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
 
 type UploadState = "idle" | "dragging" | "uploading" | "done" | "error"
 

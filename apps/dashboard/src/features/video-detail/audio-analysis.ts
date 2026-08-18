@@ -98,7 +98,7 @@ export type AnalysisSource = "live" | "sample" | "loading"
  * yok; bu yüzden yerel geliştirmede doğrudan inference servisine gidiyoruz.
  * Login geldiğinde NEXT_PUBLIC_AUDIO_API gateway'e çevrilir.
  */
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "http://127.0.0.1:8081"
+const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
 
 /** 527 etiket sayfa ömrü boyunca bir kez indirilir. */
 let labelCache: Promise<ClassLabel[]> | null = null

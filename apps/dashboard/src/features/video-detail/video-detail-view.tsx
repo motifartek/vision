@@ -15,7 +15,7 @@ function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: b
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
-        <Button variant="ghost" size="icon" render={<Link href="/videos" />} aria-label="Videolara dön">
+        <Button variant="ghost" size="icon" nativeButton={false} render={<Link href="/videos" />} aria-label="Videolara dön">
           <ArrowLeft />
         </Button>
         <div className="min-w-0">

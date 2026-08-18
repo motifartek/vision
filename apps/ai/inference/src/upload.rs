@@ -123,14 +123,7 @@ pub async fn upload_video(
 
         let dest: PathBuf = root.join(&safe_name);
 
-        // Mevcut dosyayla çakışma kontrolü
-        if dest.exists() {
-            return Err(InferenceError::Config(format!(
-                "'{safe_name}' zaten var; once silin veya farkli isim verin"
-            )));
-        }
-
-        // Dosyayı parça parça akıtarak diske yaz (RAM tüketmez)
+        // Dosyayı parça parça akıtarak diske yaz (RAM tüketmez, varsa üzerine yazar)
         let mut file = fs::File::create(&dest)
             .await
             .map_err(InferenceError::Io)?;

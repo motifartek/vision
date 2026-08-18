@@ -10,7 +10,7 @@ import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/componen
 import { Input } from "@/components/ui/input"
 import { VideoUploadDialog } from "./video-upload-dialog"
 
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "http://127.0.0.1:8081"
+const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
 
 type VideoEntry = {
   id: string
