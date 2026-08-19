@@ -59,6 +59,10 @@ pub struct Analysis {
     pub media: MediaInfo,
     pub model: ModelInfo,
     pub events: Vec<AudioEvent>,
+    /// `max_events` sınırına takılıp olay listesi kısaldıysa `true`. Sessiz
+    /// kırpma, "bu kayıtta başka bir şey yok" gibi okunuyordu; istemci farkı
+    /// söyleyebilsin diye açıkça bildiriliyor. `summary` kırpmadan etkilenmez.
+    pub events_truncated: bool,
     pub summary: Vec<ClassSummary>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frames: Option<Vec<FrameTop>>,

@@ -163,14 +163,31 @@ impl Default for SafetyParams {
     }
 }
 
+/// Bulgu metinlerindeki zaman damgası.
+///
+/// Bir saati aşınca saat alanı açılır: güvenlik kamerası kayıtları saatler
+/// sürüyor ve `mm:ss` biçimi orada `75:30` gibi okunmaz değerler veriyordu.
 fn ts(sec: f32) -> String {
-    format!("{:02}:{:02}", (sec / 60.0) as u32, (sec % 60.0) as u32)
+    let total = sec.max(0.0) as u32;
+    let (hours, minutes, seconds) = (total / 3600, (total % 3600) / 60, total % 60);
+
+    if hours > 0 {
+        format!("{hours}:{minutes:02}:{seconds:02}")
+    } else {
+        format!("{minutes:02}:{seconds:02}")
+    }
 }
 
 fn overlaps(a: &AudioEvent, b: &AudioEvent, tol: f32) -> bool {
     a.start_sec - tol < b.end_sec && b.start_sec - tol < a.end_sec
 }
 
+/// Olay listesinden güvenlik olaylarını ve kural bulgularını çıkarır.
+///
+/// `events` **başlangıç zamanına göre sıralı** gelmeli (`events::segment`
+/// öyle döndürüyor); `vehicle_near_person` bu sıraya güvenerek erken çıkıyor.
+/// Ayrıca liste `max_events` kırpmasından **önceki** tam liste olmalı, yoksa
+/// düşük güvenli bir alarm bulgusuyla birlikte kaybolur.
 pub fn analyze(events: &[AudioEvent], params: &SafetyParams) -> SafetyReport {
     let mut safety_events: Vec<SafetyEvent> = events
         .iter()
@@ -399,6 +416,14 @@ fn vehicle_near_person(events: &[AudioEvent], params: &SafetyParams) -> Vec<Find
     let mut out: Vec<Finding> = Vec::new();
     for v in &vehicles {
         for h in &humans {
+            // `events` zamana göre sıralı geldiğinden `humans` da sıralı: insan
+            // sesi aracın bitişinden sonra başlıyorsa sonrakilerin hepsi de
+            // başlıyor demektir. Kırpma artık bu kuralın girdisini sınırlamadığı
+            // için (bkz. `events::cap_events`) bu erken çıkış, uzun ve gürültülü
+            // kayıtlarda araç × insan taramasını ayakta tutuyor.
+            if h.start_sec - params.cooccurrence_tolerance_sec >= v.end_sec {
+                break;
+            }
             if !overlaps(v, h, params.cooccurrence_tolerance_sec) {
                 continue;
             }
@@ -449,6 +474,17 @@ mod tests {
             confidence: 0.8,
             mean_confidence: 0.7,
         }
+    }
+
+    #[test]
+    fn timestamps_gain_an_hour_field_past_one_hour() {
+        assert_eq!(ts(0.0), "00:00");
+        assert_eq!(ts(75.4), "01:15");
+        assert_eq!(ts(3599.0), "59:59");
+        assert_eq!(ts(3600.0), "1:00:00");
+        // Eskiden "75:30" yazıyordu.
+        assert_eq!(ts(4530.0), "1:15:30");
+        assert_eq!(ts(-5.0), "00:00");
     }
 
     #[test]

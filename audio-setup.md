@@ -169,8 +169,9 @@ Tarayıcıda: `http://localhost:3000/videos`
 | `INFERENCE_MODEL` | `ced-base` | Model alt dizini (`ced-tiny`, `ced-small`, …) |
 | `INFERENCE_INT8` | CPU'da `true` | int8 ağırlıkları tercih et |
 | `INFERENCE_THREADS` | çekirdek sayısı | ONNX Runtime iş parçacığı |
-| `INFERENCE_BATCH` | CPU `32`, GPU `256` | Tek çağrıdaki pencere sayısı |
+| `INFERENCE_BATCH` | CPU `32`, GPU `64` | Tek çağrıdaki pencere sayısı |
 | `INFERENCE_MEDIA_ROOT` | *(yok)* | **Üretimde mutlaka ayarlayın** — ayarlıysa istenen yollar bu kökün dışına çıkamaz |
+| `INFERENCE_MAX_UPLOAD_BYTES` | `0` (sınırsız) | Yükleme tavanı; dosya diske akıtıldığı için varsayılan sınırsız |
 
 ### Gateway Ortam Değişkenleri (Opsiyonel)
 
@@ -211,6 +212,15 @@ curl -X POST http://127.0.0.1:8081/v1/audio/analyze \
 
 ### Gateway (0.0.0.0:8000) — Kimlik doğrulamalı
 
+> [!IMPORTANT]
+> **Gateway şu an istek yolunda değil.** Dashboard `/api/inference` tüneliyle
+> doğrudan inference servisine bağlanıyor, video da Next.js'in statik klasöründen
+> servis ediliyor. Yani bugün sistemde çalışan bir kimlik doğrulama **yok**;
+> Kratos/Keto katmanı derleniyor ve test ediliyor ama akışa dahil değil.
+> Devreye almak için `NEXT_PUBLIC_AUDIO_API` gateway'e çevrilmeli, medya
+> `public/` dışına taşınmalı ve `stream_video` gerçek byte-range akışıyla
+> tamamlanmalı (şu an bilinçli olarak `501` döner).
+
 ```bash
 # Video ses olayları (Kratos oturumu + Keto yetkisi gerekir)
 curl http://localhost:8000/api/videos/test3/audio-events
@@ -242,12 +252,20 @@ Model ağırlıkları indirilmemiş. Çözüm:
 sh apps/ai/inference/scripts/fetch-models.sh ced-base
 ```
 
-### Dashboard'da "Örnek veri" rozeti görünüyor
+### Dashboard'da "Analiz yok" rozeti görünüyor
 
-Inference servisi çalışmıyor veya erişilemiyor. Kontrol:
-1. Servis açık mı? → `curl http://127.0.0.1:8081/healthz`
-2. Medya dosyası doğru yerde mi? → `apps/dashboard/public/media/` altında `<video-adı>.mp4` olmalı
-3. `INFERENCE_MEDIA_ROOT` doğru mu?
+Zaman çizelgesinin başlığında sebep yazar; oradan başlayın. Yaygın olanlar:
+
+| Ekrandaki cümle | Anlamı |
+|---|---|
+| `analiz servisine ulaşılamıyor` | Servis kapalı → `curl http://127.0.0.1:8081/healthz` |
+| `bu kimlikle eşleşen video dosyası yok` | Medya kökünde o adda dosya yok; `INFERENCE_MEDIA_ROOT` doğru mu? |
+| `Dosyada ses akışı yok` | Video sessiz ya da ses izi taşımıyor |
+| `Medya çözümlenemedi: dosya bozuk ya da eksik` | Dosya yarım inmiş/kopyalanmış olabilir |
+
+> Eskiden bu durumda pakete gömülü bir örnek analiz gösteriliyordu ("Örnek veri"
+> rozeti). Başka bir çekimin olayları bu videonun zaman çizelgesine çiziliyordu,
+> bu yüzden kaldırıldı: analiz yoksa şerit boş kalır ve sebebi yazılır.
 
 ### Keto "unable to open database file"
 
@@ -293,9 +311,9 @@ Tarayıcı (localhost:3000)
     │                        │                         CED Model (ONNX Runtime)
     │                        │                         527 sınıf × 3 profil
     │                        │
-    │                        └── Video oynatma  →  /media/<id>.mp4 (statik dosya)
+    │                        └── Video oynatma  →  /media/<dosya> (statik dosya)
     │
-    └── /api/videos/<id>/*  →  Gateway (Rust/Axum, 0.0.0.0:8000)
+    └── /api/videos/<id>/*  →  Gateway (Rust/Axum, 0.0.0.0:8000)   [akışta DEĞİL]
                                     │
                                     ├── Kratos  →  kim bu?
                                     ├── Keto    →  yetkisi var mı?

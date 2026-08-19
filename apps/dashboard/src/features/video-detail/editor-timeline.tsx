@@ -12,6 +12,8 @@ type Props = {
   source: AnalysisSource
   /** Analiz yapılamadıysa sebebi — servisin kendi cümlesi. */
   error: string | null
+  /** Eşik değişti, yeni analiz yolda: eldeki çizim duruyor ama bayat. */
+  refreshing: boolean
   duration: number
   threshold: number
   nameOf: (index: number) => string
@@ -66,6 +68,9 @@ function tickStep(pxPerSec: number) {
   return candidates.find((c) => c * pxPerSec >= targetPx) ?? 900
 }
 
+/** Bir karede gösterilecek sınıf ve o karedeki skoru. */
+type Pick = { cls: number; score: number }
+
 type Segment = {
   classIndex: number
   start: number
@@ -74,7 +79,7 @@ type Segment = {
   alert: AlertLevel | null
 }
 
-export function EditorTimeline({ analysis, source, error, duration, threshold, nameOf, severityOf, onSeek, subscribe }: Props) {
+export function EditorTimeline({ analysis, source, error, refreshing, duration, threshold, nameOf, severityOf, onSeek, subscribe }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
@@ -85,13 +90,20 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
   const autoZoomed = useRef(false)
 
   const total = duration || analysis?.media.duration_sec || 1
+  /**
+   * Yarım pencere. Sunucu olayları pencerenin **başlangıcıyla** raporluyor
+   * (`start_sec = start_w * hop`), şerit ise pencere merkezine hizalanıyor.
+   * Aynı olayın iki temsili üst üste gelsin diye ikisi de bu kaymayı kullanır.
+   */
+  const center = (analysis?.model.window_sec ?? 0) / 2
   const trackW = Math.max(viewW - 24, 240)
   const basePxPerSec = trackW / total
   const pxPerSec = basePxPerSec * zoom
   const contentW = total * pxPerSec
 
   /**
-   * Her an için **yalnız baskın sesi** göster.
+   * Her an için **tek bir sesi** göster: eşiği geçen bir uyarı sınıfı varsa onu,
+   * yoksa baskın olanı.
    *
    * Sınıf başına ayrı şerit denendi ve okunmuyordu: 12 seyrek satır, çoğu boş,
    * bloklar birkaç piksel. Tek satırda ardışık etiketli bloklar hem video
@@ -103,10 +115,27 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
     if (!frames?.length) return []
     const hop = analysis?.model.hop_sec ?? 0.5
 
-    // 1) Kare başına baskın sınıf
-    const raw: (number | null)[] = frames.map((f) => {
-      const best = f.top[0]
-      return best && best[1] >= threshold ? best[0] : null
+    // 1) Kare başına gösterilecek sınıf.
+    //
+    //    Yalnız baskın sesi (`top[0]`) almak yanlıştı: gürültülü bir sahada
+    //    makine sesi %90 iken çığlık %45'te kalıyor ve şeritte hiç kırmızı
+    //    görünmüyordu — güvenlik paneli "1 bulgu" derken başlıktaki sayaç
+    //    "Kritik 0" diyordu, aynı ekranda iki farklı gerçek. İş güvenliği
+    //    aracında öncelik gürültünün değil, uyarının: pencerede eşiği geçen bir
+    //    kritik/uyarı sınıfı varsa blok onu gösterir.
+    const raw: (Pick | null)[] = frames.map((f) => {
+      let chosen: Pick | null = null
+      let chosenIsAlert = false
+      // `top` skora göre sıralı geliyor; ilk geçen zaten en yüksek skorlu.
+      for (const [cls, score] of f.top) {
+        if (score < threshold) continue
+        const isAlert = alertLevel(severityOf(cls)) !== null
+        if (!chosen || (isAlert && !chosenIsAlert)) {
+          chosen = { cls, score }
+          chosenIsAlert = isAlert
+        }
+      }
+      return chosen
     })
 
     // 2) Titreme süzgeci (3'lü medyan). Benzer sınıflar (Uğultu ↔ Şebeke
@@ -114,8 +143,12 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
     //    üretiyordu; komşuları hemfikirse tek kareyi onlara uydur.
     const smooth = raw.slice()
     for (let i = 1; i < raw.length - 1; i++) {
-      if (raw[i - 1] !== null && raw[i - 1] === raw[i + 1] && raw[i] !== raw[i - 1]) {
-        smooth[i] = raw[i - 1]
+      const prev = raw[i - 1]
+      const next = raw[i + 1]
+      if (prev && next && prev.cls === next.cls && raw[i]?.cls !== prev.cls) {
+        // Skor komşudan değil, bu karenin kendi ölçümünden gelsin.
+        const own = frames[i].top.find(([cls]) => cls === prev.cls)
+        smooth[i] = { cls: prev.cls, score: own ? own[1] : prev.score }
       }
     }
 
@@ -123,29 +156,36 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
     //    `frame.t` pencerenin başlangıcı, ama pencere `[t, t+window]` aralığını
     //    anlatıyor — blok, tarif ettiği sesin üstünde dursun diye yarım pencere
     //    kaydırılıyor. Kaydırmazsak bloklar videodan window/2 kadar önde görünür.
-    const center = (analysis?.model.window_sec ?? 0) / 2
     const out: Segment[] = []
     let cur: Segment | null = null
     for (let i = 0; i < smooth.length; i++) {
-      const cls = smooth[i]
-      const score = frames[i].top[0]?.[1] ?? 0
+      const pick = smooth[i]
       const at = frames[i].t + center
-      if (cls !== null && cur && cur.classIndex === cls) {
+      if (pick && cur && cur.classIndex === pick.cls) {
         cur.end = at + hop
-        cur.peak = Math.max(cur.peak, score)
+        cur.peak = Math.max(cur.peak, pick.score)
       } else {
         if (cur) out.push(cur)
-        cur =
-          cls === null
-            ? null
-            : { classIndex: cls, start: at, end: at + hop, peak: score, alert: alertLevel(severityOf(cls)) }
+        cur = pick
+          ? {
+              classIndex: pick.cls,
+              start: at,
+              end: at + hop,
+              peak: pick.score,
+              alert: alertLevel(severityOf(pick.cls)),
+            }
+          : null
       }
     }
     if (cur) out.push(cur)
     return out
-  }, [analysis, threshold, severityOf])
+  }, [analysis, threshold, severityOf, center])
 
-  /** Başlıktaki sayaç: "hiç kırmızı yok" ile "arayüz bozuk" ayrımı için. */
+  /**
+   * Başlıktaki sayaç: "hiç kırmızı yok" ile "arayüz bozuk" ayrımı için.
+   * Saydığı şey **şeritteki blok sayısı**, olay sayısı değil — parçalı bir alarm
+   * birkaç blok üretebilir. Rozetin `title`'ı bunu açıkça söylüyor.
+   */
   const alertCounts = useMemo(() => {
     let critical = 0
     let warning = 0
@@ -332,7 +372,11 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
                bozuk olduğu izlenimi veriyordu. */
             <span className="flex items-center gap-2.5 text-[10px] text-muted-foreground">
               {(["critical", "warning"] as const).map((lvl) => (
-                <span key={lvl} className="flex items-center gap-1 tabular-nums">
+                <span
+                  key={lvl}
+                  className="flex items-center gap-1 tabular-nums"
+                  title={`Şeritteki ${ALERT_PAINT[lvl].label.toLocaleLowerCase("tr")} blok sayısı; parçalı bir ses birden çok blok üretebilir.`}
+                >
                   <span className="size-2 shrink-0 rounded-[2px]" style={{ background: ALERT_PAINT[lvl].bg }} />
                   {ALERT_PAINT[lvl].label} {lvl === "critical" ? alertCounts.critical : alertCounts.warning}
                 </span>
@@ -350,6 +394,14 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
               title={`Çözme ${analysis.timing.decode_ms} ms · mel ${analysis.timing.mel_ms} ms · model ${analysis.timing.inference_ms} ms · ${analysis.timing.realtime_factor.toFixed(1)}× gerçek zaman`}
             >
               Analiz {formatAnalysisTime(analysis.timing.total_ms)}
+            </span>
+          )}
+          {refreshing && (
+            /* Eşik değişti, sonuç yolda. Çizimi boşaltmıyoruz ama ekrandakinin
+               bir önceki eşiğe ait olduğunu söylemek gerekiyor. */
+            <span className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+              <span className="size-1.5 animate-pulse rounded-full bg-primary" />
+              Yeni eşiğe göre güncelleniyor
             </span>
           )}
         </div>
@@ -410,22 +462,27 @@ export function EditorTimeline({ analysis, source, error, duration, threshold, n
           {(analysis?.safety?.findings.length ?? 0) > 0 && (
             <div className="relative mt-2 h-3">
               {analysis!.safety.findings.map((f, i) => {
-                const w = Math.max(4, (f.end_sec - f.start_sec) * pxPerSec)
+                // Sunucu bulguyu pencerenin başlangıcıyla veriyor, şerit ise
+                // pencere merkezine hizalı: kaydırmazsak bant, tarif ettiği
+                // kırmızı bloğun yarım pencere solunda duruyordu.
+                const start = f.start_sec + center
+                const end = Math.max(start, f.end_sec - center)
+                const w = Math.max(4, (end - start) * pxPerSec)
                 const col = f.severity === "critical" ? "var(--destructive)" : "#F5A524"
                 return (
                   <button
                     key={i}
                     type="button"
-                    onClick={() => onSeek(f.start_sec, true)}
+                    onClick={() => onSeek(start, true)}
                     className="absolute inset-y-0 rounded-r-[2px] transition-[filter] hover:brightness-125 focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-hidden"
                     style={{
-                      left: f.start_sec * pxPerSec,
+                      left: start * pxPerSec,
                       width: w,
                       background: `color-mix(in oklab, ${col} 22%, transparent)`,
                       borderLeft: `3px solid ${col}`,
                     }}
-                    title={`${f.title} · ${formatTime(f.start_sec)} — ${f.detail}`}
-                    aria-label={`${f.title}, ${formatTime(f.start_sec)} konumuna git`}
+                    title={`${f.title} · ${formatTime(start)} — ${f.detail}`}
+                    aria-label={`${f.title}, ${formatTime(start)} konumuna git`}
                   />
                 )
               })}

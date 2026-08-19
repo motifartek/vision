@@ -302,7 +302,7 @@ pub async fn decode_ffmpeg(path: &Path, max_samples: usize) -> Result<Decoded, I
     } else {
         let status = child.wait().await?;
         if !status.success() {
-            return Err(classify(&log));
+            return Err(classify(&log, path));
         }
     }
 
@@ -312,21 +312,92 @@ pub async fn decode_ffmpeg(path: &Path, max_samples: usize) -> Result<Decoded, I
         .collect();
 
     if samples.is_empty() {
-        return Err(if log.is_empty() { InferenceError::NoAudioStream } else { classify(&log) });
+        return Err(if log.is_empty() {
+            InferenceError::NoAudioStream
+        } else {
+            classify(&log, path)
+        });
     }
 
     Ok(Decoded { samples, truncated, backend: "ffmpeg" })
 }
 
-fn classify(log: &str) -> InferenceError {
+/// ffmpeg'in stderr çıktısını istemciye gösterilebilir bir hataya çevirir.
+///
+/// Ham log **yanıta konmaz**. İçinde sunucunun mutlak yolu geçiyor
+/// (`\\?\C:\Users\...\media\x.mp4`) ve arayüz bu metni başlıkta birebir
+/// basıyordu: hem bilgi sızıntısı hem de kullanıcının hiçbir şey yapamayacağı
+/// çok satırlı bir döküm. Ayrıntı log'a gider, istemciye sebebin insan
+/// dilindeki karşılığı döner.
+fn classify(log: &str, path: &Path) -> InferenceError {
     let lower = log.to_lowercase();
-    if lower.contains("matches no streams") || lower.contains("does not contain any stream") {
-        InferenceError::NoAudioStream
-    } else if lower.contains("no such file") {
-        InferenceError::MediaNotFound(log.trim().to_string())
-    } else {
-        InferenceError::Ffmpeg(log.trim().to_string())
+    let has = |needles: &[&str]| needles.iter().any(|n| lower.contains(n));
+
+    if has(&["matches no streams", "does not contain any stream"]) {
+        return InferenceError::NoAudioStream;
     }
+    if has(&["no such file"]) {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("dosya");
+        return InferenceError::MediaNotFound(name.to_string());
+    }
+
+    tracing::warn!(
+        dosya = %path.display(),
+        ffmpeg = log.trim(),
+        "medya çözümlenemedi"
+    );
+
+    if has(&["moov atom not found", "invalid data found", "header parsing failed", "truncat"]) {
+        InferenceError::Ffmpeg("dosya bozuk ya da eksik".into())
+    } else if has(&["decoder not found", "unknown codec", "unsupported", "no decoder"]) {
+        InferenceError::Ffmpeg("bu biçim veya kodek desteklenmiyor".into())
+    } else {
+        InferenceError::Ffmpeg("ses akışı çözülemedi".into())
+    }
+}
+
+/// Dosyayı çözmeden süresini okur — yalnız kapsayıcı başlığı.
+///
+/// Listeleme için gerekli: 24 dosyalık bir klasörde tam çözme dakikalar sürerdi,
+/// başlık okuması ise dosya başına birkaç milisaniye. Başlıkta süre yoksa
+/// (canlı akış, bozuk dosya) `None` döner ve arayüz "—" gösterir.
+pub fn probe_duration(path: &Path) -> Option<f32> {
+    let file = File::open(path).ok()?;
+    let stream = MediaSourceStream::new(Box::new(file), Default::default());
+
+    let mut hint = Hint::new();
+    if let Some(extension) = path.extension().and_then(|e| e.to_str()) {
+        hint.with_extension(extension);
+    }
+
+    let format = symphonia::default::get_probe()
+        .probe(&hint, stream, FormatOptions::default(), MetadataOptions::default())
+        .ok()?;
+
+    // İzlerin en uzunu alınır: kimi dosyada ses izi süreyi bildirmiyor ama video
+    // izi bildiriyor. Ölçüldü — yalnız ses izine bakınca 21 dosyanın 4'ü "0 sn"
+    // diyordu ve arayüzde "00:00" görünüyordu; bu, süreyi hiç bilmemekten kötü.
+    let mut longest = 0.0f32;
+
+    for track in format.tracks() {
+        if let Some(time_base) = track.time_base {
+            if let Some(time) = track.duration.and_then(|d| time_base.calc_duration(d)) {
+                longest = longest.max(time.as_secs_f64() as f32);
+            }
+        }
+
+        // Kapsayıcı süreyi yazmıyorsa çerçeve sayısından türet.
+        if let (Some(frames), Some(CodecParameters::Audio(params))) =
+            (track.num_frames, track.codec_params.as_ref())
+        {
+            if let Some(rate) = params.sample_rate {
+                longest = longest.max(frames as f32 / rate as f32);
+            }
+        }
+    }
+
+    // Sıfır "bilinmiyor" demektir; arayüz bunu "—" olarak gösteriyor.
+    (longest > 0.0).then_some(longest)
 }
 
 #[cfg(test)]

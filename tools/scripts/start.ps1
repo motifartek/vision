@@ -69,6 +69,23 @@ if (-not $ready) {
 
 Write-Host "Inference hazir (PID $($inferenceProc.Id), port 8081)" -ForegroundColor Green
 
+# Sagalayici zinciri derleme zamaninda belirleniyor: feature'siz derlenen ikili
+# GPU olsa da CPU'da kosar ve bunu hicbir yerde soylemez. Olculdu: 1s40dk'lik
+# kayit CPU'da 298 sn, DirectML ile 44 sn. Sessizce 7 kat yavas calismak, en
+# pahali hata turu - o yuzden burada yuze soyluyoruz.
+try {
+    $health = $resp.Content | ConvertFrom-Json
+    $providers = @($health.model.providers)
+    if ($providers -contains "DirectML" -or $providers -contains "CUDA" -or $providers -contains "TensorRT") {
+        Write-Host "  GPU saglayici: $($providers -join ', ') / $($health.model.weights)" -ForegroundColor Green
+    } else {
+        Write-Host "  [!] Yalnizca CPU calisiyor ($($providers -join ', '))." -ForegroundColor Yellow
+        Write-Host "      GPU icin:  .\tools\scripts\setup.ps1 -Gpu -SkipDashboard" -ForegroundColor DarkGray
+    }
+} catch {
+    # Saglik yaniti okunamadiysa baslatmayi engellemeye degmez.
+}
+
 # --- dashboard baslat ---
 Write-Host "Dashboard baslatiliyor..." -ForegroundColor Cyan
 

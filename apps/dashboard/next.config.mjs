@@ -1,8 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // `ignoreBuildErrors` açıktı: tip hataları derlemeyi durdurmuyordu. Kod tabanı
+  // şu an `tsc --noEmit` ile temiz, yani kapatmak için doğru an — açık kalsaydı
+  // ilerideki her tip hatası sessizce üretime kadar giderdi.
   images: {
     unoptimized: true,
   },

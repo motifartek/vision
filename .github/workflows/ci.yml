@@ -1,0 +1,69 @@
+name: CI
+
+# Depoda otomatik doğrulama yoktu: `cargo test` yerelde geçiyordu ama kimse
+# çalıştırmazsa sessizce bozulurdu. Bu iş akışı iki tarafı da her itmede sınar.
+#
+# Ağ yalnız **burada** gerekiyor (GitHub koşucusu bağımlılıkları indirir).
+# Ürünün kendisi çevrimdışı çalışmaya devam ediyor: kurulum bittikten sonra ne
+# dashboard ne de inference dışarıya bir istek atıyor.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  rust:
+    name: inference + gateway
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Rust araç zinciri
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - name: Derleme önbelleği
+        uses: Swatinem/rust-cache@v2
+
+      # gateway'in build.rs'i Keto proto'sunu derliyor; tonic-build protoc arar.
+      - name: protoc
+        run: sudo apt-get update && sudo apt-get install -y protobuf-compiler
+
+      - name: Testler
+        run: cargo test --workspace
+
+      - name: Clippy
+        run: cargo clippy --workspace --all-targets
+
+  dashboard:
+    name: dashboard
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/dashboard
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/dashboard/pnpm-lock.yaml
+
+      - name: Bağımlılıklar
+        run: pnpm install --frozen-lockfile
+
+      # `next build` tip hatalarını artık yutmuyor (ignoreBuildErrors kapatıldı),
+      # ama tip denetimini ayrı koşturmak hatayı derlemeden önce ve daha okunur
+      # bir çıktıyla gösteriyor.
+      - name: Tip denetimi
+        run: npx tsc --noEmit
+
+      - name: Derleme
+        run: pnpm build

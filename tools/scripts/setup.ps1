@@ -1,14 +1,21 @@
 # vision - tek komutluk kurulum (Windows / PowerShell)
 #
-#   .\tools\scripts\setup.ps1                  # CPU
-#   .\tools\scripts\setup.ps1 -Gpu             # DirectML (her DX12 GPU, CUDA gerekmez)
+#   .\tools\scripts\setup.ps1                  # DirectML (varsayilan, her DX12 GPU)
+#   .\tools\scripts\setup.ps1 -Cpu             # GPU istemiyorsaniz
 #   .\tools\scripts\setup.ps1 -Model ced-small # daha isabetli model
+#
+# Varsayilan neden GPU: olculdu, 1 saat 40 dakikalik kayit CPU'da 298 sn,
+# DirectML ile 44 sn suruyor. Bayragi unutan biri yedi kat yavas bir kurulum
+# elde ediyordu. DirectML DX12 destekleyen her kartta calisir; bulamazsa ONNX
+# Runtime sessizce CPU'ya doner, yani ayni ikili GPU'suz makinede de calisir.
 #
 # Kurulum internet ister (model agirliklari, crate'ler, npm paketleri).
 # Kurulduktan sonra sistem tamamen cevrimdisi calisir.
 
 param(
     [string]$Model = "ced-base",
+    [switch]$Cpu,
+    # Geriye donuk uyumluluk: eski belgelerde ve kaslarda -Gpu var, artik varsayilan.
     [switch]$Gpu,
     [switch]$SkipDashboard
 )
@@ -59,18 +66,31 @@ if ($running) {
 
 Push-Location $repo
 try {
-    if ($Gpu) {
-        Write-Host "  DirectML ile derleniyor (GPU)..." -ForegroundColor DarkGray
-        cargo build -p inference --release --features directml
-    } else {
+    # Ayni feature seti hem derlemede hem dogrulamada kullanilir. Eskiden
+    # dogrulama adimi feature'siz kosuyordu: kurulan GPU derlemesini degil CPU
+    # yolunu sinar, ustelik crate'i her seferinde bastan derlerdi.
+    if ($Cpu) {
         Write-Host "  CPU icin derleniyor..." -ForegroundColor DarkGray
-        cargo build -p inference --release
+        $features = @()
+    } else {
+        Write-Host "  DirectML ile derleniyor (GPU)..." -ForegroundColor DarkGray
+        $features = @("--features", "directml")
     }
+
+    cargo build -p inference --release $features
     if ($LASTEXITCODE -ne 0) { throw "cargo build basarisiz" }
 
     Write-Host "`n  Dogrulama kapisi (mel hatti referansla uyumlu mu)" -ForegroundColor DarkGray
-    cargo run -p inference --release --bin verify-mel
-    if ($LASTEXITCODE -ne 0) { throw "dogrulama kapisi gecilemedi - mel hattinda sorun var" }
+    cargo run -p inference --release $features --bin verify-mel
+    if ($LASTEXITCODE -ne 0) {
+        # "Uygulama Denetimi ilkesi bu dosyayi engelledi (os error 4551)" mel
+        # hattiyla ilgili degildir: Windows Smart App Control yeni derlenmis
+        # imzasiz ikilileri engelliyor. Yanlis teshis koymayalim.
+        Write-Host "  [!] Dogrulama kapisi calistirilamadi ya da gecilemedi." -ForegroundColor Yellow
+        Write-Host "      Ciktida 'Uygulama Denetimi ilkesi' geciyorsa sorun mel hattinda degil;" -ForegroundColor DarkGray
+        Write-Host "      Windows Smart App Control imzasiz ikiliyi engelliyor demektir." -ForegroundColor DarkGray
+        throw "dogrulama kapisi gecilemedi"
+    }
 } finally {
     Pop-Location
 }

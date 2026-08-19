@@ -37,6 +37,10 @@ pub struct Config {
     /// maliyetini pencerelere bölerek asıl kazancı sağlar.
     pub batch_size: usize,
     pub media_root: Option<PathBuf>,
+    /// Yükleme tavanı, bayt. `0` = sınırsız (varsayılan): dosya belleğe
+    /// alınmadan diske akıtıldığı için büyük videolar sorun değil. Diski
+    /// koruması gereken kurulumlar buraya bir tavan koyabilir.
+    pub max_upload_bytes: u64,
 }
 
 impl Config {
@@ -71,6 +75,7 @@ impl Config {
             ),
             batch_size: env_parse("INFERENCE_BATCH", default_batch),
             media_root: std::env::var_os("INFERENCE_MEDIA_ROOT").map(PathBuf::from),
+            max_upload_bytes: env_parse("INFERENCE_MAX_UPLOAD_BYTES", 0),
         }
     }
 }

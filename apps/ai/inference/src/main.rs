@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tower_http::cors::CorsLayer;
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 use inference::api::{self, AppState};
@@ -55,8 +55,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
 
-    // Dashboard ve yerel geliştirme için esnek CORS (localhost, 127.0.0.1 ve yerel ağ)
-    let cors = CorsLayer::permissive();
+    // Köken yerel arayüzle sınırlı: servis zaten yalnız 127.0.0.1 dinliyor, yani
+    // `permissive` yerel ağa erişim kazandırmıyordu — yalnızca herhangi bir web
+    // sayfasının tarayıcı üzerinden buraya istek atmasına (silme dahil) izin
+    // veriyordu. Port serbest, çünkü dashboard 3000 dışında da çalışabiliyor.
+    let cors = CorsLayer::new()
+        .allow_origin(AllowOrigin::predicate(|origin, _| {
+            origin.to_str().map(api::is_local_origin).unwrap_or(false)
+        }))
+        .allow_methods(Any)
+        .allow_headers(Any);
 
     // Video yüklemeleri için boyut limitini tamamen kaldırıyoruz (3GB, 10GB vs. sınırsız)
     let app = api::router(state)

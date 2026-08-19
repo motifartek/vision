@@ -40,7 +40,6 @@ pub struct SegmentParams {
     pub min_duration_sec: f32,
     /// Bu kadar veya daha kısa boşlukla ayrılan aynı sınıf segmentleri birleşir.
     pub gap_sec: f32,
-    pub max_events: usize,
     pub window_sec: f32,
     pub hop_sec: f32,
     pub duration_sec: f32,
@@ -185,11 +184,9 @@ pub fn segment(
         }
     }
 
-    // En güvenilir olaylar korunacak şekilde kırp, sonra zamana göre sırala.
-    if events.len() > p.max_events {
-        events.sort_unstable_by(|a, b| b.confidence.total_cmp(&a.confidence));
-        events.truncate(p.max_events);
-    }
+    // Kırpma burada **yapılmaz**: güvenlik kuralları tam liste üzerinde koşmalı
+    // (bkz. `cap_events`). Buradan çıkan liste zamana göre sıralıdır ve
+    // `vehicle_near_person` bu sıraya güvenerek erken çıkış yapıyor.
     events.sort_unstable_by(|a, b| {
         a.start_sec.total_cmp(&b.start_sec).then(b.confidence.total_cmp(&a.confidence))
     });
@@ -197,6 +194,44 @@ pub fn segment(
     summaries.sort_unstable_by(|a, b| b.total_sec.total_cmp(&a.total_sec));
 
     (events, summaries)
+}
+
+/// Olay listesini `max` tanesine indirir; kırpma yapıldıysa `true` döner.
+///
+/// **Kota önce güvenlik sınıflarına ayrılır.** Eskiden kırpma yalnız güven
+/// değerine bakıyordu ve güvenlik kuralları da kırpılmış liste üzerinde
+/// koşuyordu: gürültülü bir kayıtta %40'lık gerçek bir alarm, 500 tane %90'lık
+/// makine sesinin altında kalıp eleniyor ve **hiçbir bulgu üretilmiyordu** —
+/// hata da uyarı da vermeden. Artık çağıran önce `safety::analyze`'i tam liste
+/// üzerinde koşturur, sonra burayı çağırır; burada da güvenlikle ilgili olaylar
+/// önce yerini alır, kalan kota diğerlerine güven sırasıyla dağıtılır.
+pub fn cap_events(events: &mut Vec<AudioEvent>, max: usize) -> bool {
+    if events.len() <= max {
+        return false;
+    }
+
+    let by_confidence =
+        |a: &AudioEvent, b: &AudioEvent| b.confidence.total_cmp(&a.confidence);
+
+    let (mut keep, mut rest): (Vec<AudioEvent>, Vec<AudioEvent>) = std::mem::take(events)
+        .into_iter()
+        .partition(|e| crate::safety::lookup(&e.label).is_some());
+
+    if keep.len() > max {
+        // Güvenlik olayları tek başına kotayı aşıyorsa aralarında güven sırası.
+        keep.sort_unstable_by(by_confidence);
+        keep.truncate(max);
+    } else {
+        rest.sort_unstable_by(by_confidence);
+        rest.truncate(max - keep.len());
+        keep.append(&mut rest);
+    }
+
+    keep.sort_unstable_by(|a, b| {
+        a.start_sec.total_cmp(&b.start_sec).then(b.confidence.total_cmp(&a.confidence))
+    });
+    *events = keep;
+    true
 }
 
 #[cfg(test)]
@@ -222,7 +257,6 @@ mod tests {
             release: 0.3,
             min_duration_sec: 0.0,
             gap_sec: 0.0,
-            max_events: 100,
             window_sec: 2.0,
             hop_sec: 1.0,
             duration_sec: 100.0,
@@ -282,6 +316,68 @@ mod tests {
         let scores = build(&[0.0, 0.9]);
         let (events, _) = segment(&scores, 2, &labels(), &p);
         assert_eq!(events[0].end_sec, 2.5);
+    }
+
+    fn event(label: &str, start: f32, confidence: f32) -> AudioEvent {
+        AudioEvent {
+            class_index: 0,
+            label: label.into(),
+            label_tr: label.into(),
+            mid: String::new(),
+            start_sec: start,
+            end_sec: start + 1.0,
+            peak_sec: start,
+            confidence,
+            mean_confidence: confidence,
+        }
+    }
+
+    #[test]
+    fn cap_keeps_safety_events_over_louder_noise() {
+        // Kota 3; üç yüksek güvenli gürültü ve bir düşük güvenli alarm var.
+        // Güven sırasına göre kırpılsaydı alarm elenirdi — asıl aranan o.
+        let mut events = vec![
+            event("Music", 0.0, 0.95),
+            event("Music", 10.0, 0.94),
+            event("Music", 20.0, 0.93),
+            event("Fire alarm", 30.0, 0.40),
+        ];
+        assert!(cap_events(&mut events, 3));
+        assert_eq!(events.len(), 3);
+        assert!(
+            events.iter().any(|e| e.label == "Fire alarm"),
+            "güvenlik olayı kırpmadan muaf olmalı: {events:#?}"
+        );
+    }
+
+    #[test]
+    fn cap_returns_events_in_time_order() {
+        let mut events = vec![
+            event("Music", 30.0, 0.9),
+            event("Music", 10.0, 0.8),
+            event("Fire alarm", 20.0, 0.5),
+        ];
+        assert!(cap_events(&mut events, 2));
+        assert!(events[0].start_sec <= events[1].start_sec, "{events:#?}");
+    }
+
+    #[test]
+    fn cap_is_noop_under_the_limit() {
+        let mut events = vec![event("Music", 0.0, 0.9)];
+        assert!(!cap_events(&mut events, 500));
+        assert_eq!(events.len(), 1);
+    }
+
+    #[test]
+    fn cap_trims_safety_events_by_confidence_when_they_alone_exceed() {
+        let mut events = vec![
+            event("Fire alarm", 0.0, 0.3),
+            event("Screaming", 10.0, 0.9),
+            event("Explosion", 20.0, 0.6),
+        ];
+        assert!(cap_events(&mut events, 2));
+        assert_eq!(events.len(), 2);
+        assert!(!events.iter().any(|e| e.label == "Fire alarm"), "en zayıfı düşmeli");
     }
 
     #[test]

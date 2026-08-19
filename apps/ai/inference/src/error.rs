@@ -25,6 +25,15 @@ pub enum InferenceError {
     #[error("Bu yol INFERENCE_MEDIA_ROOT dışında, erişim reddedildi")]
     PathNotAllowed,
 
+    #[error("Yalnız video dosyaları yüklenebilir; «{0}» kabul edilmiyor")]
+    UnsupportedUpload(String),
+
+    #[error("«{0}» kimliği «{1}» dosyasında kullanılıyor; farklı bir ad verin")]
+    IdConflict(String, String),
+
+    #[error("Dosya boyutu sınırı aşıldı ({0} bayt)")]
+    UploadTooLarge(u64),
+
     #[error("Model hatası: {0}")]
     Model(String),
 
@@ -42,6 +51,9 @@ impl IntoResponse for InferenceError {
             Self::PathNotAllowed => StatusCode::FORBIDDEN,
             // Çözülemeyen ya da sessiz medya istemci tarafı bir sorundur.
             Self::NoAudioStream | Self::Ffmpeg(_) => StatusCode::UNPROCESSABLE_ENTITY,
+            Self::UnsupportedUpload(_) => StatusCode::UNSUPPORTED_MEDIA_TYPE,
+            Self::IdConflict(_, _) => StatusCode::CONFLICT,
+            Self::UploadTooLarge(_) => StatusCode::PAYLOAD_TOO_LARGE,
             Self::FfmpegMissing | Self::Model(_) | Self::Config(_) | Self::Io(_) => {
                 StatusCode::INTERNAL_SERVER_ERROR
             }

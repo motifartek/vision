@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { useEffect, useMemo, useRef, useState } from "react"
 
 export type AudioEvent = {
   class_index: number
@@ -66,6 +66,8 @@ export type Analysis = {
     batch_size: number
   }
   events: AudioEvent[]
+  /** `max_events` sınırına takıldıysa `true`; `summary` kırpmadan etkilenmez. */
+  events_truncated: boolean
   summary: ClassSummary[]
   safety: SafetyReport
   frames?: Frame[]
@@ -97,7 +99,7 @@ export type AnalysisSource = "live" | "error" | "loading"
  * yok; bu yüzden yerel geliştirmede doğrudan inference servisine gidiyoruz.
  * Login geldiğinde NEXT_PUBLIC_AUDIO_API gateway'e çevrilir.
  */
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+export const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
 
 /** Servis kapalı/erişilemez durumunun tek metni. */
 const SERVICE_DOWN = "analiz servisine ulaşılamıyor"
@@ -120,7 +122,20 @@ function fetchLabels(): Promise<ClassLabel[]> {
   return labelCache
 }
 
-export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
+/**
+ * `mediaPath` uzantılı gerçek dosya adı olmalı (bkz. `useMediaFile`). Henüz
+ * çözülmediyse `null` geçilir: istek atılmaz, durum "loading" kalır.
+ *
+ * `threshold` **sunucuya gider**. Eskiden istek sabit %35 ile atılıyordu:
+ * kaydırıcı yalnız şeridin çizimini süzüyor, olaylar/özet/güvenlik bulguları
+ * %35'te kalıyordu — aynı ekranda iki farklı eşik. Çağıran bu değeri geciktirerek
+ * (debounce) versin, yoksa kaydırıcının her adımı yeni bir çözümleme başlatır.
+ */
+export function useAudioAnalysis(
+  mediaPath: string | null,
+  profile = "dengeli",
+  threshold = 0.35,
+) {
   // Başlangıçta örnek veriyle doldurmuyoruz: örnek başka bir videonun analizi
   // ve onu istenen videonun zaman çizelgesine çizmek olayları yanlış yerde
   // (genelde sola yığılmış) gösteriyordu. Analiz gelene kadar `null`.
@@ -128,12 +143,27 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
   const [labels, setLabels] = useState<ClassLabel[] | null>(null)
   const [source, setSource] = useState<AnalysisSource>("loading")
   const [error, setError] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  /** Hangi video/profil için veri elimizde: eşik değişiminde ekranı boşaltmamak için. */
+  const shownFor = useRef<string | null>(null)
 
   useEffect(() => {
     let cancelled = false
-    setAnalysis(null)
-    setSource("loading")
-    setError(null)
+    const key = mediaPath === null ? null : `${mediaPath}|${profile}`
+    // Yalnız eşik değiştiyse eldeki analizi ekranda tutuyoruz: her kaydırma
+    // adımında çizelgeyi iskelete döndürmek, tutarlılık için ödenecek bedelden
+    // çok daha rahatsız edici.
+    const keepVisible = key !== null && key === shownFor.current
+
+    if (keepVisible) {
+      setRefreshing(true)
+    } else {
+      setAnalysis(null)
+      setSource("loading")
+      setError(null)
+    }
+    // Dosya adı henüz çözülmedi ya da çözülemedi; sebebi çağıran gösteriyor.
+    if (!mediaPath) return
 
     async function run() {
       try {
@@ -144,7 +174,7 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
             body: JSON.stringify({
               path: mediaPath,
               profile,
-              threshold: 0.35,
+              threshold,
               // Canlı okuma paneli pencere başına ilk-K sınıfı kullanıyor.
               include_frames: true,
               top_k: 6,
@@ -170,6 +200,7 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
         setLabels(labelList)
         setSource("live")
         setError(null)
+        shownFor.current = key
       } catch (cause) {
         if (cancelled) return
         /**
@@ -181,6 +212,7 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
          */
         setAnalysis(null)
         setSource("error")
+        shownFor.current = null
         // Ağ seviyesinde düşen fetch `TypeError` atar; mesajı ("Failed to
         // fetch") kullanıcıya gösterilecek bir şey değil.
         setError(
@@ -190,6 +222,8 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
               ? cause.message
               : "bilinmeyen hata"
         )
+      } finally {
+        if (!cancelled) setRefreshing(false)
       }
     }
 
@@ -197,7 +231,7 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
     return () => {
       cancelled = true
     }
-  }, [mediaPath, profile])
+  }, [mediaPath, profile, threshold])
 
   /** Sınıf indeksi → Türkçe ad. Etiketler gelmediyse olaylardan türetilir. */
   const nameOf = useMemo(() => {
@@ -228,5 +262,5 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
     return (index: number) => map.get(index) ?? null
   }, [labels])
 
-  return { analysis, source, error, nameOf, severityOf }
+  return { analysis, source, error, refreshing, nameOf, severityOf }
 }

@@ -103,7 +103,21 @@ export function NowPlayingPanel({ analysis, source, currentTime, threshold, name
           <Badge variant="outline" className="text-[10px]">
             <Gauge /> {analysis.timing.realtime_factor.toFixed(0)}× gerçek zaman
           </Badge>
-          <Badge variant="outline" className="text-[10px]">{analysis.events.length} olay</Badge>
+          {/* Kırpma sessiz kalırsa "bu kayıtta başka bir şey yok" diye okunuyor;
+              artı işareti listenin tam olmadığını söylüyor. Güvenlik olayları
+              kırpmadan muaf, yani bulgular eksilmiyor. */}
+          <Badge
+            variant="outline"
+            className="text-[10px]"
+            title={
+              analysis.events_truncated
+                ? "Olay listesi sınıra takıldığı için kırpıldı; güvenlik sınıfları kırpmadan muaf tutuldu."
+                : undefined
+            }
+          >
+            {analysis.events.length}
+            {analysis.events_truncated ? "+" : ""} olay
+          </Badge>
           <Badge variant="outline" className="text-[10px]">{analysis.model.name}</Badge>
         </div>
       )}

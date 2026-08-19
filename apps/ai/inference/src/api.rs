@@ -25,6 +25,7 @@ pub struct AppState {
     pub mel: Arc<MelExtractor>,
     pub media_root: Option<PathBuf>,
     pub default_batch: usize,
+    pub max_upload_bytes: u64,
 }
 
 pub fn router(state: Arc<AppState>) -> Router {
@@ -33,6 +34,10 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/v1/labels", get(labels))
         .route("/v1/audio/analyze", post(analyze))
         .route("/v1/videos", get(crate::upload::list_videos))
+        .route(
+            "/v1/videos/:id",
+            get(crate::upload::get_video).delete(crate::upload::delete_video),
+        )
         .route("/v1/upload", post(crate::upload::upload_video))
         .with_state(state)
 }
@@ -146,13 +151,52 @@ async fn analyze(
     Ok(Json(result))
 }
 
+/// `Origin` başlığı yerel arayüzden mi geliyor?
+///
+/// Servis yalnız 127.0.0.1 dinlediği için yerel ağdan zaten erişilemiyor;
+/// eski `CorsLayer::permissive()` yalnızca **herhangi bir web sayfasının**
+/// tarayıcı üzerinden bu uç noktalara istek atmasına izin veriyordu. Silme uç
+/// noktası eklendikten sonra bu bedava bir risk oldu.
+pub fn is_local_origin(origin: &str) -> bool {
+    let Some(rest) = origin.split_once("://").map(|(_, rest)| rest) else {
+        return false;
+    };
+
+    // IPv6 kökeni köşeli parantezli gelir (`http://[::1]:3000`); port ayırıcı
+    // iki nokta, adresin kendi iki noktalarıyla karışmasın.
+    let host = if let Some(end) = rest.find(']') {
+        &rest[..=end]
+    } else {
+        rest.split(':').next().unwrap_or("")
+    };
+
+    matches!(host, "localhost" | "127.0.0.1" | "[::1]")
+}
+
 /// `INFERENCE_MEDIA_ROOT` ayarlıysa istenen yol bu kökün dışına çıkamaz.
 /// Mutlak yollar da `join` tarafından kökü ezdiği için aynı denetime takılır.
+///
+/// Uzantısız kimlik de kabul edilir: `test3` isteği medya kökünde `test3.mkv`
+/// varsa onu bulur. Çağıranların `.mp4` varsayıp uzantıyı kendileri eklemesi,
+/// mp4 dışında yüklenen her videoyu kırıyordu; doğru eşlemenin tek yeri dosya
+/// sistemi.
 fn resolve_media_path(state: &AppState, raw: &str) -> Result<PathBuf, InferenceError> {
     let requested = Path::new(raw);
     let joined = match &state.media_root {
         Some(root) => root.join(requested),
         None => requested.to_path_buf(),
+    };
+
+    // Uzantı tamamlaması yalnız kökün doğrudan altındaki düz adlar için: ayırıcı
+    // içeren bir istek dosya sisteminde arandığı gibi kalmalı, yoksa kök denetimi
+    // atlatılabilecek bir ikinci yol açılırdı.
+    let joined = if joined.is_file() || raw.contains(['/', '\\']) {
+        joined
+    } else {
+        match &state.media_root {
+            Some(root) => crate::upload::find_by_id(root, raw).unwrap_or(joined),
+            None => joined,
+        }
     };
 
     let canonical = std::fs::canonicalize(&joined)
@@ -188,6 +232,28 @@ impl AppState {
             mel: Arc::new(MelExtractor::new()),
             media_root: cfg.media_root.clone(),
             default_batch: cfg.batch_size,
+            max_upload_bytes: cfg.max_upload_bytes,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::is_local_origin;
+
+    #[test]
+    fn only_loopback_origins_pass() {
+        assert!(is_local_origin("http://localhost:3000"));
+        assert!(is_local_origin("http://127.0.0.1:3000"));
+        assert!(is_local_origin("https://localhost"));
+        assert!(is_local_origin("http://[::1]:3000"));
+        assert!(is_local_origin("http://[::1]"));
+
+        // Yerel görünen ama olmayan köken adları en klasik atlatma yolu.
+        assert!(!is_local_origin("http://localhost.evil.com"));
+        assert!(!is_local_origin("http://127.0.0.1.evil.com"));
+        assert!(!is_local_origin("http://example.com"));
+        assert!(!is_local_origin("null"));
+        assert!(!is_local_origin(""));
     }
 }

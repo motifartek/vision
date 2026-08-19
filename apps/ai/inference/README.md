@@ -38,7 +38,10 @@ INFERENCE_MEDIA_ROOT=/path/to/media cargo run -p inference --release
 ```
 
 Servis **yalnız `127.0.0.1:8081`** dinler ve bu adres yapılandırılamaz: kendi
-kimlik doğrulaması yoktur, dışarıya açılan tek kapı gateway'dir.
+kimlik doğrulaması yoktur. Tasarımda dışarıya açılan kapı gateway'dir, ama
+**bugün gateway akışta değil** — dashboard doğrudan buraya bağlanıyor
+(bkz. `audio-setup.md`). Bu yüzden tarayıcı kökeni de yerel arayüzle sınırlı:
+yalnız `localhost` / `127.0.0.1` / `[::1]` kökenli sayfalar istek atabilir.
 
 ### Ortam değişkenleri
 
@@ -46,11 +49,12 @@ kimlik doğrulaması yoktur, dışarıya açılan tek kapı gateway'dir.
 |---|---|---|
 | `INFERENCE_PORT` | `8081` | Dinlenen port (adres her zaman 127.0.0.1) |
 | `INFERENCE_MODELS_DIR` | `<crate>/models` | Model kök dizini |
-| `INFERENCE_MODEL` | `ced-tiny` | Alt dizin adı (`ced-tiny`, `ced-small`, …) |
+| `INFERENCE_MODEL` | `ced-base` | Alt dizin adı (`ced-tiny`, `ced-small`, …) |
 | `INFERENCE_INT8` | CPU'da `true` | int8 ağırlıkları tercih et |
 | `INFERENCE_THREADS` | çekirdek sayısı | ONNX Runtime iş parçacığı |
-| `INFERENCE_BATCH` | CPU `32`, GPU `256` | Tek çağrıdaki pencere sayısı |
+| `INFERENCE_BATCH` | CPU `32`, GPU `64` | Tek çağrıdaki pencere sayısı |
 | `INFERENCE_MEDIA_ROOT` | *(yok)* | Ayarlanırsa istenen yollar bu kökün dışına çıkamaz |
+| `INFERENCE_MAX_UPLOAD_BYTES` | `0` (sınırsız) | Yükleme tavanı; dosya diske akıtıldığı için varsayılan sınırsız |
 
 `INFERENCE_MEDIA_ROOT` ayarlı değilse servis başlarken uyarı basar ve yerel
 dosya sistemindeki herhangi bir yolu okuyabilir — üretimde mutlaka ayarlayın.
@@ -71,7 +75,20 @@ int8 ağırlıkları CPU'ya özgüdür; GPU derlemelerinde varsayılan fp32'dir.
 
 - `GET /healthz` — model, sağlayıcı, profiller
 - `GET /v1/labels` — 527 sınıf (İngilizce + Türkçe)
+- `GET /v1/videos` — medya kökündeki videolar (`id`, `filename`, `size`)
+- `GET /v1/videos/:id` — uzantısız kimlikten dosya bilgisi
+- `POST /v1/upload` — `multipart/form-data`, `file` alanı
 - `POST /v1/audio/analyze` — çözümleme
+
+`analyze` isteğindeki `path` uzantılı dosya adı ya da **uzantısız kimlik**
+olabilir: `test3` isteği medya kökündeki `test3.mkv` dosyasını bulur. Çağıranın
+`.mp4` varsayması mp4 dışında yüklenen her videoyu kırıyordu.
+
+Yükleme yalnız video uzantılarını kabul eder (`mp4, mkv, webm, mov, avi, flv,
+wmv, m4v`). Medya kökü genellikle dashboard'un statik kökü olduğu için buraya
+yazılan bir `.html` dosyası arayüzün kendi origin'inden servis edilirdi. Aynı
+adlı dosyanın üzerine yazılır, aynı kimliği farklı uzantıyla kullanan bir dosya
+varsa istek `409` ile reddedilir.
 
 ```bash
 curl -X POST http://127.0.0.1:8081/v1/audio/analyze \
@@ -84,7 +101,14 @@ curl -X POST http://127.0.0.1:8081/v1/audio/analyze \
 `include_frames`, `batch_size`.
 
 Yanıt `events` (zaman damgalı olaylar), `summary` (sınıf başına toplam süre),
-istenirse `frames` (pencere başına ilk-K) ve `timing` içerir. `timing`, aşama
+`safety` (güvenlik olayları ve kural bulguları), istenirse `frames` (pencere
+başına ilk-K) ve `timing` içerir.
+
+`events` listesi `max_events` sınırına takılırsa `events_truncated: true` döner.
+Kırpma **güvenlik sınıflarını muaf tutar** ve güvenlik kuralları kırpma öncesi tam
+liste üzerinde koşar, yani bulgular kırpmadan etkilenmez. `summary` de kırpma
+öncesi listeyi anlatır — bu yüzden `summary` içindeki olay sayılarının toplamı,
+kırpma olduğunda `events.length`'ten büyük olabilir. `timing`, aşama
 bazlı süreleri ve gerçek zaman katsayısını her istekte kendisi ölçer.
 
 ## Doğrulama

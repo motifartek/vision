@@ -78,7 +78,7 @@ pub fn analyze_decoded(
     let inference_ms = infer_start.elapsed().as_millis();
 
     let segment_start = Instant::now();
-    let (events, summary) = events::segment(
+    let (mut events, summary) = events::segment(
         &scores,
         n_windows,
         labels,
@@ -89,7 +89,6 @@ pub fn analyze_decoded(
             release: params.threshold * 0.6,
             min_duration_sec: params.min_duration_sec,
             gap_sec: params.gap_sec,
-            max_events: params.max_events,
             window_sec: params.profile.window_sec,
             hop_sec: params.profile.hop_sec,
             duration_sec,
@@ -97,7 +96,15 @@ pub fn analyze_decoded(
     );
     let segment_ms = segment_start.elapsed().as_millis();
 
+    // Güvenlik kuralları **kırpma öncesi** tam liste üzerinde koşar: kırpma
+    // güven sırasına baktığı için düşük güvenli ama gerçek bir alarm, gürültülü
+    // bir kayıtta elenip bulgusuyla birlikte yok olabiliyordu. Kırpma yalnız
+    // istemciye giden listeyi küçültür ve güvenlik sınıflarını muaf tutar.
     let safety = safety::analyze(&events, &SafetyParams::default());
+    let events_truncated = events::cap_events(&mut events, params.max_events);
+    if events_truncated {
+        tracing::debug!(sinir = params.max_events, "olay listesi kırpıldı");
+    }
 
     let frames = params
         .include_frames
@@ -124,6 +131,7 @@ pub fn analyze_decoded(
             batch_size: params.batch_size,
         },
         events,
+        events_truncated,
         summary,
         safety,
         frames,

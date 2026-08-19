@@ -52,7 +52,10 @@ pub async fn audio_events(
         return Err(GatewayError::Forbidden);
     }
 
-    let mut body = json!({ "path": format!("{video_id}.mp4") });
+    // Uzantı **eklenmiyor**: inference servisi uzantısız kimliği medya kökünde
+    // kendisi çözüyor (`upload::find_by_id`). `.mp4` varsaymak, mkv/webm/mov
+    // olarak yüklenen her videoyu "dosya bulunamadı" ile kırıyordu.
+    let mut body = json!({ "path": video_id });
     let map = body.as_object_mut().expect("nesne olarak kuruldu");
     if let Some(profile) = query.profile {
         map.insert("profile".into(), json!(profile));

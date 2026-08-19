@@ -139,7 +139,26 @@ pub fn load(cfg: &Config) -> Result<LoadedModel, InferenceError> {
         #[cfg(feature = "cuda")]
         eps.push(ort::ep::CUDA::default().build());
         #[cfg(feature = "directml")]
-        eps.push(ort::ep::DirectML::default().build());
+        {
+            // DirectML varsayılan olarak **0 numaralı** adaptörü seçiyor. Çift
+            // GPU'lu laptoplarda bu çoğu zaman tümleşik Intel kartı oluyor ve
+            // ayrık kart boşta beklerken kazanç hayal kırıklığı yaratıyor.
+            // `INFERENCE_DML_DEVICE=1` ile doğru adaptöre geçilebilsin.
+            let dml = match std::env::var("INFERENCE_DML_DEVICE")
+                .ok()
+                .and_then(|v| v.parse::<i32>().ok())
+            {
+                Some(id) => {
+                    tracing::info!(cihaz = id, "DirectML adaptörü elle seçildi");
+                    ort::ep::DirectML::default().with_device_id(id)
+                }
+                None => {
+                    tracing::info!("DirectML varsayılan adaptör (0); değiştirmek için INFERENCE_DML_DEVICE");
+                    ort::ep::DirectML::default()
+                }
+            };
+            eps.push(dml.build());
+        }
         builder = builder
             .with_execution_providers(eps)
             .map_err(|e| InferenceError::Model(e.to_string()))?;

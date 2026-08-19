@@ -31,7 +31,14 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
-// Örnek korumalı endpoint
+/// Video akışı — **henüz uygulanmadı**.
+///
+/// Kimlik doğrulama ve yetki kontrolü çalışıyor ama akışın kendisi yok: medyayı
+/// şu an dashboard kendi statik klasöründen (`public/media`) servis ediyor ve bu
+/// yol gateway'e hiç uğramıyor. Uç nokta eskiden "stream ediliyor..." diyen bir
+/// metin döndürüyordu — çalışıyormuş gibi görünen bir taslak, olmayandan kötü.
+/// Gerçek akış (byte-range, medyanın `public/` dışına taşınması) gateway devreye
+/// alınırken yapılacak.
 async fn stream_video(
     State(state): State<AppState>,
     user: AuthenticatedUser, // Kimlik doğrulandı
@@ -51,9 +58,14 @@ async fn stream_video(
         return Err(GatewayError::Forbidden);
     }
 
-    Ok(format!(
-        "{} kimlikli kullanıcı için {} videosu stream ediliyor...",
-        user.identity_id, video_id
+    tracing::info!(
+        kullanici = %user.identity_id,
+        video = %video_id,
+        "video akışı istendi ama uç nokta henüz uygulanmadı"
+    );
+
+    Err(GatewayError::NotImplemented(
+        "Video akışı henüz gateway üzerinden servis edilmiyor.",
     ))
 }
 
