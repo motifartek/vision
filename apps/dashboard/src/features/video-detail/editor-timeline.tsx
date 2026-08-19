@@ -1,13 +1,17 @@
 "use client"
 
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react"
-import { Crosshair, Minus, Plus, Scan } from "lucide-react"
+import { Crosshair, Minus, Plus, Scan, TriangleAlert } from "lucide-react"
 import { Button } from "@/components/ui/button"
-import type { Analysis, Severity } from "./audio-analysis"
+import type { Analysis, AnalysisSource, Severity } from "./audio-analysis"
 import { formatTime } from "./time"
 
 type Props = {
   analysis: Analysis | null
+  /** Süre rozeti yalnız "live" iken doğru. */
+  source: AnalysisSource
+  /** Analiz yapılamadıysa sebebi — servisin kendi cümlesi. */
+  error: string | null
   duration: number
   threshold: number
   nameOf: (index: number) => string
@@ -47,6 +51,14 @@ function alertLevel(severity: Severity | null): AlertLevel | null {
   return severity === "critical" || severity === "warning" ? severity : null
 }
 
+/**
+ * Analizin ne kadar sürdüğü. Servis `timing.total_ms` döndürüyor; saniyenin
+ * altında ms yazmak daha dürüst, üstünde sn okunaklı.
+ */
+function formatAnalysisTime(ms: number) {
+  return ms < 1000 ? `${Math.round(ms)} ms` : `${(ms / 1000).toFixed(1)} sn`
+}
+
 /** Cetvel aralığı: yakınlaştırmaya göre okunur bir adım seç. */
 function tickStep(pxPerSec: number) {
   const targetPx = 68
@@ -62,7 +74,7 @@ type Segment = {
   alert: AlertLevel | null
 }
 
-export function EditorTimeline({ analysis, duration, threshold, nameOf, severityOf, onSeek, subscribe }: Props) {
+export function EditorTimeline({ analysis, source, error, duration, threshold, nameOf, severityOf, onSeek, subscribe }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null)
   const headRef = useRef<HTMLDivElement>(null)
   const timeRef = useRef<HTMLSpanElement>(null)
@@ -302,7 +314,14 @@ export function EditorTimeline({ analysis, duration, threshold, nameOf, severity
           <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
             / {formatTime(total)}
           </span>
-          {!analysis ? (
+          {source === "error" ? (
+            /* Sebebi başlıkta söylüyoruz: "Dosyada ses akışı yok" ile "servise
+               ulaşılamıyor" kullanıcı için bambaşka iki durum. */
+            <span className="flex items-center gap-1.5 text-[11px] font-medium text-destructive">
+              <TriangleAlert className="size-3.5 shrink-0" />
+              Analiz yapılamadı{error ? `: ${error}` : ""}
+            </span>
+          ) : !analysis ? (
             <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
               <span className="size-1.5 animate-pulse rounded-full bg-primary" />
               Ses analiz ediliyor
@@ -318,6 +337,19 @@ export function EditorTimeline({ analysis, duration, threshold, nameOf, severity
                   {ALERT_PAINT[lvl].label} {lvl === "critical" ? alertCounts.critical : alertCounts.warning}
                 </span>
               ))}
+            </span>
+          )}
+          {analysis && source === "live" && (
+            /* "Bu ne kadar sürdü" demoda en çok sorulan şey; sayıyı sahnede
+               aramak yerine başlıkta tutuyoruz. Hemen solundaki toplam süreyle
+               yan yana okunuyor: 00:21'lik kayıt, 1.4 sn'de. Çarpanı buraya
+               yazmıyoruz — sağdaki panelde zaten var. Süre servisin ölçtüğü
+               işlem süresi; ağ gidiş-dönüşü dahil değil. */
+            <span
+              className="rounded border px-1.5 py-0.5 font-mono text-[10px] tabular-nums text-muted-foreground"
+              title={`Çözme ${analysis.timing.decode_ms} ms · mel ${analysis.timing.mel_ms} ms · model ${analysis.timing.inference_ms} ms · ${analysis.timing.realtime_factor.toFixed(1)}× gerçek zaman`}
+            >
+              Analiz {formatAnalysisTime(analysis.timing.total_ms)}
             </span>
           )}
         </div>
@@ -402,7 +434,13 @@ export function EditorTimeline({ analysis, duration, threshold, nameOf, severity
 
           {/* baskın ses şeridi */}
           <div className="relative mt-2 mb-1 overflow-hidden rounded-md bg-background" style={{ height: TRACK_H }}>
-            {!analysis ? (
+            {source === "error" ? (
+              /* İskelet burada yanıltıcı olurdu: "birazdan gelecek" demek olur,
+                 oysa gelmeyecek. Şerit boş kalır ve nedenini söyler. */
+              <p className="flex h-full items-center justify-center px-3 text-center text-xs text-muted-foreground">
+                Bu videoda gösterilecek ses analizi yok.
+              </p>
+            ) : !analysis ? (
               /* Boş kutu yerine şeridin dolacağı yeri gösteren iskelet: kullanıcı
                  neyin geleceğini görüyor, arayüz "bozuk" hissi vermiyor. */
               <div className="absolute inset-1 flex items-center gap-2" aria-hidden>

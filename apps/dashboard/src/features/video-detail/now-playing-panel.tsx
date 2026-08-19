@@ -44,15 +44,20 @@ export function NowPlayingPanel({ analysis, source, currentTime, threshold, name
         </div>
         {source === "live" ? (
           <Badge variant="secondary" className="shrink-0"><Radio /> Canlı</Badge>
-        ) : source === "sample" ? (
-          <Badge variant="outline" className="shrink-0">Örnek veri</Badge>
+        ) : source === "error" ? (
+          <Badge variant="destructive" className="shrink-0">Analiz yok</Badge>
         ) : (
           <Badge variant="outline" className="shrink-0">Yükleniyor…</Badge>
         )}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-auto">
-        {!analysis ? (
+        {source === "error" ? (
+          /* "Bekleniyor" demek burada yanlış: gelmeyecek bir şeyi bekletiyor. */
+          <p className="py-6 text-center text-xs text-muted-foreground">
+            Bu videonun sesi analiz edilemedi.
+          </p>
+        ) : !analysis ? (
           <p className="py-6 text-center text-xs text-muted-foreground">Analiz bekleniyor…</p>
         ) : !hasFrames ? (
           <p className="py-6 text-center text-xs text-muted-foreground">

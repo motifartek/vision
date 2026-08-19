@@ -6,6 +6,14 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
+  experimental: {
+    // Rewrite (proxy) uzerinden gecen istek govdesi varsayilan olarak 10MB'da
+    // kesiliyor; video yuklemede govde yarida kalinca inference servisi
+    // multipart'i okuyamiyor ve baglanti kopuyor (ECONNRESET).
+    proxyClientMaxBodySize: '512mb',
+    // Buyuk dosyalarin diske yazilmasi varsayilan 30sn'yi asabiliyor.
+    proxyTimeout: 30 * 60 * 1000,
+  },
   async rewrites() {
     return [
       {

@@ -51,7 +51,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { currentTime, duration, playing, seek, toggle, subscribe } = usePlayback(videoRef)
   const [profile, setProfile] = useState("dengeli")
-  const { analysis, source, nameOf, severityOf } = useAudioAnalysis(mediaFile, profile)
+  const { analysis, source, error, nameOf, severityOf } = useAudioAnalysis(mediaFile, profile)
   const [threshold, setThreshold] = useState(35)
 
   // Boşluk tuşu oynat/duraklat — editörlerin evrensel alışkanlığı
@@ -96,6 +96,8 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
 
           <EditorTimeline
             analysis={analysis}
+            source={source}
+            error={error}
             nameOf={nameOf}
             severityOf={severityOf}
             duration={duration}

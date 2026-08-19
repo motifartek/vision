@@ -1,7 +1,6 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import sampleAnalysis from "./sample-analysis.json"
 
 export type AudioEvent = {
   class_index: number
@@ -90,8 +89,8 @@ export type ClassLabel = {
   category?: string
 }
 
-/** "live": servisten geldi, "sample": servis yok, pakete gömülü örnek veri. */
-export type AnalysisSource = "live" | "sample" | "loading"
+/** "live": servisten geldi, "error": analiz yapılamadı, sebebi `error` alanında. */
+export type AnalysisSource = "live" | "error" | "loading"
 
 /**
  * Gateway rotası kimlik doğrulaması istiyor ve dashboard'da henüz login akışı
@@ -100,13 +99,24 @@ export type AnalysisSource = "live" | "sample" | "loading"
  */
 const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
 
+/** Servis kapalı/erişilemez durumunun tek metni. */
+const SERVICE_DOWN = "analiz servisine ulaşılamıyor"
+
 /** 527 etiket sayfa ömrü boyunca bir kez indirilir. */
 let labelCache: Promise<ClassLabel[]> | null = null
 function fetchLabels(): Promise<ClassLabel[]> {
-  labelCache ??= fetch(`${API}/v1/labels`).then((r) => {
-    if (!r.ok) throw new Error(`etiketler alınamadı: HTTP ${r.status}`)
-    return r.json() as Promise<ClassLabel[]>
-  })
+  labelCache ??= fetch(`${API}/v1/labels`)
+    .then((r) => {
+      if (!r.ok) throw new Error(SERVICE_DOWN)
+      return r.json() as Promise<ClassLabel[]>
+    })
+    .catch((cause) => {
+      // Başarısız isteği önbellekte bırakmıyoruz: servis bir kez tökezlerse
+      // reddedilmiş promise sonsuza dek kalıyor ve geri geldiğinde bile sayfa
+      // yenilenene kadar hiçbir video analiz edilemiyordu.
+      labelCache = null
+      throw cause instanceof TypeError ? new Error(SERVICE_DOWN) : cause
+    })
   return labelCache
 }
 
@@ -123,6 +133,7 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
     let cancelled = false
     setAnalysis(null)
     setSource("loading")
+    setError(null)
 
     async function run() {
       try {
@@ -138,8 +149,18 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
               include_frames: true,
               top_k: 6,
             }),
-          }).then((r) => {
-            if (!r.ok) throw new Error(`HTTP ${r.status}`)
+          }).then(async (r) => {
+            if (!r.ok) {
+              // Servis 4xx'te `{"error": "..."}` döndürüyor ("Dosyada ses akışı
+              // yok" gibi). Kullanıcıya HTTP kodu değil bu cümle gösterilmeli.
+              const reason = await r
+                .json()
+                .then((b) => (b as { error?: string }).error)
+                .catch(() => null)
+              // 5xx'te gövde servisin değil, tünelin hata sayfası olur —
+              // "HTTP 500" yerine sebebi insan diliyle söylemek gerekiyor.
+              throw new Error(reason ?? (r.status >= 500 ? SERVICE_DOWN : `servis HTTP ${r.status} döndü`))
+            }
             return r.json() as Promise<Analysis>
           }),
           fetchLabels(),
@@ -151,11 +172,24 @@ export function useAudioAnalysis(mediaPath: string, profile = "dengeli") {
         setError(null)
       } catch (cause) {
         if (cancelled) return
-        // Servis kapalıysa arayüz tamamen boş kalmasın: gömülü örnek veriye düş,
-        // ama bunu kullanıcıdan gizleme (rozet "örnek veri" gösterir).
-        setAnalysis(sampleAnalysis as unknown as Analysis)
-        setSource("sample")
-        setError(cause instanceof Error ? cause.message : "bilinmeyen hata")
+        /**
+         * Eskiden burada pakete gömülü örnek analize düşülüyordu. Sessiz bir
+         * videoda ya da servis kapalıyken bu, **başka bir çekimin olaylarını**
+         * bu videonun zaman çizelgesine çiziyordu; küçük "örnek veri" rozeti
+         * uyarı olarak yetmiyordu. Yanlış veri göstermektense hiç göstermemek
+         * doğru: analiz yoksa çizelge boş kalır ve sebebi yazılır.
+         */
+        setAnalysis(null)
+        setSource("error")
+        // Ağ seviyesinde düşen fetch `TypeError` atar; mesajı ("Failed to
+        // fetch") kullanıcıya gösterilecek bir şey değil.
+        setError(
+          cause instanceof TypeError
+            ? SERVICE_DOWN
+            : cause instanceof Error
+              ? cause.message
+              : "bilinmeyen hata"
+        )
       }
     }
 
