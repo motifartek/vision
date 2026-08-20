@@ -9,8 +9,9 @@ use std::time::Instant;
 use anyhow::Result;
 use clap::{Parser, Subcommand};
 use motif_optics::{
-    build_profile, check_dependencies, decode_gray, measure_spawn_overhead, motion_chart, probe,
-    AnalysisConfig, ChartOptions,
+    build_profile, check_dependencies, decode_gray, extract_jpegs, measure_spawn_overhead,
+    motion_chart, probe, select_frames, AnalysisConfig, ChartOptions, ExtractOptions,
+    SamplingConfig,
 };
 
 #[derive(Parser)]
@@ -85,6 +86,35 @@ enum Command {
         /// Terminale ASCII eğri bas.
         #[arg(long)]
         plot: bool,
+        #[command(flatten)]
+        cfg: ConfigArgs,
+    },
+
+    /// Adaptif örnekleme: kareleri seçer ve tam kalitede çıkarır.
+    Sample {
+        /// Video dosyasının yolu.
+        path: PathBuf,
+        /// Kaç kare seçilecek.
+        #[arg(long, default_value_t = 16)]
+        budget: usize,
+        /// Düzgün dağılımın ağırlığı (0..1). Kapsama garantisini bu belirler.
+        #[arg(long, default_value_t = 0.25)]
+        alpha: f32,
+        /// Bu Hamming mesafesinden yakın kareleri tekrar say. 0 = eleme kapalı.
+        #[arg(long, default_value_t = 3)]
+        dedup: u32,
+        /// Kareleri bu dizine JPEG olarak çıkar. Verilmezse sadece seçim yapılır.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Zaman damgasını karenin köşesine yaz.
+        #[arg(long)]
+        overlay: bool,
+        /// Gürültü tabanını düşme; ham hareket skorlarıyla örnekle.
+        #[arg(long)]
+        raw_motion: bool,
+        /// Çıkarılan karenin uzun kenar sınırı.
+        #[arg(long)]
+        max_dim: Option<u32>,
         #[command(flatten)]
         cfg: ConfigArgs,
     },
@@ -279,6 +309,93 @@ fn main() -> Result<()> {
                 let chart = motion_chart(&profile, ChartOptions::default());
                 std::fs::write(&path, chart)?;
                 println!("SVG yazıldı  : {}", path.display());
+            }
+        }
+
+        Command::Sample {
+            path,
+            budget,
+            alpha,
+            dedup,
+            out,
+            overlay,
+            raw_motion,
+            max_dim,
+            cfg,
+        } => {
+            let cfg: AnalysisConfig = cfg.into();
+
+            let profil_basladi = Instant::now();
+            let profile = build_profile(&path, cfg)?;
+            let profil_suresi = profil_basladi.elapsed();
+
+            let selection = select_frames(
+                &profile,
+                SamplingConfig {
+                    budget,
+                    uniform_prior: alpha,
+                    dedup_hamming: dedup,
+                    force_scene_cuts: true,
+                    subtract_noise_floor: !raw_motion,
+                },
+            )?;
+
+            let ortalama_aralik = profile.duration_ms as f64 / budget as f64;
+            println!("profil            : {} örnek, {:.0} ms", profile.len(), profil_suresi.as_secs_f64() * 1000.0);
+            println!("bütçe             : {budget} kare (α={alpha})");
+            println!("seçilen           : {} kare", selection.frames.len());
+            if selection.dropped_duplicates > 0 {
+                println!(
+                    "elenen tekrar     : {}  <- aynı görünen kareler",
+                    selection.dropped_duplicates
+                );
+            }
+            println!("sahne kesiti      : {}", selection.scene_cut_count());
+            println!(
+                "boşluk            : ort {:.1} sn, en büyük {:.1} sn",
+                selection.mean_gap_ms as f64 / 1000.0,
+                selection.max_gap_ms as f64 / 1000.0
+            );
+            println!(
+                "garanti           : en büyük boşluk ≤ {:.1} sn  (= ortalama aralık / α)",
+                ortalama_aralik / alpha as f64 / 1000.0
+            );
+
+            let toplam_kare = (profile.duration_ms as f64 / 1000.0 * 30.0) as u64;
+            println!(
+                "kare azaltma      : ~{}x  (~{} kaynak kare -> {} kare)",
+                toplam_kare / selection.frames.len().max(1) as u64,
+                toplam_kare,
+                selection.frames.len()
+            );
+
+            println!("\nseçilen kareler:");
+            for f in &selection.frames {
+                let isaret = match f.reason {
+                    motif_optics::SelectionReason::SceneCut => "kesit",
+                    motif_optics::SelectionReason::Motion => "     ",
+                };
+                println!(
+                    "  {:>8.2} sn   hareket {:.3}   {isaret}",
+                    f.t_ms as f64 / 1000.0,
+                    f.motion_score
+                );
+            }
+
+            if let Some(dir) = out {
+                let opts = ExtractOptions {
+                    max_dim,
+                    timestamp_overlay: overlay,
+                    ..Default::default()
+                };
+                let sonuc = extract_jpegs(&path, &selection.timestamps(), &dir, &opts)?;
+                println!(
+                    "\n{} kare çıkarıldı : {}  ({:.0} ms, kare başına {:.0} ms)",
+                    sonuc.frames.len(),
+                    dir.display(),
+                    sonuc.elapsed.as_secs_f64() * 1000.0,
+                    sonuc.elapsed.as_secs_f64() * 1000.0 / sonuc.frames.len().max(1) as f64
+                );
             }
         }
 

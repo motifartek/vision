@@ -18,21 +18,24 @@
 //! 1. [`probe`] — ffprobe ile metadata
 //! 2. [`decode`] — ffmpeg'den ham gri kare akışı
 //! 3. [`motion`] — kare farkı ile hareket eğrisi, sahne kesiti, parmak izi
-//! 4. [`render`] — hareket eğrisinin SVG görselleştirmesi
-//! 5. `sample` — hareket ekseninde adaptif örnekleme (sonraki faz)
+//! 4. [`sample`] — hareket ekseninde adaptif örnekleme
+//! 5. [`extract`] — seçilen karelerin tam kalitede çıkarılması
+//! 6. [`render`] — hareket eğrisinin SVG görselleştirmesi
 
 pub mod decode;
+pub mod extract;
 pub mod motion;
 pub mod preflight;
 pub mod probe;
 pub mod render;
+pub mod sample;
 pub mod types;
 
 pub use decode::{decode_gray, measure_spawn_overhead, GrayFrames};
-pub use motion::{
-    analyze_frames, build_profile, hamming_distance, MotionProfile, MotionSample,
-};
+pub use extract::{extract_gray_at, extract_jpegs, ExtractOptions, ExtractedFrame};
+pub use motion::{analyze_frames, build_profile, hamming_distance, MotionProfile, MotionSample};
 pub use preflight::{check_dependencies, ExternalTool};
 pub use probe::probe;
 pub use render::{motion_chart, ChartOptions};
+pub use sample::{select_frames, SamplingConfig, Selection, SelectedFrame, SelectionReason};
 pub use types::{AnalysisConfig, AnalysisFrame, VideoInfo};

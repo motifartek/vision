@@ -102,12 +102,75 @@ Hareket profili — terminalde eğri, JSON ve SVG çıktısı:
 cargo run --release -p motif-optics --bin optics -- profile <video> --plot --svg p.svg --out p.json
 ```
 
+Adaptif örnekleme — kare seçimi ve tam kalitede çıkarma:
+
+```bash
+cargo run --release -p motif-optics --bin optics -- sample <video> --budget 16 --alpha 0.25 --out kareler/ --overlay
+```
+
 Sonraki fazlarda eklenecek komutlar:
 
 ```
-optics sample <video> --budget 16 --alpha 0.2       # adaptif örnekleme
 bench run --dataset <dir> --sweep alpha             # KPI raporu
 ```
+
+## Örnekleme: α ve kapsama garantisi
+
+Kare seçimi hareket eğrisinin kümülatif toplamı üzerinde **ters dönüşüm
+örneklemesi** ile yapılır: N nokta hareket ekseninde eşit aralıklarla
+yerleştirilir. Yoğunluk kendiliğinden ayarlanır, elle hiçbir eşik seçilmez.
+
+Ağırlık, hareket dağılımı ile düzgün dağılımın karışımıdır:
+
+```
+w[i] = (1 - α) * m[i] / Σm  +  α * (1 / n)
+```
+
+α tek başına bir üst sınır garantisi verir. Ardışık iki seçim arasında
+kümülatif ağırlık tam olarak `1/N` arttığı ve düzgün bileşen bu aralığa en az
+`α * Δ/n` katkı verdiği için:
+
+```
+en büyük boşluk ≤ (1 / α) × ortalama aralık
+```
+
+α = 0.25 ile hiçbir boşluk ortalama aralığın 4 katını geçemez. Ayrı bir
+`max_gap` parametresine gerek yok — α zaten kapsama düğmesidir. Bu özellik
+hem birim testle hem gerçek videoyla doğrulanıyor.
+
+> α'nın **sıfır olmaması kritik**: "yerde hareketsiz kişi" şartnamedeki örnek
+> olaylardan biri ve tanımı gereği hareketsiz. Saf hareket odaklı örnekleme bu
+> olayı yapısal olarak kaçırır; uniform prior bunun sigortasıdır.
+
+### Gürültü tabanı
+
+Sabit kameralı kayıtta sensör gürültüsü her kareye benzer bir hareket ekler.
+Düşülmezse taban toplamda gerçek olayı ezer. Gürültülü test videosunda ölçüldü:
+14 saniyelik sakin bölüm toplam hareketin üçte ikisini üretiyor, 3 saniyelik
+olay üçte birini — ve seçim de o oranda dağılıyor, yani adaptiflik kayboluyor.
+
+Çözüm: hareket skorlarının **medyanını** ağırlıktan düşmek. Medyan tam olarak
+gürültü tabanıdır ve videonun kendi dağılımından geldiği için ölçüt hâlâ
+uyarlanabilir kalır. `--raw-motion` ile kapatılabilir (benchmark için).
+
+| | Olay penceresine düşen kare |
+|---|---|
+| Taban düşülmeden | 12 karenin 1'i |
+| Taban düşülerek | 14 karenin 10'u |
+
+### Tekrar eleme
+
+Eleme için **iki koşul birden** aranır: parmak izleri yakın **ve** iki kare
+arasında biriken hareket ihmal edilebilir.
+
+İkinci koşul zorunlu çıktı. Yalnız parmak izine bakan sürüm ölçüldü ve
+zararlıydı: dHash kareyi 9x8'e indirgediği için, büyük ölçekli yerleşimi
+benzeyen ama içeriği belirgin biçimde değişen kareler aynı sanıldı — gerçek
+test videosunda 14 karelik seçimin 9'u yanlışlıkla elendi ve olay
+penceresinden tek kare kaldı.
+
+Hareket eğrisi bu soruyu doğrudan cevaplıyor: iki kare arasında hareket
+birikmişse arada bir şey olmuştur, parmak izleri ne kadar benzerse benzesin.
 
 ## Ölçümler
 

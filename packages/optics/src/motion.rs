@@ -195,7 +195,7 @@ pub fn hamming_distance(a: u64, b: u64) -> u32 {
 }
 
 /// Sıralanmış dilimin verilen yüzdeliği (lineer interpolasyonsuz).
-fn percentile(sorted: &[f64], p: f64) -> f64 {
+pub(crate) fn percentile(sorted: &[f64], p: f64) -> f64 {
     if sorted.is_empty() {
         return 0.0;
     }
@@ -203,7 +203,7 @@ fn percentile(sorted: &[f64], p: f64) -> f64 {
     sorted[idx.min(sorted.len() - 1)]
 }
 
-fn median(sorted: &[f64]) -> f64 {
+pub(crate) fn median(sorted: &[f64]) -> f64 {
     percentile(sorted, 0.5)
 }
 
