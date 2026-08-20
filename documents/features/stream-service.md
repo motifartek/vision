@@ -96,11 +96,16 @@ damgalarını gözle doğrulamak için birebir):
 ffmpeg -y -f lavfi -i "testsrc2=size=1280x720:rate=30" -t 120 -pix_fmt yuv420p demo.mp4
 ```
 
+Hareket profili — terminalde eğri, JSON ve SVG çıktısı:
+
+```bash
+cargo run --release -p motif-optics --bin optics -- profile <video> --plot --svg p.svg --out p.json
+```
+
 Sonraki fazlarda eklenecek komutlar:
 
 ```
-optics profile <video> --out p.json --svg p.svg     # hareket eğrisi
-optics sample  <video> --budget 16 --alpha 0.2      # adaptif örnekleme
+optics sample <video> --budget 16 --alpha 0.2       # adaptif örnekleme
 bench run --dataset <dir> --sweep alpha             # KPI raporu
 ```
 
@@ -118,6 +123,16 @@ bench run --dataset <dir> --sweep alpha             # KPI raporu
 | **Gerçek zaman katı** | **89.5x** |
 
 Hedef pass 1 için ≥50x realtime idi; alt süreç yaklaşımı bunu rahatça karşılıyor.
+
+Hareket profili (çözme + kare farkı + parmak izi + sahne kesiti, tek geçiş):
+
+| Ölçüm | Değer |
+|---|---|
+| 17 sn sentetik olay videosu | 161 ms |
+| **Gerçek zaman katı** | **~105x** |
+
+Sentetik senaryo (8 sn sakin → 3 sn hareket → 6 sn sakin) doğru okunuyor:
+hareketin başında ve sonunda birer sahne kesiti, arada hiç.
 
 > **Not:** Ses tarafında (`feature/audio`) ffmpeg alt süreci için ~960 ms
 > ölçülmüş ve bu yüzden süreç içi çözmeye (symphonia) geçilmişti. Video

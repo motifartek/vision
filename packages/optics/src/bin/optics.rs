@@ -8,7 +8,10 @@ use std::time::Instant;
 
 use anyhow::Result;
 use clap::{Parser, Subcommand};
-use motif_optics::{check_dependencies, decode_gray, measure_spawn_overhead, probe, AnalysisConfig};
+use motif_optics::{
+    build_profile, check_dependencies, decode_gray, measure_spawn_overhead, motion_chart, probe,
+    AnalysisConfig, ChartOptions,
+};
 
 #[derive(Parser)]
 #[command(name = "optics", about = "MotifAI görsel işleme araç takımı", version)]
@@ -69,6 +72,23 @@ enum Command {
         cfg: ConfigArgs,
     },
 
+    /// Hareket profilini çıkarır: hareket eğrisi, sahne kesitleri, parmak izleri.
+    Profile {
+        /// Video dosyasının yolu.
+        path: PathBuf,
+        /// Profili JSON olarak buraya yaz.
+        #[arg(long)]
+        out: Option<PathBuf>,
+        /// Hareket eğrisini SVG olarak buraya çiz.
+        #[arg(long)]
+        svg: Option<PathBuf>,
+        /// Terminale ASCII eğri bas.
+        #[arg(long)]
+        plot: bool,
+        #[command(flatten)]
+        cfg: ConfigArgs,
+    },
+
     /// ffmpeg süreç açma maliyetini ölçer.
     ///
     /// Pass 3 yakınlaştırmasının gecikme bütçesi doğrudan bu sayıya bağlı.
@@ -77,6 +97,42 @@ enum Command {
         #[arg(long, default_value_t = 10)]
         samples: u32,
     },
+}
+
+/// Hareket eğrisini terminalde blok karakterlerle çizer.
+///
+/// SVG dosyası açmadan hızlıca bakmak için; profilin şeklini görmek çoğu
+/// zaman sayı okumaktan daha bilgilendirici oluyor.
+fn ascii_plot(profile: &motif_optics::MotionProfile, columns: usize) {
+    const BLOCKS: [char; 9] = [' ', '▁', '▂', '▃', '▄', '▅', '▆', '▇', '█'];
+
+    if profile.is_empty() || columns == 0 {
+        return;
+    }
+
+    let bucket_ms = (profile.duration_ms / columns as u64).max(1);
+    let buckets = profile.bucketed(bucket_ms);
+
+    let mut line = String::with_capacity(columns);
+    let mut cuts = String::with_capacity(columns);
+    for (_, score, is_cut) in buckets.iter().take(columns) {
+        let level = (score * 8.0).round().clamp(0.0, 8.0) as usize;
+        line.push(BLOCKS[level]);
+        cuts.push(if *is_cut { '^' } else { ' ' });
+    }
+
+    println!("\n  {line}");
+    if cuts.contains('^') {
+        println!("  {cuts}  <- sahne kesiti");
+    }
+    println!(
+        "  {:<width$}",
+        format!("0:00{}{}", " ".repeat(columns.saturating_sub(9)), {
+            let total = profile.duration_ms / 1000;
+            format!("{}:{:02}", total / 60, total % 60)
+        }),
+        width = columns
+    );
 }
 
 fn main() -> Result<()> {
@@ -178,6 +234,52 @@ fn main() -> Result<()> {
                 info.height
             );
             println!("checksum          : {checksum}");
+        }
+
+        Command::Profile {
+            path,
+            out,
+            svg,
+            plot,
+            cfg,
+        } => {
+            let cfg: AnalysisConfig = cfg.into();
+
+            let started = Instant::now();
+            let profile = build_profile(&path, cfg)?;
+            let elapsed = started.elapsed();
+
+            let secs = elapsed.as_secs_f64();
+            println!("örnek sayısı      : {}", profile.len());
+            println!(
+                "kapsanan süre     : {:.2} sn",
+                profile.duration_ms as f64 / 1000.0
+            );
+            println!("ortalama hareket  : {:.4}", profile.mean_score());
+            println!("tepe hareket      : {:.4}", profile.max_score());
+            println!("sahne kesiti      : {}", profile.scene_cuts().count());
+            println!("analiz süresi     : {:.0} ms", secs * 1000.0);
+            if secs > 0.0 {
+                println!(
+                    "gerçek zaman katı : {:.1}x",
+                    profile.duration_ms as f64 / 1000.0 / secs
+                );
+            }
+
+            if plot {
+                ascii_plot(&profile, 100);
+            }
+
+            if let Some(path) = out {
+                std::fs::write(&path, serde_json::to_vec_pretty(&profile)?)?;
+                println!("\nJSON yazıldı : {}", path.display());
+            }
+
+            if let Some(path) = svg {
+                let chart = motion_chart(&profile, ChartOptions::default());
+                std::fs::write(&path, chart)?;
+                println!("SVG yazıldı  : {}", path.display());
+            }
         }
 
         Command::SpawnCost { samples } => {
