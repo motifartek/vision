@@ -1,0 +1,31 @@
+{
+  "video": "uzun-iki-olay.mp4",
+  "duration_ms": 120000,
+  "notes": "İki dakikalık kayıtta birbirinden uzak iki kısa olay.",
+  "events": [
+    {
+      "t_ms": 25000,
+      "time": "00:25",
+      "event": "Hareket başladı",
+      "severity": "Yüksek"
+    },
+    {
+      "t_ms": 26000,
+      "time": "00:26",
+      "event": "Hareket durdu",
+      "severity": "Orta"
+    },
+    {
+      "t_ms": 86000,
+      "time": "01:26",
+      "event": "Hareket başladı",
+      "severity": "Yüksek"
+    },
+    {
+      "t_ms": 87500,
+      "time": "01:27",
+      "event": "Hareket durdu",
+      "severity": "Orta"
+    }
+  ]
+}

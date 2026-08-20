@@ -980,6 +980,7 @@ dependencies = [
  "anyhow",
  "clap",
  "motif-core",
+ "motif-event-sdk",
  "motif-optics",
  "serde",
  "serde_json",

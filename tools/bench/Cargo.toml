@@ -4,11 +4,12 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 repository.workspace = true
-description = "Ölçüm harness'ı: event coverage recall, kare azaltma oranı, işlem süresi"
+description = "Olcum harness: event coverage recall, kare azaltma orani, islem suresi"
 publish = false
 
 [dependencies]
 motif-core.workspace = true
+motif-event-sdk.workspace = true
 motif-optics.workspace = true
 serde.workspace = true
 serde_json.workspace = true

@@ -134,6 +134,14 @@ pub struct Selection {
     pub dropped_duplicates: usize,
     /// Ardışık seçimler arasındaki en büyük boşluk.
     pub max_gap_ms: u64,
+    /// Tekrar elemesinden **önceki** en büyük boşluk.
+    ///
+    /// α'dan türeyen kapsama garantisi ham seçim için geçerlidir. Eleme
+    /// boşlukları genişletebilir ama bu zararsızdır: elenen kare, tutulan
+    /// kareyle görsel olarak aynıdır ve arasında hareket birikmemiştir, yani
+    /// taşıyacağı yeni bilgi yoktur. Garantinin doğrulanması bu alan
+    /// üzerinden yapılmalı.
+    pub max_gap_before_dedup_ms: u64,
     /// Ortalama boşluk.
     pub mean_gap_ms: u64,
 }
@@ -259,6 +267,15 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
     let step_motion = total_motion / cfg.budget as f64;
     let motion_tolerance = step_motion * DEDUP_MOTION_TOLERANCE;
 
+    // Garanti doğrulaması eleme öncesi seçim üzerinden yapılır.
+    let max_gap_before_dedup_ms = chosen
+        .windows(2)
+        .map(|w| {
+            profile.samples[w[1].0 as usize].t_ms - profile.samples[w[0].0 as usize].t_ms
+        })
+        .max()
+        .unwrap_or(0);
+
     let mut frames: Vec<SelectedFrame> = Vec::with_capacity(chosen.len());
     let mut dropped = 0usize;
 
@@ -307,6 +324,7 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
         budget: cfg.budget,
         dropped_duplicates: dropped,
         max_gap_ms,
+        max_gap_before_dedup_ms,
         mean_gap_ms,
     })
 }
