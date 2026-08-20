@@ -1,6 +1,7 @@
 # Stream Servisi — Kurulum ve Çalıştırma
 
-> Durum: **Faz 0** (iskelet). Boru hattı Faz 1-3'te, servis katmanı Faz 6-7'de gelecek.
+> Durum: video I/O katmanı hazır (probe + decode). Hareket analizi ve örnekleme sırada;
+> servis katmanı (MinIO, NATS, araç yüzeyi) sonraki fazlarda.
 > Yol haritası: [`documents/architecture/stream-phase-plan.md`](../architecture/stream-phase-plan.md)
 > İlgili issue'lar: #1, #6
 
@@ -82,18 +83,47 @@ cargo build --workspace
 ```bash
 cargo run -p motif-optics --bin optics -- preflight
 cargo run -p motif-optics --bin optics -- config
+cargo run -p motif-optics --bin optics -- info <video>
+cargo run --release -p motif-optics --bin optics -- decode <video>
+cargo run -p motif-optics --bin optics -- spawn-cost --samples 15
 cargo test --workspace
 ```
 
-Faz 1-4 ilerledikçe eklenecek komutlar:
+Test videosu üretmek için (üzerinde görünür sayaç ve saat vardır, zaman
+damgalarını gözle doğrulamak için birebir):
+
+```bash
+ffmpeg -y -f lavfi -i "testsrc2=size=1280x720:rate=30" -t 120 -pix_fmt yuv420p demo.mp4
+```
+
+Sonraki fazlarda eklenecek komutlar:
 
 ```
-optics info    <video>                              # metadata           (Faz 1)
-optics decode  <video> --limit N --timing           # çözme throughput'u (Faz 1)
-optics profile <video> --out p.json --svg p.svg     # hareket eğrisi     (Faz 2)
-optics sample  <video> --budget 16 --alpha 0.2      # örnekleme          (Faz 3)
-bench run --dataset <dir> --sweep alpha             # KPI raporu         (Faz 4)
+optics profile <video> --out p.json --svg p.svg     # hareket eğrisi
+optics sample  <video> --budget 16 --alpha 0.2      # adaptif örnekleme
+bench run --dataset <dir> --sweep alpha             # KPI raporu
 ```
+
+## Ölçümler
+
+2 dakikalık 1280x720 30 fps test videosu, 160x90 gri / 15 fps analiz, release derlemesi:
+
+| Ölçüm | Değer |
+|---|---|
+| ffprobe metadata | 56 ms |
+| ffmpeg süreç açma maliyeti | **20 ms** (15 ölçüm ortalaması) |
+| İlk kareye kadar | 80 ms (ffmpeg açılışı dahil) |
+| Tam çözme (1800 kare) | 1340 ms |
+| Throughput | 1343 kare/sn |
+| **Gerçek zaman katı** | **89.5x** |
+
+Hedef pass 1 için ≥50x realtime idi; alt süreç yaklaşımı bunu rahatça karşılıyor.
+
+> **Not:** Ses tarafında (`feature/audio`) ffmpeg alt süreci için ~960 ms
+> ölçülmüş ve bu yüzden süreç içi çözmeye (symphonia) geçilmişti. Video
+> tarafında aynı ölçüm 20 ms çıkıyor. Fark büyük ihtimalle soğuk/sıcak
+> başlangıç: ikili bir kez okunduktan sonra işletim sistemi önbelleğinden
+> geliyor. Video için saf Rust bir H.264 çözücü alternatifi zaten yok.
 
 ## Crate yapısı
 
