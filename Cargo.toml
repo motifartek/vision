@@ -1,14 +1,41 @@
 [workspace]
+resolver = "2"
 members = [
     "apps/gateway",
-    "apps/identity",
     "apps/stream",
-    "apps/ai/orchestrator",
-    "apps/ai/inference",
-    "apps/ai/memory",
-    "packages/optics",
-    "packages/database",
+    "packages/core",
     "packages/event-sdk",
-    "packages/core"
+    "packages/optics",
+    "tools/bench",
 ]
-resolver = "2"
+
+# Henüz oluşturulmamış crate'ler bilerek listelenmiyor; workspace aksi halde
+# derlenmez. Sahibi crate'i oluşturduğunda buraya eklenmeli:
+#   apps/ai/orchestrator, apps/ai/inference, apps/ai/memory  (#7, #8)
+#   packages/database                                        (#2)
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/motifartek/vision"
+
+[workspace.dependencies]
+# Ortak sürümler tek yerden yönetilir; crate'ler `foo.workspace = true` ile alır.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Dahili crate'ler
+motif-core = { path = "packages/core" }
+motif-event-sdk = { path = "packages/event-sdk" }
+motif-optics = { path = "packages/optics" }
+
+# NATS ve MinIO bağımlılıkları Faz 6'da eklenecek (sürümler o zaman doğrulanacak).

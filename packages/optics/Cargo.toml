@@ -1,0 +1,22 @@
+[package]
+name = "motif-optics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Görsel işleme ve medya araç takımı: video I/O, hareket analizi, adaptif örnekleme"
+
+[dependencies]
+motif-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+tracing.workspace = true
+clap.workspace = true
+anyhow.workspace = true
+
+[dev-dependencies]
+tracing-subscriber.workspace = true
+
+[[bin]]
+name = "optics"
+path = "src/bin/optics.rs"
