@@ -137,8 +137,13 @@ pub fn evaluate(
     let selected = selection.frames.len().max(1);
 
     // α'dan türeyen boşluk garantisi: ortalama aralık / α.
+    //
+    // Payda tam bütçe değil, örneklemeye **kalan** bütçe: zorla dahil edilen
+    // sahne kesitleri bütçeden yediği için ters dönüşüm örneklemesinin
+    // dağıtacağı nokta sayısı azalır ve boşluklar orantılı genişler.
+    let effective_budget = selection.sampled_budget.max(1);
     let gap_limit_ms = if sampling.uniform_prior > 0.0 {
-        (profile.duration_ms as f64 / sampling.budget as f64 / sampling.uniform_prior as f64)
+        (profile.duration_ms as f64 / effective_budget as f64 / sampling.uniform_prior as f64)
             .round() as u64
     } else {
         u64::MAX

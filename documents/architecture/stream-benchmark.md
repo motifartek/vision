@@ -54,11 +54,12 @@ aynı olduğu için harness değişmeden çalışacak.
 | Ölçüt | Değer |
 |---|---|
 | **Event coverage recall** | **24/24 — %100** |
-| Ortalama sapma | 32 ms |
-| Ortalama kare azaltma | 67x (uzun videolarda 200x) |
-| Yanlış sahne kesiti | 2 (10 videoda) |
+| Ortalama sapma | 35 ms |
+| Ortalama kare | 15.3 (bütçe 16) |
+| Ortalama kare azaltma | 78x (uzun videolarda 200x+) |
+| Yanlış sahne kesiti | 1 (10 videoda) |
 | Boşluk garantisi ihlali | 0 |
-| Ortalama hız | gerçek zamanın 75 katı |
+| Ortalama hız | gerçek zamanın 74 katı |
 | Toplam işlem süresi | 5.6 sn (5 dakikalık görüntü için) |
 
 ## Ablasyon: hangi mekanizma ne kadar katkı veriyor
@@ -67,7 +68,7 @@ aynı olduğu için harness değişmeden çalışacak.
 
 | Ayar | Recall | Ortalama sapma | Kare |
 |---|---|---|---|
-| Açık | %100 | 32 ms | 17.2 |
+| Açık | %100 | 35 ms | 15.3 |
 | Kapalı | %100 | 54 ms | 15.8 |
 
 Kesitler recall'u değil **zamansal hassasiyeti** artırıyor. Bütçe kıtken fark
@@ -87,6 +88,8 @@ dahil ediliyor. Katkıyı izole etmek için kesitler kapatılarak ölçüldü.
 | 0.75 | %100 | 115 ms |
 | **1.0 (saf düzgün)** | **%88** | **272 ms** |
 
+*(Bu tablo düzeltmelerden sonra yeniden ölçüldü, sonuç değişmedi.)*
+
 **Bu tablo tasarımın gerekçesi.** Saf düzgün dağılım 24 olayın 3'ünü yapısal
 olarak kaçırıyor — iki dakikalık videoda 16 kare, 7.5 saniyelik aralık demek ve
 1.5 saniyelik olay araya düşüyor. Hareket odaklı örnekleme aynı bütçeyle hepsini
@@ -97,21 +100,27 @@ yakalıyor, üstelik kareyi olaya 8 kat daha yakın koyuyor.
 
 ### Kare bütçesi
 
-| Bütçe | Recall | Sapma (kesit açık) | Sapma (kesit kapalı) | Azaltma |
+| Bütçe | Recall (kesit açık) | Sapma (kesit açık) | Sapma (kesit kapalı) | Azaltma |
 |---|---|---|---|---|
-| 4 | %100 | 91 ms | 313 ms | 188x |
-| 8 | %100 | 45 ms | 142 ms | 115x |
-| 12 | %100 | 54 ms | 111 ms | 85x |
-| 16 | %100 | 32 ms | 54 ms | 67x |
-| 24 | %100 | 17 ms | 21 ms | 49x |
-| 32 | %100 | 11 ms | 11 ms | 39x |
+| 4 | **%96** | 98 ms | 313 ms | 340x |
+| 8 | %100 | 82 ms | 142 ms | 163x |
+| 12 | %100 | 41 ms | 111 ms | 108x |
+| 16 | %100 | 35 ms | 54 ms | 78x |
+| 24 | %100 | 26 ms | 21 ms | 54x |
+| 32 | %100 | 22 ms | 11 ms | 41x |
 
-Recall bütçeye karşı şaşırtıcı derecede dayanıklı: 4 kareyle bile %100. Değişen
-**zamansal hassasiyet**. Şartname puanı zaman damgasından geldiği için asıl
-bakılması gereken sütun sapma.
+Recall bütçeye karşı dayanıklı ve değişen esas olarak **zamansal hassasiyet**.
+Şartname puanı zaman damgasından geldiği için asıl bakılması gereken sütun
+sapma.
 
-Sahne kesitlerinin değeri burada net görünüyor: bütçe 4'te sapmayı 313 ms'den
-91 ms'ye indiriyorlar.
+Sahne kesitlerinin değeri burada görünüyor: bütçe 4'te sapmayı 313 ms'den
+98 ms'ye indiriyorlar.
+
+**Ama bir ödünleşme var:** kesitler bütçenin yarısını alabildiği için, bütçe
+4'te örneklemeye yalnızca 2 nokta kalıyor ve recall %96'ya düşüyor. Kesitler
+kapalıyken aynı bütçede %100 çıkıyor. Yani çok kısıtlı bütçede kesit ayırmak
+zamansal hassasiyeti üç kat iyileştiriyor ama kapsamadan biraz veriyor. Bütçe
+8 ve üstünde ödünleşme kayboluyor; varsayılan 16 bu bölgede.
 
 ### Tekrar eleme
 
@@ -124,6 +133,67 @@ Sahne kesitlerinin değeri burada net görünüyor: bütçe 4'te sapmayı 313 ms
 kare neredeyse hiç yok. Eleme, piksel piksel özdeş kareler içeren videoda
 çalıştığı gözlendi (12 kareyi 3'e indirdi) ama sentetik küme bunu temsil
 etmiyor. Gerçek sabit kamera görüntüsüyle yeniden değerlendirilmeli (#5).
+
+## Gerçek görüntü üzerinde doğrulama
+
+Sentetik küme algoritmayı ayarlamak için; gerçek görüntü onu **çürütmek** için.
+İlk gerçek İSG kaydında (56 sn, 480x480, 30 fps, tek sürekli CCTV çekimi, bir
+yükleyicinin işçiye çarpması) iki hata ortaya çıktı. İkisi de sentetik kümede
+görünmüyordu.
+
+### 1. Sahte sahne kesitleri
+
+**Bulgu:** Tek çekimlik kayıtta **12 sahne kesiti** işaretlendi. Doğru cevap
+sıfır: video baştan sona aynı kamera açısı.
+
+**Sebep:** Kepçe kadrajı süpürdüğünde çok sayıda piksel değişiyor ve SAD
+tavana vuruyor. Hareket sıçraması "bir şey oldu" der ama **neyin** olduğunu
+ayırt etmez: kadrajı süpüren büyük bir nesne ile sahnenin tamamen değişmesi
+aynı sıçramayı üretir.
+
+**Kanıt:** Aday kesitlerin parmak izi mesafeleri ölçüldü — 64 bitte **0-7 bit**.
+Gerçek bir kesitte bu 25-32 olurdu (birbiriyle alakasız iki görüntü ortalama
+32 bit farklıdır). İçerik perceptual olarak hiç değişmemişti.
+
+**Çözüm:** Kesit için ikinci ve bağımsız bir koşul arandı — parmak izi mesafesi
+en az 16 bit. Süpürme geçicidir, kesit kalıcıdır.
+
+**Sonuç:** 12 → **0** kesit. Sentetik kümede yanlış kesit 2 → 1.
+
+### 2. Bütçe aşımı
+
+**Bulgu:** Bütçe 16 istendi, **28 kare** döndü.
+
+**Sebep:** Sahne kesitleri bütçenin *üstüne* ekleniyordu. Sentetik kümede 1-2
+kesit olduğu için 16→18 ile fark edilmiyordu; 12 kesitli gerçek kayıtta %75
+aşım oldu. Bütçenin var oluş sebebi VLM bağlam sınırı olduğundan bu, bütçeyi
+anlamsız kılıyor.
+
+**Çözüm:** Kesitler bütçenin içinden alınıyor ve payları bütçenin yarısıyla
+sınırlı. Sınırı aşan durumda en güçlü hareketi taşıyan kesitler seçiliyor —
+kesit yalnızca sınır işaretidir, olayın kendisi araya düşer.
+
+**Sonuç:** 28 → **16** kare. Sentetik kümede ortalama kare 16.8 → 15.3,
+azaltma oranı 67x → 78x, recall 24/24 (değişmedi).
+
+### Düzeltmelerden sonra ölçülen davranış
+
+| | |
+|---|---|
+| Sahne kesiti | 0 (doğru) |
+| Genel bakış | 16 kare, bütçeye tam uyuyor |
+| Kritik an | 14.87s (hareket 1.00), 16.00s, 17.33s — kaza penceresinde 3 kare |
+| `zoom_range(13000, 19000)` | 12 kare, ortalama 467 ms aralık |
+
+Yakınlaştırma kazanın seyrini kare kare veriyor: 13.5s'de iki kişi kepçenin
+yanında, 14.6s'de yükleyici ilerliyor, 14.8s'de kişi kepçenin altında kalıyor,
+14.9s sonrası görünmüyor. **Bu videoya özel hiçbir ayar yapılmadı.**
+
+### Not
+
+Tek video bir doğrulama değil, bir çürütme denemesidir. Bu kayıt iki hatayı
+ortaya çıkardı; başka kayıtlar başkalarını çıkaracak. Golden Dataset (#5)
+geldiğinde asıl ölçüm o küme üzerinde yapılacak.
 
 ## Bilinen sınırlar
 

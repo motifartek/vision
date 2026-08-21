@@ -40,6 +40,18 @@ const SCENE_CUT_STEP_RATIO: f32 = 0.5;
 /// Basamağın karşılaştırıldığı geçmiş pencerenin uzunluğu (saniye).
 const SCENE_CUT_BASELINE_SECONDS: f64 = 1.0;
 
+/// Gerçek bir sahne kesiti için gereken en küçük parmak izi mesafesi (64 bitte).
+///
+/// Hareket sıçraması tek başına yetmiyor. Gerçek bir İSG kaydında ölçüldü:
+/// kepçe kadrajı süpürdüğünde SAD tavana vuruyor ama içerik perceptual olarak
+/// aynı kalıyor. 56 saniyelik **tek çekimlik** kayıtta 12 sahte kesit üretildi
+/// ve hepsinin parmak izi mesafesi 0-7 bit çıktı.
+///
+/// dHash mutlak bir piksel eşiği değil, istatistiksel bir büyüklük: birbiriyle
+/// alakasız iki görüntü ortalama 32 bit (yarısı) farklıdır. 16 bit "içeriğin
+/// dörtte biri değişti" demek ve gerçek bir kesit için makul bir alt sınır.
+const SCENE_CUT_MIN_HASH_DISTANCE: u32 = 16;
+
 /// Tek bir analiz karesinin hareket ölçümü.
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct MotionSample {
@@ -346,6 +358,18 @@ where
                 continue;
             }
 
+            // İkinci ve bağımsız koşul: içerik gerçekten değişmiş olmalı.
+            //
+            // Hareket sıçraması "bir şey oldu" der ama neyin olduğunu ayırt
+            // etmez. Kadrajı süpüren büyük bir nesne de, sahnenin tamamen
+            // değişmesi de aynı sıçramayı üretir. Parmak izi bu ikisini ayırır:
+            // süpürme geçicidir, kesit kalıcıdır.
+            if hamming_distance(samples[i - 1].dhash, samples[i].dhash)
+                < SCENE_CUT_MIN_HASH_DISTANCE
+            {
+                continue;
+            }
+
             samples[i].is_scene_cut = true;
             last_cut = Some(i);
         }
@@ -384,9 +408,36 @@ mod tests {
     fn tiny_cfg() -> AnalysisConfig {
         AnalysisConfig {
             analysis_fps: 10.0,
-            width: 8,
-            height: 8,
+            width: 32,
+            height: 32,
         }
+    }
+
+    /// Yapılı bir kare üretir.
+    ///
+    /// Düz renk kareler sahne kesiti sınamak için işe yaramaz: dHash komşu
+    /// piksel karşılaştırmasına baktığı için düz bir karenin parmak izi her
+    /// zaman sıfırdır ve iki düz kare, parlaklıkları ne kadar farklı olursa
+    /// olsun, aynı görünür. Gerçek videoda böyle bir kare yok.
+    ///
+    /// `scene` deseni belirler — değişmesi **içerik değişimi** demek.
+    /// `jitter` tüm piksellere sabit eklenir: SAD'yi (hareketi) yükseltir ama
+    /// komşuluk sırasını bozmadığı için parmak izini değiştirmez. Gerçek
+    /// hayattaki karşılığı tam olarak ölçtüğümüz durum: kadrajı süpüren büyük
+    /// bir nesne hareketi tavana vurdurur, içerik ise aynı kalır.
+    fn scene_frame(index: u32, scene: u32, jitter: u8, cfg: AnalysisConfig) -> Result<AnalysisFrame> {
+        let mut data = vec![0u8; cfg.frame_bytes()];
+        for y in 0..cfg.height {
+            for x in 0..cfg.width {
+                let desen = (x * (scene * 5 + 1) + y * (scene * 3 + 2)) % 200;
+                data[(y * cfg.width + x) as usize] = (desen as u8).saturating_add(jitter);
+            }
+        }
+        Ok(AnalysisFrame {
+            index,
+            t_ms: cfg.timestamp_ms(index),
+            data,
+        })
     }
 
     #[test]
@@ -417,10 +468,8 @@ mod tests {
     fn sahne_degisimi_kesit_olarak_isaretlenir() {
         let cfg = tiny_cfg();
         // Sahne 15. karede değişiyor ve değişmiş kalıyor: tek geçiş.
-        // Hareketsiz bir videoda IQR sıfır olduğu için burada yedek ölçüt
-        // devreye giriyor; asıl sınanan o.
         let frames: Vec<_> = (0..30u32)
-            .map(|i| frame(i, if i < 15 { 10 } else { 200 }, cfg))
+            .map(|i| scene_frame(i, if i < 15 { 1 } else { 7 }, 0, cfg))
             .collect();
         let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
 
@@ -430,30 +479,31 @@ mod tests {
     }
 
     #[test]
-    fn dalgali_harekette_ilimli_degisim_kesit_sayilmaz() {
+    fn ayni_sahnedeki_buyuk_hareket_kesit_sayilmaz() {
+        // Regresyon: gerçek bir İSG kaydında (56 sn, tek çekim, sıfır gerçek
+        // kesit) kepçe kadrajı süpürdükçe hareket tavana vuruyor ve 12 sahte
+        // kesit üretiliyordu. Hareket sıçraması tek başına kesit demek değil;
+        // içeriğin de değişmesi gerekir.
         let cfg = tiny_cfg();
-        // Sürekli değişen ama ılımlı hareket, ortasında tek aşırı sıçrama.
-        // Burada IQR sıfırdan büyük, yani Tukey çiti yolu sınanıyor.
         let frames: Vec<_> = (0..40u32)
             .map(|i| {
-                let fill = if i == 25 { 255 } else { (i * 37 % 40) as u8 };
-                frame(i, fill, cfg)
+                // Sahne hep aynı; yalnızca parlaklık dalgalanıyor, 25. karede
+                // de sert bir sıçrama var. Yapı hiç değişmiyor.
+                let jitter = if i == 25 { 200 } else { (i * 3 % 25) as u8 };
+                scene_frame(i, 1, jitter, cfg)
             })
             .collect();
         let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
 
-        let cuts: Vec<_> = profile.scene_cuts().collect();
         assert!(
-            !cuts.is_empty(),
-            "aşırı sıçrama sahne kesiti olarak işaretlenmeliydi"
+            profile.max_score() > 0.5,
+            "senaryo belirgin hareket içermeli, yoksa test bir şey sınamıyor"
         );
-        assert!(
-            cuts.len() <= 2,
-            "ılımlı hareket kesit sayılmamalı, {} kesit bulundu",
-            cuts.len()
+        assert_eq!(
+            profile.scene_cuts().count(),
+            0,
+            "içerik değişmediği hâlde kesit işaretlendi"
         );
-        // Kesit sıçramanın etrafında olmalı.
-        assert!(cuts.iter().all(|c| (24..=27).contains(&c.index)));
     }
 
     #[test]
@@ -512,11 +562,9 @@ mod tests {
     #[test]
     fn kesit_araligi_disini_atar_ve_skorlari_korur() {
         let cfg = tiny_cfg(); // 10 fps -> kare başına 100 ms
-        let mut frames = Vec::new();
-        for i in 0..30u32 {
-            let fill = if i == 15 { 255 } else { 10 };
-            frames.push(frame(i, fill, cfg));
-        }
+        let frames: Vec<_> = (0..30u32)
+            .map(|i| scene_frame(i, if i < 15 { 1 } else { 7 }, 0, cfg))
+            .collect();
         let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
 
         let kesit = profile.slice(1000, 2000);

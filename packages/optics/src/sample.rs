@@ -130,6 +130,14 @@ pub struct Selection {
     pub frames: Vec<SelectedFrame>,
     /// İstenen bütçe. `frames.len()` bundan küçük olabilir (tekrar elendiyse).
     pub budget: usize,
+    /// Ters dönüşüm örneklemesine kalan pay: `budget` eksi zorla dahil edilen
+    /// sahne kesitleri.
+    ///
+    /// α'dan türeyen boşluk garantisi **bu** sayıyla hesaplanır, tam bütçeyle
+    /// değil. Kesitler bütçeden yediği için örneklemenin dağıtacağı nokta
+    /// azalır ve boşluklar orantılı biçimde genişler. Garantiyi tam bütçe
+    /// üzerinden iddia etmek yanlış olurdu.
+    pub sampled_budget: usize,
     /// Tekrar olduğu için elenen kare sayısı.
     pub dropped_duplicates: usize,
     /// Ardışık seçimler arasındaki en büyük boşluk.
@@ -233,22 +241,52 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
     let mut chosen: Vec<(u32, SelectionReason)> = Vec::with_capacity(cfg.budget);
     let mut seen = vec![false; n];
 
-    for j in 0..cfg.budget {
-        let target = (j as f64 + 0.5) / cfg.budget as f64 * total_weight;
+    // --- Sahne kesitleri: bütçenin İÇİNDEN, üstüne değil ---
+    //
+    // Kesitler önce alınır ki kalan bütçe doğru hesaplansın. Bütçenin var oluş
+    // sebebi VLM bağlam sınırı; kesitleri üste eklemek o sınırı deler. Gerçek
+    // bir İSG kaydında ölçüldü: bütçe 16 istenip 28 kare dönüyordu.
+    //
+    // Kesitlere ayrılan pay bütçenin yarısıyla sınırlı. Çok kesitli bir kayıtta
+    // sınır olmasa örnekleme hiç devreye giremez, oysa kesit yalnızca sınır
+    // işaretidir; olayın kendisi araya düşer. Sınırı aşan durumda en güçlü
+    // hareketi taşıyan kesitler seçilir.
+    if cfg.force_scene_cuts {
+        let cut_quota = (cfg.budget / 2).max(1);
+
+        let mut cuts: Vec<usize> = profile
+            .samples
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.is_scene_cut)
+            .map(|(i, _)| i)
+            .collect();
+
+        if cuts.len() > cut_quota {
+            cuts.sort_by(|&a, &b| {
+                profile.samples[b]
+                    .score
+                    .partial_cmp(&profile.samples[a].score)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            });
+            cuts.truncate(cut_quota);
+        }
+
+        for i in cuts {
+            seen[i] = true;
+            chosen.push((i as u32, SelectionReason::SceneCut));
+        }
+    }
+
+    // --- Kalan bütçe: hareket ekseninde örnekleme ---
+    let remaining = cfg.budget.saturating_sub(chosen.len());
+
+    for j in 0..remaining {
+        let target = (j as f64 + 0.5) / remaining.max(1) as f64 * total_weight;
         let idx = cumulative.partition_point(|&c| c < target).min(n - 1);
         if !seen[idx] {
             seen[idx] = true;
             chosen.push((idx as u32, SelectionReason::Motion));
-        }
-    }
-
-    // --- Sahne kesitlerini zorla dahil et ---
-    if cfg.force_scene_cuts {
-        for (i, sample) in profile.samples.iter().enumerate() {
-            if sample.is_scene_cut && !seen[i] {
-                seen[i] = true;
-                chosen.push((i as u32, SelectionReason::SceneCut));
-            }
         }
     }
 
@@ -329,6 +367,7 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
     Ok(Selection {
         frames,
         budget: cfg.budget,
+        sampled_budget: remaining,
         dropped_duplicates: dropped,
         max_gap_ms,
         max_gap_before_dedup_ms,
@@ -632,6 +671,71 @@ mod tests {
             selection.frames.iter().all(|f| f.t_ms >= 70_000),
             "zaman damgaları kesitin aralığında kalmalı"
         );
+    }
+
+    #[test]
+    fn secim_butceyi_asmaz_kesitler_cokken_bile() {
+        // Regresyon: gerçek bir İSG kaydında (56 sn, tek çekim) 12 kesit
+        // bulunmuş ve bütçe 16 istenip 28 kare dönmüştü. Kesitler bütçenin
+        // içinden alınmalı, üstüne eklenmemeli — bütçe VLM bağlam sınırı
+        // demek ve delinirse anlamı kalmıyor.
+        let mut p = profil(&vec![0.5f32; 200]);
+        for i in (0..200).step_by(8) {
+            p.samples[i].is_scene_cut = true;
+        }
+        assert_eq!(p.scene_cuts().count(), 25, "senaryo 25 kesit içermeli");
+
+        for butce in [4usize, 8, 16, 32] {
+            let selection = select_frames(
+                &p,
+                SamplingConfig {
+                    budget: butce,
+                    uniform_prior: 0.25,
+                    dedup_hamming: 0,
+                    force_scene_cuts: true,
+                    subtract_noise_floor: true,
+                },
+            )
+            .unwrap();
+
+            assert!(
+                selection.frames.len() <= butce,
+                "bütçe {butce} aşıldı: {} kare",
+                selection.frames.len()
+            );
+            // Kesit payı bütçenin yarısıyla sınırlı; örnekleme de pay almalı.
+            assert!(
+                selection.scene_cut_count() <= (butce / 2).max(1),
+                "kesit payı aşıldı"
+            );
+            assert_eq!(
+                selection.sampled_budget + selection.scene_cut_count(),
+                butce,
+                "kesit payı ile örnekleme payı toplamı bütçeyi vermeli"
+            );
+        }
+    }
+
+    #[test]
+    fn az_kesitli_videoda_hepsi_dahil_edilir() {
+        let mut p = profil(&vec![0.5f32; 60]);
+        p.samples[10].is_scene_cut = true;
+        p.samples[40].is_scene_cut = true;
+
+        let selection = select_frames(
+            &p,
+            SamplingConfig {
+                budget: 16,
+                uniform_prior: 0.25,
+                dedup_hamming: 0,
+                force_scene_cuts: true,
+                subtract_noise_floor: true,
+            },
+        )
+        .unwrap();
+
+        assert_eq!(selection.scene_cut_count(), 2, "iki kesit de girmeliydi");
+        assert!(selection.frames.len() <= 16);
     }
 
     #[test]
