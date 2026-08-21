@@ -32,7 +32,7 @@ pub mod sample;
 pub mod types;
 
 pub use decode::{decode_gray, measure_spawn_overhead, GrayFrames};
-pub use extract::{extract_gray_at, extract_jpegs, ExtractOptions, ExtractedFrame};
+pub use extract::{extract_gray_at, extract_jpegs, CropBox, ExtractOptions, ExtractedFrame};
 pub use motion::{analyze_frames, build_profile, hamming_distance, MotionProfile, MotionSample};
 pub use preflight::{check_dependencies, ExternalTool};
 pub use probe::probe;

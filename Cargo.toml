@@ -38,4 +38,10 @@ motif-core = { path = "packages/core" }
 motif-event-sdk = { path = "packages/event-sdk" }
 motif-optics = { path = "packages/optics" }
 
-# NATS ve MinIO bağımlılıkları Faz 6'da eklenecek (sürümler o zaman doğrulanacak).
+# Servis katmanı. Gateway kendi axum 0.7 sürümünü ayrıca pinliyor; burada yeni
+# kod için 0.8 kullanılıyor (yol parametresi sözdizimi {id} olarak değişti).
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.7", features = ["trace", "cors", "limit"] }
+async-nats = "0.50"
+futures = "0.3"
+mime_guess = "2.0"

@@ -277,20 +277,26 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
         .unwrap_or(0);
 
     let mut frames: Vec<SelectedFrame> = Vec::with_capacity(chosen.len());
+    // Elemede karenin **profildeki konumu** gerekiyor, videodaki kare numarası
+    // değil. Tam profilde ikisi çakışır; `slice` ile alınmış bir kesitte
+    // ayrışırlar (kesit 46 örnek uzunluğunda olabilir ama içindeki karenin
+    // numarası 1042'dir). Konumu ayrı tutmak bu ikisini karıştırmayı önlüyor.
+    let mut kept_positions: Vec<usize> = Vec::with_capacity(chosen.len());
     let mut dropped = 0usize;
 
-    for (idx, reason) in chosen {
-        let sample = &profile.samples[idx as usize];
+    for (position, reason) in chosen {
+        let position = position as usize;
+        let sample = &profile.samples[position];
 
         let is_duplicate = cfg.dedup_hamming > 0
             && reason != SelectionReason::SceneCut
-            && frames.iter().any(|kept: &SelectedFrame| {
-                let kept_hash = profile.samples[kept.index as usize].dhash;
+            && kept_positions.iter().any(|&kept| {
+                let kept_hash = profile.samples[kept].dhash;
                 if hamming_distance(kept_hash, sample.dhash) > cfg.dedup_hamming {
                     return false;
                 }
                 // İki kare arasında biriken hareket.
-                let (a, b) = (kept.index.min(idx) as usize, kept.index.max(idx) as usize);
+                let (a, b) = (kept.min(position), kept.max(position));
                 let between: f64 = effective[a..=b].iter().sum();
                 between <= motion_tolerance
             });
@@ -300,6 +306,7 @@ pub fn select_frames(profile: &MotionProfile, cfg: SamplingConfig) -> Result<Sel
             continue;
         }
 
+        kept_positions.push(position);
         frames.push(SelectedFrame {
             index: sample.index,
             t_ms: sample.t_ms,
@@ -588,6 +595,43 @@ mod tests {
         for w in selection.frames.windows(2) {
             assert!(w[1].t_ms > w[0].t_ms, "seçim zaman sırasında değil");
         }
+    }
+
+    #[test]
+    fn kesit_alinmis_profilde_secim_calisir() {
+        // Regresyon: `SelectedFrame.index` videodaki asıl kare numarasıdır,
+        // profildeki konum değil. Tam profilde ikisi çakıştığı için hata birim
+        // testlerden kaçmış, ancak `zoom_range` gerçek bir videoda çağrılınca
+        // dizin taşmasıyla patlamıştı. Kesitte numaralar konumlardan çok daha
+        // büyük olabilir.
+        let mut p = profil(&vec![0.4f32; 60]);
+        for (konum, sample) in p.samples.iter_mut().enumerate() {
+            // Videonun ilerisinden alınmış bir kesiti taklit et.
+            sample.index = 1000 + konum as u32;
+            sample.t_ms = 70_000 + konum as u64 * 100;
+        }
+
+        let selection = select_frames(
+            &p,
+            SamplingConfig {
+                budget: 12,
+                uniform_prior: 0.25,
+                dedup_hamming: 3,
+                force_scene_cuts: true,
+                subtract_noise_floor: true,
+            },
+        )
+        .expect("kesit alınmış profilde örnekleme patlamamalı");
+
+        assert!(!selection.frames.is_empty());
+        assert!(
+            selection.frames.iter().all(|f| f.index >= 1000),
+            "asıl kare numaraları korunmalı"
+        );
+        assert!(
+            selection.frames.iter().all(|f| f.t_ms >= 70_000),
+            "zaman damgaları kesitin aralığında kalmalı"
+        );
     }
 
     #[test]

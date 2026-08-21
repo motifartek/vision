@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MotifAI · Stream Test Arayüzü</title>
+<style>
+  :root {
+    --bg: #070707; --card: #0d0d0d; --border: #292929; --fg: #f5f5f5;
+    --muted: #8a8a8a; --primary: #2ea7ff; --cut: #b52bd6; --ok: #22c55e; --err: #ef4444;
+    color-scheme: dark;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--fg);
+         font: 14px/1.5 system-ui, sans-serif; }
+  header { display: flex; align-items: baseline; gap: 12px; padding: 16px 24px;
+           border-bottom: 1px solid var(--border); position: sticky; top: 0;
+           background: var(--bg); z-index: 5; }
+  header h1 { font-size: 15px; margin: 0; font-weight: 600; }
+  header .sub { color: var(--muted); font-size: 12px; }
+  main { max-width: 1400px; margin: 0 auto; padding: 20px 24px 80px; }
+  section { background: var(--card); border: 1px solid var(--border);
+            border-radius: 10px; padding: 16px; margin-bottom: 16px; }
+  h2 { font-size: 13px; margin: 0 0 12px; font-weight: 600; }
+  h2 .hint { color: var(--muted); font-weight: 400; margin-left: 8px; }
+  button { background: var(--primary); color: #06131c; border: 0; border-radius: 6px;
+           padding: 7px 14px; font: inherit; font-weight: 600; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--fg); border: 1px solid var(--border); }
+  button:disabled { opacity: .5; cursor: not-allowed; }
+  input, select { background: #121212; color: var(--fg); border: 1px solid var(--border);
+                  border-radius: 6px; padding: 6px 9px; font: inherit; }
+  .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 12px; }
+  .frame { border: 1px solid var(--border); border-radius: 8px; overflow: hidden;
+           background: #000; cursor: pointer; }
+  .frame img { width: 100%; display: block; aspect-ratio: 16/9; object-fit: contain; }
+  .frame .meta { padding: 6px 8px; font-size: 11px; display: flex;
+                 justify-content: space-between; color: var(--muted); }
+  .frame.cut { border-color: var(--cut); }
+  .frame .t { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+  .videos { display: flex; flex-direction: column; gap: 6px; }
+  .video { display: flex; justify-content: space-between; align-items: center; gap: 10px;
+           padding: 8px 10px; border: 1px solid var(--border); border-radius: 7px; cursor: pointer; }
+  .video.active { border-color: var(--primary); }
+  .video small { color: var(--muted); }
+  #chartWrap { position: relative; }
+  #chartWrap svg { width: 100%; height: auto; display: block; border-radius: 8px; }
+  #cursor { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--ok);
+            pointer-events: none; display: none; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+           gap: 10px; margin-top: 12px; }
+  .stat { border: 1px solid var(--border); border-radius: 7px; padding: 8px 10px; }
+  .stat b { display: block; font-size: 17px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 11px; }
+  pre { background: #000; border: 1px solid var(--border); border-radius: 7px;
+        padding: 10px; overflow: auto; max-height: 260px; font-size: 11px; margin: 0; }
+  .log { font-size: 12px; }
+  .log div { padding: 3px 0; border-bottom: 1px solid var(--border); }
+  .log .err { color: var(--err); }
+  .log .ok { color: var(--ok); }
+  .empty { color: var(--muted); font-size: 12px; padding: 8px 0; }
+  dialog { background: var(--card); color: var(--fg); border: 1px solid var(--border);
+           border-radius: 10px; max-width: 92vw; padding: 0; }
+  dialog img { max-width: 90vw; max-height: 78vh; display: block; }
+  dialog .bar { padding: 8px 12px; display: flex; justify-content: space-between; gap: 16px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>MotifAI · Stream</h1>
+  <span class="sub" id="health">bağlanıyor…</span>
+</header>
+
+<main>
+  <section>
+    <h2>Video <span class="hint">yükle ve seç</span></h2>
+    <div class="row">
+      <input type="file" id="file" accept="video/*">
+      <button id="upload">Yükle</button>
+      <button class="ghost" id="refresh">Yenile</button>
+    </div>
+    <div class="videos" id="videos" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2>Hareket profili <span class="hint">eğriye tıkla → o ana yakınlaş</span></h2>
+    <div id="chartWrap"><div id="cursor"></div><div class="empty">Video seçin.</div></div>
+    <div class="stats" id="stats"></div>
+  </section>
+
+  <section>
+    <h2>Genel bakış <span class="hint">pass 2 — adaptif örnekleme</span></h2>
+    <div class="row">
+      <label>bütçe <input type="number" id="budget" value="16" min="1" max="64" style="width:70px"></label>
+      <button id="overview">Kareleri seç</button>
+      <span class="sub" id="ovStat"></span>
+    </div>
+    <div class="grid" id="frames" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2>Yakınlaştırma <span class="hint">pass 3 — ajanın çağırdığı araç</span></h2>
+    <div class="row">
+      <label>t0 <input type="number" id="t0" value="0" step="500" style="width:100px"> ms</label>
+      <label>t1 <input type="number" id="t1" value="5000" step="500" style="width:100px"> ms</label>
+      <label>bütçe <input type="number" id="zbudget" value="12" min="1" max="32" style="width:70px"></label>
+      <button id="zoom">zoom_range</button>
+      <span class="sub" id="zoomStat"></span>
+    </div>
+    <div class="grid" id="zoomFrames" style="margin-top:12px"></div>
+  </section>
+
+  <section>
+    <h2>Ham araç çağrısı <span class="hint">ajanın gördüğü yüzey</span></h2>
+    <div class="row">
+      <select id="tool">
+        <option>video_info</option><option>motion_profile</option>
+        <option>sample_overview</option><option>zoom_range</option>
+        <option>get_frame</option><option>crop_region</option>
+      </select>
+      <button id="call">Çağır</button>
+    </div>
+    <div class="row" style="margin-top:10px; align-items:stretch">
+      <textarea id="toolBody" rows="6" style="flex:1; min-width:280px; background:#121212;
+        color:var(--fg); border:1px solid var(--border); border-radius:6px; padding:8px;
+        font:12px ui-monospace, monospace"></textarea>
+      <pre id="toolOut" style="flex:1; min-width:280px">—</pre>
+    </div>
+  </section>
+
+  <section>
+    <h2>Günlük</h2>
+    <div class="log" id="log"></div>
+  </section>
+</main>
+
+<dialog id="viewer">
+  <div class="bar"><b id="viewerT"></b><button class="ghost" id="closeViewer">Kapat</button></div>
+  <img id="viewerImg" alt="">
+</dialog>
+
+<script>
+const $ = id => document.getElementById(id);
+let current = null;      // seçili video kaydı
+let duration = 0;
+
+const fmt = ms => {
+  const s = Math.floor(ms / 1000);
+  return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
+};
+
+function log(msg, cls = '') {
+  const el = document.createElement('div');
+  el.className = cls;
+  el.textContent = `${new Date().toLocaleTimeString('tr')} · ${msg}`;
+  $('log').prepend(el);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, opts);
+  const text = await res.text();
+  let body;
+  try { body = text ? JSON.parse(text) : null; } catch { body = text; }
+  if (!res.ok) throw new Error(body?.error || `${res.status} ${res.statusText}`);
+  return body;
+}
+
+// --- sağlık ---
+api('/healthz').then(h => {
+  $('health').textContent =
+    `bütçe ${h.config.overview_budget} · zoom ${h.config.zoom_budget} · α ${h.config.uniform_prior}` +
+    ` · ${h.config.analysis_fps} fps · NATS ${h.nats ? 'açık' : 'kapalı'}`;
+}).catch(e => { $('health').textContent = 'servise ulaşılamadı'; log(e.message, 'err'); });
+
+// --- videolar ---
+async function loadVideos() {
+  const { videos } = await api('/v1/videos');
+  const box = $('videos');
+  box.innerHTML = '';
+  if (!videos.length) { box.innerHTML = '<div class="empty">Henüz video yok.</div>'; return; }
+
+  for (const v of videos) {
+    const el = document.createElement('div');
+    el.className = 'video' + (current?.id === v.id ? ' active' : '');
+    el.innerHTML = `<span>${v.original_name}
+        <small>· ${fmt(v.info.duration_ms)} · ${v.info.width}×${v.info.height}
+        · ${v.info.fps.toFixed(0)} fps · ${v.info.codec}</small></span>`;
+    const del = document.createElement('button');
+    del.className = 'ghost'; del.textContent = 'Sil';
+    del.onclick = async e => {
+      e.stopPropagation();
+      await api(`/v1/videos/${v.id}`, { method: 'DELETE' });
+      if (current?.id === v.id) { current = null; $('chartWrap').innerHTML = ''; }
+      log(`silindi: ${v.original_name}`); loadVideos();
+    };
+    el.appendChild(del);
+    el.onclick = () => select(v);
+    box.appendChild(el);
+  }
+}
+
+async function select(v) {
+  current = v;
+  duration = v.info.duration_ms;
+  $('t1').value = Math.min(5000, duration);
+  $('toolBody').value = JSON.stringify({ video_id: v.id }, null, 2);
+  loadVideos();
+  log(`seçildi: ${v.original_name}`);
+  await loadProfile();
+}
+
+// --- profil ---
+async function loadProfile() {
+  const wrap = $('chartWrap');
+  wrap.innerHTML = '<div class="empty">profil çıkarılıyor…</div>';
+
+  const started = performance.now();
+  const svg = await (await fetch(`/v1/videos/${current.id}/profile.svg`)).text();
+  const elapsed = Math.round(performance.now() - started);
+
+  wrap.innerHTML = svg;
+  const cursor = document.createElement('div');
+  cursor.id = 'cursor';
+  wrap.appendChild(cursor);
+
+  // Eğriye tıklayınca o anın etrafına yakınlaşma aralığı kur.
+  wrap.querySelector('svg').onclick = ev => {
+    const r = ev.currentTarget.getBoundingClientRect();
+    const ratio = (ev.clientX - r.left) / r.width;
+    const t = Math.round(ratio * duration);
+    $('t0').value = Math.max(0, t - 2500);
+    $('t1').value = Math.min(duration, t + 2500);
+    cursor.style.display = 'block';
+    cursor.style.left = `${ev.clientX - r.left}px`;
+    log(`imleç ${fmt(t)} → yakınlaştırma aralığı ${$('t0').value}–${$('t1').value} ms`);
+  };
+
+  const p = await api(`/v1/videos/${current.id}/profile?bucket_ms=1000`);
+  const cuts = p.buckets.filter(b => b.is_scene_cut).length;
+  const peak = Math.max(...p.buckets.map(b => b.score));
+  $('stats').innerHTML = `
+    <div class="stat"><b>${fmt(p.duration_ms)}</b><span>süre</span></div>
+    <div class="stat"><b>${p.buckets.length}</b><span>saniyelik kova</span></div>
+    <div class="stat"><b>${cuts}</b><span>sahne kesiti</span></div>
+    <div class="stat"><b>${peak.toFixed(2)}</b><span>tepe hareket</span></div>
+    <div class="stat"><b>${elapsed} ms</b><span>profil süresi</span></div>`;
+}
+
+// --- kare ızgarası ---
+function renderFrames(target, frames) {
+  const box = $(target);
+  box.innerHTML = '';
+  if (!frames.length) { box.innerHTML = '<div class="empty">Kare yok.</div>'; return; }
+
+  for (const f of frames) {
+    const el = document.createElement('div');
+    el.className = 'frame' + (f.is_scene_cut ? ' cut' : '');
+    el.innerHTML = `<img loading="lazy" src="/v1/blobs/${f.object_key}" alt="${fmt(f.t_ms)}">
+      <div class="meta"><span class="t">${fmt(f.t_ms)}</span>
+      <span>${f.motion_score.toFixed(2)}${f.is_scene_cut ? ' · kesit' : ''}</span></div>`;
+    el.onclick = () => {
+      $('viewerImg').src = `/v1/blobs/${f.object_key}`;
+      $('viewerT').textContent = `${fmt(f.t_ms)} · hareket ${f.motion_score.toFixed(3)}`;
+      $('viewer').showModal();
+    };
+    box.appendChild(el);
+  }
+}
+
+// --- eylemler ---
+$('upload').onclick = async () => {
+  const file = $('file').files[0];
+  if (!file) return log('dosya seçilmedi', 'err');
+
+  const fd = new FormData();
+  fd.append('file', file);
+  $('upload').disabled = true;
+  log(`yükleniyor: ${file.name} (${(file.size / 1e6).toFixed(1)} MB)`);
+
+  try {
+    const rec = await api('/v1/videos', { method: 'POST', body: fd });
+    log(`yüklendi: ${rec.original_name}`, 'ok');
+    await loadVideos();
+    await select(rec);
+  } catch (e) { log(e.message, 'err'); }
+  finally { $('upload').disabled = false; }
+};
+
+$('refresh').onclick = loadVideos;
+
+$('overview').onclick = async () => {
+  if (!current) return log('önce video seçin', 'err');
+  $('overview').disabled = true;
+  const started = performance.now();
+  try {
+    const { frames } = await api(`/v1/videos/${current.id}/overview`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ budget: +$('budget').value }),
+    });
+    const ms = Math.round(performance.now() - started);
+    const src = Math.round(duration / 1000 * current.info.fps);
+    $('ovStat').textContent =
+      `${frames.length} kare · ${src} kaynak kareden ${(src / frames.length).toFixed(0)}x azaltma · ${ms} ms`;
+    renderFrames('frames', frames);
+    log(`genel bakış: ${frames.length} kare, ${ms} ms`, 'ok');
+  } catch (e) { log(e.message, 'err'); }
+  finally { $('overview').disabled = false; }
+};
+
+$('zoom').onclick = async () => {
+  if (!current) return log('önce video seçin', 'err');
+  $('zoom').disabled = true;
+  const started = performance.now();
+  try {
+    const out = await api('/v1/tools/zoom_range', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        video_id: current.id, t0_ms: +$('t0').value,
+        t1_ms: +$('t1').value, budget: +$('zbudget').value,
+      }),
+    });
+    const ms = Math.round(performance.now() - started);
+    renderFrames('zoomFrames', out.frames);
+
+    const detail = await api(`/v1/videos/${current.id}`);
+    $('zoomStat').textContent =
+      `${out.frames.length} kare · ${ms} ms · kalan yakınlaştırma ${detail.zooms_remaining}`;
+    log(`zoom_range ${$('t0').value}–${$('t1').value} ms → ${out.frames.length} kare`, 'ok');
+  } catch (e) { log(`zoom_range: ${e.message}`, 'err'); }
+  finally { $('zoom').disabled = false; }
+};
+
+// Araç seçilince örnek gövde doldur.
+$('tool').onchange = () => {
+  const id = current?.id ?? '<video_id>';
+  const bodies = {
+    video_info: { video_id: id },
+    motion_profile: { video_id: id, bucket_ms: 1000 },
+    sample_overview: { video_id: id, budget: 16 },
+    zoom_range: { video_id: id, t0_ms: 0, t1_ms: 5000, budget: 12 },
+    get_frame: { video_id: id, t_ms: 1000, max_dim: 768 },
+    crop_region: { video_id: id, t_ms: 1000, bbox: { x: 0.25, y: 0.25, w: 0.5, h: 0.5 } },
+  };
+  $('toolBody').value = JSON.stringify(bodies[$('tool').value], null, 2);
+};
+
+$('call').onclick = async () => {
+  const tool = $('tool').value;
+  try {
+    const out = await api(`/v1/tools/${tool}`, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: $('toolBody').value,
+    });
+    $('toolOut').textContent = JSON.stringify(out, null, 2);
+    log(`${tool} başarılı`, 'ok');
+    if (out.frames) renderFrames('zoomFrames', out.frames);
+    if (out.frame) renderFrames('zoomFrames', [out.frame]);
+  } catch (e) {
+    $('toolOut').textContent = e.message;
+    log(`${tool}: ${e.message}`, 'err');
+  }
+};
+
+$('closeViewer').onclick = () => $('viewer').close();
+
+loadVideos().catch(e => log(e.message, 'err'));
+</script>
+</body>
+</html>

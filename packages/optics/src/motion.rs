@@ -100,6 +100,49 @@ impl MotionProfile {
         self.samples.iter().filter(|s| s.is_scene_cut)
     }
 
+    /// Profilin verilen zaman aralığına düşen kesiti.
+    ///
+    /// Yakınlaştırma (pass 3) bunun üzerine kurulu: ajan bir aralık işaret
+    /// ettiğinde, o aralığın profili kesilip aynı örnekleme algoritması daha
+    /// küçük bir bütçeyle yeniden koşturulur. Videoyu tekrar çözmeye gerek
+    /// yok — profil bir kez hesaplanıp saklandığı için yakınlaştırma
+    /// neredeyse bedava.
+    ///
+    /// Skorlar **yeniden normalize edilmez**: aralık içindeki hareketin
+    /// videonun geneline göre ne kadar güçlü olduğu bilgisi korunur. Yeniden
+    /// normalize etmek, tamamen sakin bir aralıkta gürültüyü olay gibi
+    /// gösterirdi.
+    pub fn slice(&self, t0_ms: u64, t1_ms: u64) -> MotionProfile {
+        let (start, end) = if t0_ms <= t1_ms {
+            (t0_ms, t1_ms)
+        } else {
+            (t1_ms, t0_ms)
+        };
+
+        let samples: Vec<MotionSample> = self
+            .samples
+            .iter()
+            .filter(|s| s.t_ms >= start && s.t_ms <= end)
+            .copied()
+            .collect();
+
+        let duration_ms = match (samples.first(), samples.last()) {
+            (Some(f), Some(l)) => {
+                let frame_interval = (1000.0 / self.analysis_fps).round() as u64;
+                l.t_ms - f.t_ms + frame_interval
+            }
+            _ => 0,
+        };
+
+        MotionProfile {
+            analysis_fps: self.analysis_fps,
+            width: self.width,
+            height: self.height,
+            duration_ms,
+            samples,
+        }
+    }
+
     /// Profili daha kaba zaman kovalarına indirger.
     ///
     /// Ajana ham profili vermek bağlamı şişirir: 2 dakikalık videoda 1800
@@ -464,6 +507,50 @@ mod tests {
             (buckets[0].1 - profile.max_score()).abs() < 1e-6,
             "kova maksimumu kaybetti"
         );
+    }
+
+    #[test]
+    fn kesit_araligi_disini_atar_ve_skorlari_korur() {
+        let cfg = tiny_cfg(); // 10 fps -> kare başına 100 ms
+        let mut frames = Vec::new();
+        for i in 0..30u32 {
+            let fill = if i == 15 { 255 } else { 10 };
+            frames.push(frame(i, fill, cfg));
+        }
+        let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
+
+        let kesit = profile.slice(1000, 2000);
+
+        assert!(kesit.samples.iter().all(|s| s.t_ms >= 1000 && s.t_ms <= 2000));
+        assert_eq!(kesit.samples.first().unwrap().t_ms, 1000);
+        assert_eq!(kesit.samples.last().unwrap().t_ms, 2000);
+
+        // Sıçrama (index 15, t=1500) kesitte ve skoru değişmemiş olmalı.
+        let sicrama = kesit.samples.iter().find(|s| s.t_ms == 1500).unwrap();
+        assert_eq!(sicrama.score, profile.samples[15].score);
+        assert!(sicrama.is_scene_cut);
+    }
+
+    #[test]
+    fn ters_sirali_aralik_duzeltilir() {
+        let cfg = tiny_cfg();
+        let frames: Vec<_> = (0..20u32).map(|i| frame(i, 10, cfg)).collect();
+        let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
+
+        let a = profile.slice(500, 1200);
+        let b = profile.slice(1200, 500);
+        assert_eq!(a.len(), b.len());
+    }
+
+    #[test]
+    fn video_disi_aralik_bos_kesit_verir() {
+        let cfg = tiny_cfg();
+        let frames: Vec<_> = (0..10u32).map(|i| frame(i, 10, cfg)).collect();
+        let profile = analyze_frames(frames.into_iter(), cfg).unwrap();
+
+        let kesit = profile.slice(9_000, 10_000);
+        assert!(kesit.is_empty());
+        assert_eq!(kesit.duration_ms, 0);
     }
 
     #[test]

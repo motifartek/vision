@@ -228,3 +228,98 @@ gömülmez — hedef donanım henüz belli değil ve bütçe ona göre değişec
 > α'nın **sıfır olmaması kritik**: "yerde hareketsiz kişi" şartnamedeki örnek
 > olaylardan biri ve tanımı gereği hareketsiz. Saf hareket odaklı örnekleme bu
 > olayı yapısal olarak kaçırır; uniform prior bunun sigortasıdır.
+
+---
+
+## Servisi çalıştırma
+
+```bash
+cargo run -p stream
+```
+
+Hiçbir altyapı gerekmiyor: nesne deposu varsayılan olarak yerel dosya sistemi
+(`data/stream`), NATS isteğe bağlı. Ayağa kalkınca <http://localhost:8100>
+adresinde **test arayüzü** açılır — video yükle, hareket profilini gör, eğriye
+tıklayıp o ana yakınlaş, araçları elle çağır.
+
+## Uçlar
+
+| Uç | İş |
+|---|---|
+| `GET /` | Test arayüzü (ikiliye gömülü, build adımı yok) |
+| `GET /healthz` | Durum, aktif yapılandırma, araç listesi |
+| `POST /v1/videos` | Video yükle (multipart, alan adı `file`) |
+| `GET /v1/videos` | Yüklenmiş videolar |
+| `GET /v1/videos/{id}` | Kayıt + kalan yakınlaştırma bütçesi |
+| `DELETE /v1/videos/{id}` | Videoyu ve tüm nesnelerini sil |
+| `GET /v1/videos/{id}/profile` | Hareket profili (`?bucket_ms=1000` ile kovalanmış) |
+| `GET /v1/videos/{id}/profile.svg` | Hareket eğrisi görseli |
+| `POST /v1/videos/{id}/overview` | Genel bakış kareleri seç |
+| `POST /v1/tools/{tool}` | **Ajan araç yüzeyi** |
+| `GET /v1/blobs/{key}` | Kare/nesne sun |
+
+## Ajan araçları
+
+Altı araç hem HTTP hem NATS istek/cevap (`stream.tool.<ad>`) üzerinden
+çağrılabilir; ikisi de aynı gövdeyi kullanır, iş mantığı tek yerdedir.
+
+| Araç | İş |
+|---|---|
+| `video_info` | Süre, çözünürlük, fps, codec |
+| `motion_profile` | Hareket eğrisi (kovalanmış) |
+| `sample_overview` | Pass 2 — videonun kaba taraması |
+| `zoom_range` | **Pass 3 — ajanın bir aralığa yakınlaşması** |
+| `get_frame` | Tek zaman noktasının karesi |
+| `crop_region` | Karenin bir bölgesini kırpıp büyüt |
+
+`zoom_range` sistemin ayırt edici parçası: ajan kaba bakışta bir şey fark
+edince o aralığın yoğun karelerini kendi kararıyla ister. Video yeniden
+çözülmez — profil bir kez çıkarıldığı için yakınlaştırma neredeyse bedava.
+
+Video başına yakınlaştırma sayısı sınırlıdır (`STREAM_MAX_ZOOMS`, varsayılan 8):
+ajan yakınlaşmaya kendi karar verdiği için kararsız bir model aynı aralığa
+tekrar tekrar girip gecikmeyi sınırsız büyütebilir. Sınıra ulaşınca
+`zoom_limit_exceeded` koduyla "eldeki karelerle sonuca varın" mesajı döner.
+
+### Ölçülen davranış
+
+2 dakikalık test videosu, olay 70.0–71.5 sn arasında:
+
+- **Genel bakış** (bütçe 16): 18 karenin 11'i olay penceresine düştü — bütçenin
+  %61'i videonun %1.25'ine.
+- **`zoom_range(69000, 72000)`**: 14 kare, ortalama 164 ms aralıkla; sahne
+  kesiti sınırları işaretli.
+- Zaman damgası bindirmesi doğrulandı: t=70600 ms karesinin üzerinde `01:10.6`.
+
+## Ortam değişkenleri
+
+| Değişken | Varsayılan | Açıklama |
+|---|---|---|
+| `STREAM_BIND` | `0.0.0.0:8100` | Dinlenecek adres |
+| `STREAM_STORAGE_ROOT` | `data/stream` | Nesne deposu kökü |
+| `NATS_URL` | — | Verilmezse olay yayını ve NATS araç yüzeyi kapalı |
+| `STREAM_OVERVIEW_BUDGET` | 16 | Genel bakış kare sayısı |
+| `STREAM_ZOOM_BUDGET` | 12 | Yakınlaştırma kare sayısı |
+| `STREAM_MAX_ZOOMS` | 8 | Video başına yakınlaştırma sınırı |
+| `STREAM_UNIFORM_PRIOR` | 0.25 | α — kapsama garantisi düğmesi |
+| `STREAM_ANALYSIS_FPS` | 15 | Pass 1 analiz kare hızı |
+| `STREAM_TIMESTAMP_OVERLAY` | açık | Karelere zaman damgası bindir |
+| `STREAM_FRAME_MAX_DIM` | 768 | Modele giden karenin uzun kenarı |
+| `STREAM_MAX_UPLOAD_BYTES` | 2 GB | Yükleme sınırı |
+
+## Nesne deposu
+
+`BlobStore` arayüzünün arkasında şu an tek gerçekleme var: `LocalStore` (yerel
+dosya sistemi). **MinIO/S3 gerçeklemesi henüz yazılmadı** — aynı arayüzün
+arkasına girecek ve servisin geri kalanı değişmeyecek. Bu bilinçli bir sıralama:
+test arayüzünde gerçek video üzerinde çalışmak için altyapı ayağa kaldırmak
+gerekmesin.
+
+Anahtar düzeni:
+
+```
+raw/<id>.<uzanti>        ham video
+meta/<id>.json           kütük kaydı
+profiles/<id>.json       hareket profili (bir kez hesaplanır)
+frames/<id>/<t_ms>.jpg   çıkarılmış kareler (sıfır dolgulu, kronolojik sıralanır)
+```

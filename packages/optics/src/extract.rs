@@ -23,9 +23,41 @@ use motif_core::{Error, Result};
 use crate::preflight::ExternalTool;
 use crate::types::AnalysisConfig;
 
+/// Normalize edilmiş kırpma kutusu (0.0..1.0).
+///
+/// Piksel yerine oran kullanılıyor: çağıran tarafın çözünürlüğü bilmesi
+/// gerekmiyor ve aynı kutu farklı çözünürlüklerde geçerli kalıyor. Ajan
+/// `crop_region` aracını çağırırken tam olarak bu biçimi gönderiyor.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CropBox {
+    pub x: f32,
+    pub y: f32,
+    pub w: f32,
+    pub h: f32,
+}
+
+impl CropBox {
+    /// Kutuyu kare sınırlarına oturtur.
+    ///
+    /// Model uydurma koordinat üretebilir; ffmpeg'e geçersiz kırpma vermek
+    /// hata yerine bozuk çıktı üretebildiği için burada kırpılıyor.
+    pub fn clamped(self) -> Self {
+        let x = self.x.clamp(0.0, 1.0);
+        let y = self.y.clamp(0.0, 1.0);
+        Self {
+            x,
+            y,
+            w: self.w.clamp(0.01, 1.0 - x),
+            h: self.h.clamp(0.01, 1.0 - y),
+        }
+    }
+}
+
 /// Çıkarma ayarları.
 #[derive(Debug, Clone)]
 pub struct ExtractOptions {
+    /// Kareden kırpılacak bölge. Ölçeklemeden önce uygulanır.
+    pub crop: Option<CropBox>,
     /// Uzun kenarın piksel sınırı. Kare bu kutuya sığacak şekilde küçültülür.
     pub max_dim: Option<u32>,
     /// JPEG kalitesi (ffmpeg `-q:v`): 2 en iyi, 31 en kötü.
@@ -39,6 +71,7 @@ pub struct ExtractOptions {
 impl Default for ExtractOptions {
     fn default() -> Self {
         Self {
+            crop: None,
             max_dim: None,
             quality: 2,
             timestamp_overlay: false,
@@ -104,6 +137,17 @@ fn overlay_text(t_ms: u64) -> String {
 /// Verilen ayarlar için `-vf` filtre zincirini kurar.
 fn build_filters(t_ms: u64, opts: &ExtractOptions, font: Option<&Path>) -> Option<String> {
     let mut parts: Vec<String> = Vec::new();
+
+    // Kırpma ölçeklemeden önce gelmeli: önce küçültüp sonra kırpmak, ajanın
+    // istediği bölgeyi düşük çözünürlükten büyütmek anlamına gelirdi. Amaç
+    // tam tersi — bölgeye yakınlaşınca detay artmalı.
+    if let Some(crop) = opts.crop {
+        let c = crop.clamped();
+        parts.push(format!(
+            "crop=w=iw*{}:h=ih*{}:x=iw*{}:y=ih*{}",
+            c.w, c.h, c.x, c.y
+        ));
+    }
 
     if let Some(max_dim) = opts.max_dim {
         // Kutuya sığdır, en-boy oranını koru, büyütme yapma.
@@ -304,5 +348,35 @@ mod tests {
         let f = build_filters(15_200, &bindirmeli, Some(&font)).unwrap();
         assert!(f.contains("drawtext"));
         assert!(f.contains("00\\:15.2"));
+    }
+
+    #[test]
+    fn kirpma_olceklemeden_once_gelir() {
+        // Önce küçültüp sonra kırpmak, ajanın istediği bölgeyi düşük
+        // çözünürlükten büyütmek olurdu. Amaç tam tersi: yakınlaşınca detay
+        // artmalı.
+        let opts = ExtractOptions {
+            crop: Some(CropBox { x: 0.25, y: 0.5, w: 0.5, h: 0.25 }),
+            max_dim: Some(768),
+            ..Default::default()
+        };
+        let f = build_filters(0, &opts, None).unwrap();
+
+        let crop_at = f.find("crop=").expect("kırpma filtresi yok");
+        let scale_at = f.find("scale=").expect("ölçekleme filtresi yok");
+        assert!(crop_at < scale_at, "kırpma ölçeklemeden önce olmalı: {f}");
+    }
+
+    #[test]
+    fn kirpma_kutusu_kare_sinirlarina_oturtulur() {
+        // Modelin uydurabileceği geçersiz koordinatlar.
+        let tasan = CropBox { x: 0.9, y: -0.3, w: 0.8, h: 2.0 }.clamped();
+        assert!(tasan.x >= 0.0 && tasan.y >= 0.0);
+        assert!(tasan.x + tasan.w <= 1.0 + 1e-6, "kutu sağdan taştı: {tasan:?}");
+        assert!(tasan.y + tasan.h <= 1.0 + 1e-6, "kutu alttan taştı: {tasan:?}");
+
+        // Sıfır genişlik ffmpeg'de bozuk çıktı üretir; en az bir eşik kalmalı.
+        let sifir = CropBox { x: 0.0, y: 0.0, w: 0.0, h: 0.0 }.clamped();
+        assert!(sifir.w > 0.0 && sifir.h > 0.0);
     }
 }
