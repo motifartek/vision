@@ -13,8 +13,7 @@ import { cn } from "@/lib/utils"
 const nav = [
   { href: "/", label: "Kontrol Paneli", description: "Projelerin genel durumunu görüntüle", icon: House },
   { href: "/videos", label: "Video Seçimi", description: "İşlenecek videoyu seç ve düzenle", icon: Video },
-  { href: "/technical-options", label: "Teknik Seçenekler", description: "Çıktı kalitesini ve kodlamayı ayarla", icon: SlidersHorizontal },
-  { href: "/tool-configurations", label: "Araç Yapılandırmaları", description: "İşleme araçlarını ve modülleri yönet", icon: Wrench },
+  { href: "/tools", label: "Araçlar", description: "İşleme araçlarını ve modülleri yönet", icon: Wrench },
 ]
 
 function SidebarItem({ item, active }: { item: (typeof nav)[number]; active: boolean }) {
@@ -33,12 +32,23 @@ function SidebarItem({ item, active }: { item: (typeof nav)[number]; active: boo
   )
 }
 
-export function AppShell({ children, title, description }: { children: React.ReactNode; title: string; description: string }) {
+type AppShellProps = {
+  children: React.ReactNode
+  title?: string
+  description?: string
+  firstName?: string
+  lastName?: string
+  email?: string
+}
+
+export function AppShell({ children, title, description, firstName = "", lastName = "", email = "" }: AppShellProps) {
   const pathname = usePathname()
+  const initials = [firstName[0], lastName[0]].filter(Boolean).join("").toUpperCase() || "?"
+
   return (
     <div className="flex min-h-dvh bg-background">
       <aside className="fixed inset-y-0 left-0 flex w-16 flex-col items-center border-r bg-card py-4">
-        <Link href="/" className="mb-6 flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground" aria-label="Framecut ana sayfa">
+        <Link href="/" className="mb-6 flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground" aria-label="MotifAI ana sayfa">
           <Gauge className="size-5" />
         </Link>
         <nav className="flex flex-1 flex-col items-center gap-2" aria-label="Ana navigasyon">
@@ -47,16 +57,28 @@ export function AppShell({ children, title, description }: { children: React.Rea
             return <SidebarItem key={item.href} item={item} active={active} />
           })}
         </nav>
-        <Button variant="ghost" size="icon" aria-label="Ayarlar"><Settings2 /></Button>
+        <Link href="/settings" aria-label="Ayarlar">
+          <Button variant="ghost" size="icon"><Settings2 /></Button>
+        </Link>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col pl-16">
         <header className="sticky top-0 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-6">
-          <div className="min-w-0"><h1 className="truncate text-base font-semibold">{title}</h1><p className="hidden text-xs text-muted-foreground sm:block">{description}</p></div>
+          <div className="min-w-0">
+            {title && <h1 className="truncate text-base font-semibold">{title}</h1>}
+            {description && <p className="hidden text-xs text-muted-foreground sm:block">{description}</p>}
+          </div>
           <div className="flex items-center gap-2">
-            <div className="relative hidden md:block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="w-56 pl-9" placeholder="Proje veya video ara" aria-label="Ara" /></div>
+            <div className="relative hidden md:block">
+              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input className="w-56 pl-9" placeholder="Proje veya video ara" aria-label="Ara" />
+            </div>
             <Button variant="ghost" size="icon" aria-label="Yardım"><CircleHelp /></Button>
             <Button variant="ghost" size="icon" aria-label="Bildirimler"><Bell /></Button>
-            <Avatar className="size-8"><AvatarFallback>AK</AvatarFallback></Avatar>
+            <Link href="/settings" aria-label={`${firstName} ${lastName} — Ayarlar`}>
+              <Avatar className="size-8 cursor-pointer">
+                <AvatarFallback title={email}>{initials}</AvatarFallback>
+              </Avatar>
+            </Link>
           </div>
         </header>
         <main className="flex-1 p-4 md:p-6">{children}</main>
