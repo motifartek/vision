@@ -1,10 +1,14 @@
 import type { Metadata, Viewport } from "next"
-import { Geist, Geist_Mono } from "next/font/google"
+import { GeistSans } from "geist/font/sans"
+import { GeistMono } from "geist/font/mono"
 import { TooltipProvider } from "@/components/ui/tooltip"
 import "./globals.css"
 
-const geist = Geist({ subsets: ["latin"], variable: "--font-geist" })
-const geistMono = Geist_Mono({ subsets: ["latin"], variable: "--font-geist-mono" })
+// Fontlar `geist` paketiyle yerelden geliyor. `next/font/google` derleme anında
+// Google'dan indirirdi; proje %100 çevrimdışı çalışmak zorunda olduğu için
+// ağa bağlı hiçbir varlık kullanılmıyor. Ayrıca paketteki dosyalar tam karakter
+// setini içerdiğinden Türkçe ğ/ş/ı/İ karakterleri de doğru render ediliyor —
+// eski `subsets: ["latin"]` ayarı bunları kapsamıyordu.
 
 export const metadata: Metadata = {
   title: "Framecut — Video İşleme Stüdyosu",
@@ -21,7 +25,7 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="tr" className="bg-background dark">
-      <body className={`${geist.variable} ${geistMono.variable} font-sans antialiased`}>
+      <body className={`${GeistSans.variable} ${GeistMono.variable} font-sans antialiased`}>
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>

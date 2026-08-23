@@ -20,6 +20,18 @@ pub enum GatewayError {
     #[error("Keto servisine ulaşılamadı: {0}")]
     KetoUnreachable(#[from] tonic::Status),
 
+    #[error("Geçersiz video kimliği")]
+    InvalidVideoId,
+
+    #[error("Ses çözümleme servisine ulaşılamadı")]
+    InferenceUnreachable,
+
+    #[error("{1}")]
+    Upstream(StatusCode, String),
+
+    #[error("{0}")]
+    NotImplemented(&'static str),
+
     #[error("Bilinmeyen bir iç sistem hatası oluştu")]
     InternalError,
 }
@@ -37,6 +49,13 @@ impl IntoResponse for GatewayError {
                 tracing::error!("Keto iletişim hatası: {}", err);
                 (StatusCode::SERVICE_UNAVAILABLE, "Yetkilendirme servisi yanıt vermiyor.".into())
             }
+            Self::InvalidVideoId => (StatusCode::BAD_REQUEST, self.to_string()),
+            Self::InferenceUnreachable => {
+                (StatusCode::SERVICE_UNAVAILABLE, "Ses çözümleme servisi şu an kullanılamıyor.".into())
+            }
+            // Inference servisinin durum kodu ve mesajı olduğu gibi aktarılır.
+            Self::Upstream(status, message) => (status, message),
+            Self::NotImplemented(what) => (StatusCode::NOT_IMPLEMENTED, what.to_string()),
             Self::InternalError => (StatusCode::INTERNAL_SERVER_ERROR, "Internal Server Error".into()),
         };
 
