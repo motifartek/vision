@@ -13,6 +13,7 @@ motif-optics.workspace = true
 
 axum.workspace = true
 tower-http.workspace = true
+tower.workspace = true
 tokio.workspace = true
 async-nats.workspace = true
 futures.workspace = true

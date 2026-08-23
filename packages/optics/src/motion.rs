@@ -52,8 +52,13 @@ const SCENE_CUT_BASELINE_SECONDS: f64 = 1.0;
 /// dörtte biri değişti" demek ve gerçek bir kesit için makul bir alt sınır.
 const SCENE_CUT_MIN_HASH_DISTANCE: u32 = 16;
 
+/// Bölgesel hareket ızgarasının genişliği.
+pub const MOTION_GRID_W: u32 = 12;
+/// Bölgesel hareket ızgarasının yüksekliği.
+pub const MOTION_GRID_H: u32 = 8;
+
 /// Tek bir analiz karesinin hareket ölçümü.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct MotionSample {
     /// Analiz akışındaki sıra numarası.
     pub index: u32,
@@ -70,6 +75,24 @@ pub struct MotionSample {
     pub is_scene_cut: bool,
     /// Görsel parmak izi. Tekrar eden kareleri elemek için.
     pub dhash: u64,
+    /// Bölgesel hareket: `MOTION_GRID_W × MOTION_GRID_H` hücre, 0..255.
+    ///
+    /// Satır sırasına göre düz dizi. Kareyi ızgaraya bölüp her hücrenin kendi
+    /// hareketini ayrı tutar.
+    #[serde(default)]
+    pub grid: Vec<u8>,
+    /// Izgaradaki en hareketli hücrenin değeri, 0..1.
+    ///
+    /// Toplam hareketten farklı ve bazen ondan çok daha bilgilendirici bir
+    /// sinyal. Kalabalık bir sahnede 20 kişi çalışırken birinin düşmesi
+    /// **toplamda** kaybolur — karenin yüzde biri değişmiştir, geri kalan
+    /// gürültünün altında kalır. Ama o kişinin bulunduğu **hücrede** değişim
+    /// çok büyüktür. Toplam almak bu bilgiyi yok eder, maksimum korur.
+    ///
+    /// Şu an yalnızca ölçülüyor ve görselleştiriliyor; örneklemeye bağlanması
+    /// için önce kalabalık sahne senaryosunda ölçüm gerekiyor.
+    #[serde(default)]
+    pub cell_peak: f32,
 }
 
 /// Videonun tamamının hareket profili.
@@ -112,6 +135,16 @@ impl MotionProfile {
         self.samples.iter().filter(|s| s.is_scene_cut)
     }
 
+    /// Bölgesel hareket ızgarasının boyutları.
+    pub const fn grid_dims(&self) -> (u32, u32) {
+        (MOTION_GRID_W, MOTION_GRID_H)
+    }
+
+    /// En hareketli hücrenin tüm video boyunca ulaştığı en yüksek değer.
+    pub fn max_cell_peak(&self) -> f32 {
+        self.samples.iter().map(|s| s.cell_peak).fold(0.0, f32::max)
+    }
+
     /// Profilin verilen zaman aralığına düşen kesiti.
     ///
     /// Yakınlaştırma (pass 3) bunun üzerine kurulu: ajan bir aralık işaret
@@ -135,7 +168,7 @@ impl MotionProfile {
             .samples
             .iter()
             .filter(|s| s.t_ms >= start && s.t_ms <= end)
-            .copied()
+            .cloned()
             .collect();
 
         let duration_ms = match (samples.first(), samples.last()) {
@@ -191,6 +224,48 @@ fn sum_absolute_difference(a: &[u8], b: &[u8]) -> u64 {
         .zip(b.iter())
         .map(|(x, y)| x.abs_diff(*y) as u64)
         .sum()
+}
+
+/// Kareyi ızgaraya bölüp her hücrenin kendi hareketini hesaplar.
+///
+/// Aynı tek geçiş: piksel farkı hem toplama hem ilgili hücreye yazılıyor, yani
+/// skaler SAD'ye göre ek maliyet yok denecek kadar az.
+///
+/// Dönen dizi hücre başına 0..255 normalize edilmiş değer taşır; ikinci değer
+/// en hareketli hücrenin 0..1 aralığındaki oranıdır.
+fn blockwise_motion(prev: &[u8], cur: &[u8], width: u32, height: u32) -> (Vec<u8>, f32) {
+    let (gw, gh) = (MOTION_GRID_W, MOTION_GRID_H);
+    let cells = (gw * gh) as usize;
+
+    let mut sums = vec![0u64; cells];
+    let mut counts = vec![0u32; cells];
+
+    for y in 0..height {
+        let cy = (y * gh / height).min(gh - 1);
+        let row = (y * width) as usize;
+        for x in 0..width {
+            let cx = (x * gw / width).min(gw - 1);
+            let cell = (cy * gw + cx) as usize;
+            sums[cell] += prev[row + x as usize].abs_diff(cur[row + x as usize]) as u64;
+            counts[cell] += 1;
+        }
+    }
+
+    let mut grid = vec![0u8; cells];
+    let mut peak = 0.0f32;
+
+    for i in 0..cells {
+        if counts[i] == 0 {
+            continue;
+        }
+        // Hücrenin kendi piksel sayısına göre normalize: kenar hücreleri
+        // farklı büyüklükte olabilir, ham toplam karşılaştırılabilir değil.
+        let oran = sums[i] as f32 / (counts[i] as f32 * 255.0);
+        grid[i] = (oran * 255.0).round().clamp(0.0, 255.0) as u8;
+        peak = peak.max(oran);
+    }
+
+    (grid, peak)
 }
 
 /// Fark hash'i: karenin 64 bitlik görsel parmak izi.
@@ -277,10 +352,19 @@ where
     for frame in frames {
         let frame = frame?;
 
-        let raw = match previous.as_deref() {
+        let (raw, grid, cell_peak) = match previous.as_deref() {
             // İlk karenin öncesi yok; farkı tanımsız, sıfır kabul ediliyor.
-            None => 0.0,
-            Some(prev) => sum_absolute_difference(prev, &frame.data) as f64 / (pixel_count * 255.0),
+            None => (
+                0.0,
+                vec![0u8; (MOTION_GRID_W * MOTION_GRID_H) as usize],
+                0.0,
+            ),
+            Some(prev) => {
+                let toplam =
+                    sum_absolute_difference(prev, &frame.data) as f64 / (pixel_count * 255.0);
+                let (grid, peak) = blockwise_motion(prev, &frame.data, cfg.width, cfg.height);
+                (toplam, grid, peak)
+            }
         };
 
         samples.push(MotionSample {
@@ -290,6 +374,8 @@ where
             raw: raw as f32,
             is_scene_cut: false,
             dhash: dhash(&frame.data, cfg.width, cfg.height),
+            grid,
+            cell_peak,
         });
 
         previous = Some(frame.data);

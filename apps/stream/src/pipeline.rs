@@ -41,6 +41,20 @@ pub async fn ingest(
         .await
         .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))??;
 
+    // Durağan görüntüyü video sanmayı engelle.
+    //
+    // ffprobe bir JPEG'i tek karelik video gibi okuyor ve boru hattı sessizce
+    // anlamsız bir profil üretiyor. Yanlış dosya yüklendiğinde hata yerine
+    // boş sonuç dönmek, test sırasında en kafa karıştırıcı davranış.
+    const MIN_VIDEO_MS: u64 = 200;
+    if info.duration_ms < MIN_VIDEO_MS {
+        let _ = state.store.delete(&object_key);
+        return Err(Error::InvalidVideo(format!(
+            "süre {} ms — bu bir video değil, durağan görüntü olabilir",
+            info.duration_ms
+        )));
+    }
+
     let record = VideoRecord {
         id: id.clone(),
         original_name,

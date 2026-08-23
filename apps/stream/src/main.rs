@@ -14,6 +14,7 @@ mod catalog;
 mod config;
 mod events;
 mod nats;
+mod payload;
 mod pipeline;
 mod state;
 mod storage;

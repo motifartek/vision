@@ -215,6 +215,8 @@ mod tests {
                 raw: 0.01,
                 is_scene_cut: i == 10,
                 dhash: 0,
+                grid: Vec::new(),
+                cell_peak: 0.0,
             })
             .collect();
 

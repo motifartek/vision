@@ -242,6 +242,33 @@ Hiçbir altyapı gerekmiyor: nesne deposu varsayılan olarak yerel dosya sistemi
 adresinde **test arayüzü** açılır — video yükle, hareket profilini gör, eğriye
 tıklayıp o ana yakınlaş, araçları elle çağır.
 
+## Test panosu
+
+`cargo run -p stream` sonrası <http://localhost:8100> üç şeyi bir arada gösterir:
+
+**1. Ham girdi.** Video oynatıcı, üzerinde bölgesel hareket ısı haritası.
+Izgara 12x8; her hücre kendi hareketini ayrı taşır ve oynatmayla eşzamanlı
+güncellenir. Isı haritası videonun **kendi** dağılımına göre ölçeklenir (85.
+yüzdelik) — mutlak ölçek kullanıldığında harita görünmez kalıyordu, çünkü hücre
+değerleri ortalama piksel farkı olarak 255'te 5-25 arasında seyrediyor.
+
+**2. Zaman çizelgesi.** Toplam hareket (mavi dolgu), en hareketli bölge (turuncu
+kesikli), sahne kesitleri (mor) ve **VLM'e giden karelerin konumu** (yeşil).
+Tıklamak o ana atlar, sürüklemek yakınlaştırma aralığı seçer.
+
+En hareketli bölge eğrisinin ayrı çizilmesi bilinçli: kalabalık bir sahnede tek
+kişinin düşmesi **toplamda** kaybolur ama kendi hücresinde belirgin bir sıçrama
+yapar. İki eğriyi yan yana görmek, toplamın hangi durumlarda yetersiz kaldığını
+doğrudan gösteriyor.
+
+**3. VLM'e giden yük.** Panonun asıl amacı. Modele giden karelerin tamamı sıralı
+şerit hâlinde, üzerlerinde sıra numarası ve zaman damgasıyla; yanında token
+tahmini, azaltma oranı, gönderilen istem ve zaman dizini. "Modelin gördüğü
+sırayla oynat" düğmesi kareleri sırayla dolaşıp videoyu da o ana getirir.
+
+Bu ekran temsilî değil: `/v1/videos/{id}/payload` ucu orkestratörün göndereceği
+yükü birebir kurar, pano da onu gösterir.
+
 ## Uçlar
 
 | Uç | İş |
@@ -255,6 +282,9 @@ tıklayıp o ana yakınlaş, araçları elle çağır.
 | `GET /v1/videos/{id}/profile` | Hareket profili (`?bucket_ms=1000` ile kovalanmış) |
 | `GET /v1/videos/{id}/profile.svg` | Hareket eğrisi görseli |
 | `POST /v1/videos/{id}/overview` | Genel bakış kareleri seç |
+| `GET /v1/videos/{id}/raw` | Ham videoyu sun (HTTP range destekli) |
+| `GET /v1/videos/{id}/heatmap` | Bölgesel hareket zaman serisi (`?fps=10`) |
+| `POST /v1/videos/{id}/payload` | **VLM'e giden yükün tamamı** |
 | `POST /v1/tools/{tool}` | **Ajan araç yüzeyi** |
 | `GET /v1/blobs/{key}` | Kare/nesne sun |
 

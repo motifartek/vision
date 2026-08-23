@@ -12,7 +12,7 @@
 
 use std::sync::Arc;
 
-use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, State};
+use axum::extract::{DefaultBodyLimit, Multipart, Path, Query, Request, State};
 use axum::http::{header, StatusCode};
 use axum::response::{IntoResponse, Response};
 use axum::routing::{delete, get, post};
@@ -20,13 +20,15 @@ use axum::{Json, Router};
 use motif_core::VideoId;
 use motif_event_sdk::tools::{names, ToolError, ToolErrorCode};
 use motif_optics::{motion_chart, ChartOptions};
+use tower::ServiceExt;
+use tower_http::services::ServeFile;
 use serde::Deserialize;
 use serde_json::{json, Value};
 use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::state::AppState;
-use crate::{catalog, pipeline, tools};
+use crate::{catalog, payload, pipeline, tools};
 
 /// API hatası.
 struct ApiError {
@@ -101,6 +103,9 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/v1/videos/{id}/profile", get(get_profile))
         .route("/v1/videos/{id}/profile.svg", get(get_profile_svg))
         .route("/v1/videos/{id}/overview", post(post_overview))
+        .route("/v1/videos/{id}/raw", get(get_raw_video))
+        .route("/v1/videos/{id}/heatmap", get(get_heatmap))
+        .route("/v1/videos/{id}/payload", post(post_payload))
         .route("/v1/tools/{tool}", post(call_tool))
         .route("/v1/blobs/{*key}", get(get_blob))
         .layer(DefaultBodyLimit::max(max_upload))
@@ -290,6 +295,130 @@ async fn post_overview(
     state.reset_zooms(&id).await;
     let frames = pipeline::overview(&state, &id, budget).await?;
     Ok(Json(json!({ "frames": frames })))
+}
+
+/// Ham videoyu sunar.
+///
+/// `ServeFile` kullanılıyor çünkü `<video>` etiketinin ileri sarabilmesi için
+/// HTTP range desteği şart; tüm dosyayı tek parça döndürmek oynatmayı çalıştırır
+/// ama zaman çizelgesinde tıklayıp atlamayı bozar.
+async fn get_raw_video(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    request: Request,
+) -> ApiResult<Response> {
+    let id = VideoId::from(id);
+    let record = catalog::VideoRecord::load(state.store.as_ref(), &id)?;
+    let path = state.store.local_path(&record.object_key)?;
+
+    ServeFile::new(path)
+        .oneshot(request)
+        .await
+        .map(IntoResponse::into_response)
+        .map_err(|e| ApiError::new(StatusCode::INTERNAL_SERVER_ERROR, e.to_string()))
+}
+
+#[derive(Deserialize)]
+struct HeatmapQuery {
+    /// Saniyede kaç ızgara karesi döndürülsün.
+    fps: Option<f64>,
+}
+
+/// Bölgesel hareket ızgarasının zaman serisi.
+///
+/// Test arayüzü bunu videonun üzerine ısı haritası olarak bindiriyor: hangi
+/// bölgede ne kadar hareket olduğu, oynatmayla eşzamanlı görülüyor.
+///
+/// Ham profil analiz hızında (15 fps) ızgara taşır; arayüz için bu fazla
+/// olduğundan istenen hıza indirgenir.
+async fn get_heatmap(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    Query(q): Query<HeatmapQuery>,
+) -> ApiResult<Json<Value>> {
+    let id = VideoId::from(id);
+    let profile = pipeline::profile(&state, &id).await?;
+    let (gw, gh) = profile.grid_dims();
+
+    let hedef_fps = q.fps.unwrap_or(10.0).clamp(1.0, profile.analysis_fps);
+    let adim = (profile.analysis_fps / hedef_fps).round().max(1.0) as usize;
+
+    let kareler: Vec<Value> = profile
+        .samples
+        .iter()
+        .step_by(adim)
+        .map(|s| {
+            json!({
+                "t_ms": s.t_ms,
+                "score": s.score,
+                "cell_peak": s.cell_peak,
+                "is_scene_cut": s.is_scene_cut,
+                "grid": s.grid,
+            })
+        })
+        .collect();
+
+    Ok(Json(json!({
+        "duration_ms": profile.duration_ms,
+        "grid_w": gw,
+        "grid_h": gh,
+        "fps": profile.analysis_fps / adim as f64,
+        "max_cell_peak": profile.max_cell_peak(),
+        "frames": kareler,
+    })))
+}
+
+#[derive(Deserialize)]
+struct PayloadBody {
+    budget: Option<usize>,
+    /// Verilirse yakınlaştırma yükü kurulur, verilmezse genel bakış.
+    t0_ms: Option<u64>,
+    t1_ms: Option<u64>,
+}
+
+/// **Modele tam olarak ne gidiyor.**
+///
+/// Kareleri seçer, çıkarır ve orkestratörün göndereceği yükü birebir kurar:
+/// sıralı kare listesi, metin dizini, istem ve token tahmini. Test arayüzü
+/// bunu gösterdiğinde temsili bir şey değil, gerçek yükü görüyor.
+async fn post_payload(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+    body: Option<Json<PayloadBody>>,
+) -> ApiResult<Json<Value>> {
+    let id = VideoId::from(id);
+    let record = catalog::VideoRecord::load(state.store.as_ref(), &id)?;
+    let body = body.map(|Json(b)| b);
+
+    let (frames, pass, range) = match body.as_ref().and_then(|b| b.t0_ms.zip(b.t1_ms)) {
+        Some((t0, t1)) => {
+            let budget = body.as_ref().and_then(|b| b.budget);
+            (
+                pipeline::zoom(&state, &id, t0, t1, budget).await?,
+                motif_event_sdk::SamplingPass::Zoom,
+                Some((t0, t1)),
+            )
+        }
+        None => {
+            let budget = body.as_ref().and_then(|b| b.budget);
+            state.reset_zooms(&id).await;
+            (
+                pipeline::overview(&state, &id, budget).await?,
+                motif_event_sdk::SamplingPass::Overview,
+                None,
+            )
+        }
+    };
+
+    let built = payload::build(
+        pass,
+        &frames,
+        &record.info,
+        state.config.frame_max_dim,
+        range,
+    );
+
+    Ok(Json(json!(built)))
 }
 
 // --- ajan araç ucu ---
