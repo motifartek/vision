@@ -44,10 +44,10 @@ Veri setini yerel ortamınıza indirmek için:
 
 ```bash
 # 1. Gerekli kütüphaneleri yükleyin
-pip install aiohttp tqdm / uv add install aiohttp tqdm
+uv sync
 
 # 2. İndirme scriptini çalıştırın
-python download_dataset.py 
+uv run download_dataset.py 
 ```
 
 Bu komut, metadata_clean.json dosyasındaki kaynak URL'leri kullanarak görselleri paralel olarak ./dataset_downloaded/ klasörüne indirecektir.
