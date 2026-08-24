@@ -62,3 +62,9 @@ temp/
 # Misc
 *.bak
 *.orig
+
+# Benchmark videolari (bench generate ile yeniden uretilir)
+datasets/**/*.mp4
+
+# Servis calisma verisi
+data/

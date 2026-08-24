@@ -1,16 +1,54 @@
 [workspace]
-# Only crates that actually contain a Cargo.toml belong here; Cargo fails to load
-# the whole workspace if a member directory has no manifest. Re-add the entries
-# below as each crate is scaffolded.
+resolver = "2"
+
+# Yalnızca gerçekten Cargo.toml içeren dizinler burada listelenir; eksik bir
+# manifest tüm workspace'in yüklenmesini engelliyor. Bir crate oluşturulduğunda
+# buraya eklenmeli.
 #
-# Planned, not yet scaffolded:
-#   apps/stream, apps/ai/orchestrator, apps/ai/memory,
-#   packages/optics, packages/database, packages/event-sdk, packages/core
+# Henüz oluşturulmamış: apps/ai/orchestrator, apps/ai/memory (#7),
+# packages/database (#2).
 #
-# apps/identity is not a Rust crate at all - it is the Ory Kratos/Keto
-# deployment (compose.yaml + helm + config).
+# apps/identity bir Rust crate'i değil: Ory Kratos/Keto dağıtımı
+# (compose.yaml + helm + config).
 members = [
     "apps/gateway",
-    "apps/ai/inference"
+    "apps/ai/inference",
+    "apps/stream",
+    "packages/core",
+    "packages/event-sdk",
+    "packages/optics",
+    "tools/bench",
 ]
-resolver = "2"
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/motifartek/vision"
+
+[workspace.dependencies]
+# Ortak sürümler tek yerden yönetilir; crate'ler `foo.workspace = true` ile alır.
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+anyhow = "1.0"
+tokio = { version = "1", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+clap = { version = "4", features = ["derive"] }
+uuid = { version = "1", features = ["v4", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+
+# Dahili crate'ler
+motif-core = { path = "packages/core" }
+motif-event-sdk = { path = "packages/event-sdk" }
+motif-optics = { path = "packages/optics" }
+
+# Servis katmanı. Gateway kendi axum 0.7 sürümünü ayrıca pinliyor; burada yeni
+# kod için 0.8 kullanılıyor (yol parametresi sözdizimi {id} olarak değişti).
+axum = { version = "0.8", features = ["multipart"] }
+tower-http = { version = "0.7", features = ["trace", "cors", "limit", "fs"] }
+tower = "0.5"
+async-nats = "0.50"
+futures = "0.3"
+mime_guess = "2.0"
