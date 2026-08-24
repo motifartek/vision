@@ -13,10 +13,12 @@ WORKDIR /app
 COPY Cargo.toml Cargo.lock ./
 
 # Gateway projesini kopyala
-COPY apps/gateway/Cargo.toml apps/gateway/Cargo.toml
-COPY apps/gateway/build.rs apps/gateway/build.rs
-COPY apps/gateway/proto apps/gateway/proto
-COPY apps/gateway/src apps/gateway/src
+COPY packages packages
+COPY apps apps
+COPY tools tools
+
+
+
 
 # Gateway'i release modunda derle
 RUN cargo build --release -p gateway

@@ -5,7 +5,7 @@
 
 pub mod error;
 pub mod ids;
-pub mod telemetry;
+
 
 pub use error::{Error, Result};
 pub use ids::VideoId;

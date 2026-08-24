@@ -1,0 +1,7 @@
+﻿target/
+.git/
+node_modules/
+.next/
+*.sqlite*
+datasets/
+data/

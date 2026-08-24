@@ -1,0 +1,11 @@
+﻿apiVersion: 1
+
+providers:
+  - name: MotifAI
+    orgId: 1
+    folder: MotifAI
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /etc/grafana/provisioning/dashboards

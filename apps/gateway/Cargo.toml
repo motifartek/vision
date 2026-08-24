@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+motif-observer.workspace = true
 axum = "0.7"
 tokio = { version = "1", features = ["full"] }
 tower = "0.4"
@@ -11,6 +12,9 @@ tower-http = { version = "0.5", features = ["trace", "cors"] }
 
 # HTTP İstemci (Ory Kratos için)
 reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+
+# Metrikler için
+axum-prometheus = "0.7"
 
 # gRPC (Ory Keto için)
 tonic = "0.12"
@@ -29,3 +33,5 @@ http = "1.1"
 
 [build-dependencies]
 tonic-build = "0.12"
+
+
