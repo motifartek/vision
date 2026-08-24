@@ -27,7 +27,7 @@ pub async fn check_permission(
             object: object.to_string(),
             relation: relation.to_string(),
             subject: Some(keto::Subject {
-                ref_: Some(keto::subject::Ref::Id(subject_id.to_string())),
+                r#ref: Some(keto::subject::Ref::Id(subject_id.to_string())),
             }),
         }),
         latest: true,

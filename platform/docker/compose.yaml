@@ -11,7 +11,7 @@ include:
 
 # Gelecekte eklenecek servisler buraya include edilir:
 #
-#  - path: ../../apps/gateway/compose.yaml
+  - path: ../../apps/gateway/compose.yaml
 #  - path: ../../apps/notification/compose.yaml
 #  - path: ../../platform/messaging/compose.yaml   # NATS
 #  - path: ../../platform/database/compose.yaml    # SurrealDB

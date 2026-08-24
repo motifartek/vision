@@ -11,7 +11,8 @@ const nextConfig = {
   },
   allowedDevOrigins: ["127.0.0.1"],
   async rewrites() {
-    const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:4433"
+    // Tüm /api/auth/* istekleri Gateway'e yönlendirilir (Port 8000)
+    const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:8000/api/auth"
     return {
       beforeFiles: [
         // Tüm /api/auth/* istekleri Gateway'e (şimdilik doğrudan Kratos'a) yönlendirilir.
