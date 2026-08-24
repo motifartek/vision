@@ -46,6 +46,14 @@ coverage/
 **/target/
 **/*.rs.bk
 
+# AI model ağırlıkları — apps/ai/inference/scripts/fetch-models ile indirilir
+apps/ai/inference/models/
+
+# Yerel demo medyası ve ondan üretilen kareler. Depoya girmez: lisansı bize ait
+# olmayan içerik olabilir ve gereksiz binary büyütür. Analiz edilecek dosyalar
+# buraya elle konur (bkz. apps/ai/inference/README.md).
+apps/dashboard/public/media/
+
 # Temporary files
 *.tmp
 tmp/
@@ -55,3 +63,9 @@ temp/
 *.bak
 *.orig
 *.sqlite*
+
+# Benchmark videolari (bench generate ile yeniden uretilir)
+datasets/**/*.mp4
+
+# Servis calisma verisi
+data/

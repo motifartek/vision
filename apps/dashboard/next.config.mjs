@@ -1,5 +1,8 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // `ignoreBuildErrors` açıktı: tip hataları derlemeyi durdurmuyordu. Kod tabanı
+  // şu an `tsc --noEmit` ile temiz, yani kapatmak için doğru an — açık kalsaydı
+  // ilerideki her tip hatası sessizce üretime kadar giderdi.
   images: {
     unoptimized: true,
     remotePatterns: [
@@ -10,18 +13,29 @@ const nextConfig = {
     ],
   },
   allowedDevOrigins: ["127.0.0.1"],
+  experimental: {
+    // Rewrite (proxy) uzerinden gecen istek govdesi varsayilan olarak 10MB'da
+    // kesiliyor; video yuklemede govde yarida kalinca inference servisi
+    // multipart'i okuyamiyor ve baglanti kopuyor (ECONNRESET).
+    proxyClientMaxBodySize: '512mb',
+    // Buyuk dosyalarin diske yazilmasi varsayilan 30sn'yi asabiliyor.
+    proxyTimeout: 30 * 60 * 1000,
+  },
   async rewrites() {
-    // Tüm /api/auth/* istekleri Gateway'e yönlendirilir (Port 8000)
     const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:8000/api/auth"
     return {
       beforeFiles: [
-        // Tüm /api/auth/* istekleri Gateway'e (şimdilik doğrudan Kratos'a) yönlendirilir.
-        // Gateway Rust'a taşındığında sadece GATEWAY_URL env değişkeni güncellenir.
         {
           source: "/api/auth/:path*",
           destination: `${gatewayUrl}/:path*`,
         },
       ],
+      fallback: [
+        {
+          source: '/api/inference/:path*',
+          destination: 'http://127.0.0.1:8081/:path*',
+        },
+      ]
     }
   },
 }

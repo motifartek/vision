@@ -1,33 +1,236 @@
+"use client"
+
 import Link from "next/link"
-import { ArrowUpRight, CheckCircle2, Clock3, Film, Play, Sparkles } from "lucide-react"
+import { useEffect, useState } from "react"
+import { ArrowUpRight, Clock3, Film, HardDrive, Play, ServerCog, Sparkles } from "lucide-react"
+import { AppShell } from "@/components/app-shell/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Progress } from "@/components/ui/progress"
+import { formatTime } from "@/features/video-detail/time"
 
-const stats = [
-  { label: "Toplam proje", value: "24", note: "Bu ay +6", icon: Film },
-  { label: "İşlenen süre", value: "18,4 sa", note: "%12 artış", icon: Clock3 },
-  { label: "Tamamlanan", value: "91%", note: "22 başarılı", icon: CheckCircle2 },
-]
-const projects = [
-  { name: "Podcast Highlight 03", type: "Podcast", progress: 72, status: "İşleniyor" },
-  { name: "Ürün Tanıtımı — Bahar", type: "Reklam", progress: 100, status: "Hazır" },
-  { name: "Kurucu Röportajı", type: "Röportaj", progress: 44, status: "Analiz" },
-]
+/**
+ * Kontrol paneli **gerçek veriyi** gösterir.
+ *
+ * Eskiden buradaki sayılar (24 proje, 18,4 saat, %91) ve "son projeler" kartları
+ * uydurmaydı; üstelik üç kart da var olmayan `/videos/podcast-highlight-03`
+ * adresine gidiyordu, yani demoda ilk tıklama kırık bir analiz sayfası açıyordu.
+ */
+const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+
+type VideoEntry = {
+  id: string
+  filename: string
+  size: number
+  duration_sec: number | null
+}
+
+type Health = {
+  model: { name: string; weights: string; providers: string[]; classes: number }
+  default_profile: string
+}
+
+function formatSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(0)} MB`
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
+}
+
+function prettifyName(id: string) {
+  return id.replace(/[-_]+/g, " ").replace(/\b\w/g, (c) => c.toLocaleUpperCase("tr"))
+}
 
 export function DashboardView() {
-  return <div className="flex flex-col gap-4"><div className="mb-2"><h1 className="text-2xl font-bold tracking-tight"></h1><p className="text-muted-foreground"></p></div>
-    <div className="mx-auto flex max-w-7xl flex-col gap-6">
-      <section className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-6 md:flex-row md:items-center">
-        <div className="flex flex-col gap-2"><Badge variant="secondary" className="w-fit"><Sparkles /> Akıllı iş akışı</Badge><h2 className="max-w-2xl text-balance text-2xl font-semibold md:text-3xl">İçeriğinizi daha hızlı, daha net ve yayına hazır hale getirin.</h2><p className="max-w-xl text-pretty text-sm leading-6 text-muted-foreground">Son projelerinize devam edin veya yapay zekâ destekli yeni bir video işleme akışı başlatın.</p></div>
-        <Button render={<Link href="/videos" />} nativeButton={false} size="lg"><Play data-icon="inline-start" /> Yeni video seç</Button>
-      </section>
-      <section className="grid gap-4 md:grid-cols-3">{stats.map((stat) => <Card key={stat.label}><CardHeader><CardDescription>{stat.label}</CardDescription><CardAction><stat.icon className="size-4 text-muted-foreground" /></CardAction><CardTitle className="text-2xl">{stat.value}</CardTitle></CardHeader><CardContent><p className="text-xs text-muted-foreground">{stat.note}</p></CardContent></Card>)}</section>
-      <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
-        <Card><CardHeader><CardTitle>Son projeler</CardTitle><CardDescription>Kaldığınız yerden devam edin</CardDescription><CardAction><Button variant="ghost" size="sm" render={<Link href="/videos" />} nativeButton={false}>Tümünü gör <ArrowUpRight data-icon="inline-end" /></Button></CardAction></CardHeader><CardContent className="flex flex-col gap-3">{projects.map((project) => <Link href="/videos/podcast-highlight-03" key={project.name} className="flex flex-col gap-3 rounded-lg border bg-background p-4 transition-colors hover:bg-accent sm:flex-row sm:items-center"><div className="flex size-11 items-center justify-center rounded-lg bg-muted"><Film className="size-5 text-primary" /></div><div className="min-w-0 flex-1"><div className="flex items-center justify-between gap-3"><p className="truncate text-sm font-medium">{project.name}</p><Badge variant="outline">{project.status}</Badge></div><p className="mb-2 text-xs text-muted-foreground">{project.type}</p><Progress value={project.progress} /></div></Link>)}</CardContent></Card>
-        <Card><CardHeader><CardTitle>Haftalık kapasite</CardTitle><CardDescription>İşleme kotası kullanımı</CardDescription></CardHeader><CardContent className="flex flex-col gap-6"><div className="flex items-end justify-between"><span className="text-3xl font-semibold">68%</span><span className="text-xs text-muted-foreground">34 / 50 saat</span></div><Progress value={68} /><div className="grid grid-cols-7 items-end gap-2">{[38,64,48,82,56,90,68].map((h,i)=><div key={i} className="flex flex-col items-center gap-2"><div className="w-full rounded-sm bg-primary/70" style={{height:`${h}px`}} /><span className="text-[10px] text-muted-foreground">{["Pzt","Sal","Çar","Per","Cum","Cmt","Paz"][i]}</span></div>)}</div></CardContent></Card>
-      </section>
-    </div>
-  </div>
+  const [videos, setVideos] = useState<VideoEntry[] | null>(null)
+  const [health, setHealth] = useState<Health | null>(null)
+  const [offline, setOffline] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+
+    Promise.all([
+      fetch(`${API}/v1/videos`).then((r) => (r.ok ? (r.json() as Promise<VideoEntry[]>) : Promise.reject())),
+      fetch(`${API}/healthz`).then((r) => (r.ok ? (r.json() as Promise<Health>) : Promise.reject())),
+    ])
+      .then(([list, status]) => {
+        if (cancelled) return
+        setVideos(list)
+        setHealth(status)
+        setOffline(false)
+      })
+      .catch(() => {
+        if (!cancelled) setOffline(true)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const totalSeconds = (videos ?? []).reduce((sum, v) => sum + (v.duration_sec ?? 0), 0)
+  const totalBytes = (videos ?? []).reduce((sum, v) => sum + v.size, 0)
+  const withDuration = (videos ?? []).filter((v) => v.duration_sec !== null).length
+
+  const stats = [
+    {
+      label: "Kütüphanedeki video",
+      value: videos ? String(videos.length) : "—",
+      note: offline ? "servise ulaşılamıyor" : "medya kökünde bulunan dosyalar",
+      icon: Film,
+    },
+    {
+      label: "Toplam süre",
+      value: videos ? formatTime(totalSeconds) : "—",
+      // Süre kapsayıcı başlığından okunuyor; bazı dosyalarda yazmıyor.
+      note: videos && withDuration < videos.length ? `${videos.length - withDuration} dosyada süre okunamadı` : "kapsayıcı başlığından",
+      icon: Clock3,
+    },
+    {
+      label: "Disk kullanımı",
+      value: videos ? formatSize(totalBytes) : "—",
+      note: "apps/dashboard/public/media",
+      icon: HardDrive,
+    },
+  ]
+
+  const recent = (videos ?? []).slice(0, 3)
+
+  return (
+    <AppShell title="Kontrol Paneli" description="Video üretim akışınızın güncel görünümü">
+      <div className="mx-auto flex max-w-7xl flex-col gap-6">
+        <section className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-6 md:flex-row md:items-center">
+          <div className="flex flex-col gap-2">
+            <Badge variant="secondary" className="w-fit">
+              <Sparkles /> Ses olay analizi
+            </Badge>
+            <h2 className="max-w-2xl text-balance text-2xl font-semibold md:text-3xl">
+              Kayıttaki alarmı, çığlığı ve makine sesini zaman damgasıyla bulun.
+            </h2>
+            <p className="max-w-xl text-pretty text-sm leading-6 text-muted-foreground">
+              Bir video seçin; ses kanalı 527 AudioSet sınıfına göre çözümlensin, iş güvenliği
+              kuralları incelenmesi gereken anları işaretlesin.
+            </p>
+          </div>
+          <Button render={<Link href="/videos" />} size="lg">
+            <Play data-icon="inline-start" /> Video seç
+          </Button>
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          {stats.map((stat) => (
+            <Card key={stat.label}>
+              <CardHeader>
+                <CardDescription>{stat.label}</CardDescription>
+                <CardAction>
+                  <stat.icon className="size-4 text-muted-foreground" />
+                </CardAction>
+                <CardTitle className="text-2xl tabular-nums">{stat.value}</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-xs text-muted-foreground">{stat.note}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
+          <Card>
+            <CardHeader>
+              <CardTitle>Kütüphaneden</CardTitle>
+              <CardDescription>Analiz için hazır kayıtlar</CardDescription>
+              <CardAction>
+                <Button variant="ghost" size="sm" render={<Link href="/videos" />}>
+                  Tümünü gör <ArrowUpRight data-icon="inline-end" />
+                </Button>
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3">
+              {offline ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Analiz servisine ulaşılamıyor; kütüphane okunamadı.
+                </p>
+              ) : !videos ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">Yükleniyor…</p>
+              ) : recent.length === 0 ? (
+                <p className="py-6 text-center text-xs text-muted-foreground">
+                  Henüz video yüklenmemiş.
+                </p>
+              ) : (
+                recent.map((video) => (
+                  <Link
+                    href={`/videos/${encodeURIComponent(video.id)}`}
+                    key={video.id}
+                    className="flex items-center gap-3 rounded-lg border bg-background p-4 transition-colors hover:bg-accent"
+                  >
+                    <div className="flex size-11 shrink-0 items-center justify-center rounded-lg bg-muted">
+                      <Film className="size-5 text-primary" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-sm font-medium">{prettifyName(video.id)}</p>
+                      <p className="truncate text-xs text-muted-foreground">{video.filename}</p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 tabular-nums">
+                      {video.duration_sec === null ? formatSize(video.size) : formatTime(video.duration_sec)}
+                    </Badge>
+                  </Link>
+                ))
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Analiz servisi</CardTitle>
+              <CardDescription>Yüklü model ve çalışma zamanı</CardDescription>
+              <CardAction>
+                <ServerCog className="size-4 text-muted-foreground" />
+              </CardAction>
+            </CardHeader>
+            <CardContent className="flex flex-col gap-3 text-sm">
+              {offline || !health ? (
+                <div className="flex flex-col gap-2">
+                  <Badge variant="destructive" className="w-fit">
+                    {offline ? "Çevrimdışı" : "Bekleniyor"}
+                  </Badge>
+                  <p className="text-xs text-muted-foreground">
+                    {offline
+                      ? "Servis kapalı görünüyor. Başlatmak için: tools/scripts/start.ps1"
+                      : "Durum bilgisi alınıyor…"}
+                  </p>
+                </div>
+              ) : (
+                <>
+                  <Badge variant="secondary" className="w-fit">
+                    Çalışıyor
+                  </Badge>
+                  <dl className="flex flex-col gap-2 text-xs">
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Model</dt>
+                      <dd className="truncate font-mono">{health.model.name}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Ağırlık</dt>
+                      <dd className="truncate font-mono">{health.model.weights}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Sağlayıcı</dt>
+                      <dd className="truncate font-mono">{health.model.providers.join(", ")}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Sınıf</dt>
+                      <dd className="font-mono tabular-nums">{health.model.classes}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt className="text-muted-foreground">Varsayılan profil</dt>
+                      <dd className="font-mono">{health.default_profile}</dd>
+                    </div>
+                  </dl>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </section>
+      </div>
+    </AppShell>
+  )
 }

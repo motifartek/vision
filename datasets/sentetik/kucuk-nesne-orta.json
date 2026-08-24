@@ -1,0 +1,19 @@
+{
+  "video": "kucuk-nesne-orta.mp4",
+  "duration_ms": 20000,
+  "notes": "640x360 sahnede 100 piksellik nesne 2 saniye hareket eder. Sahne kesiti üretmeyecek kadar zayıf sinyal.",
+  "events": [
+    {
+      "t_ms": 9000,
+      "time": "00:09",
+      "event": "Nesne göründü",
+      "severity": "Yüksek"
+    },
+    {
+      "t_ms": 11000,
+      "time": "00:11",
+      "event": "Nesne kayboldu",
+      "severity": "Orta"
+    }
+  ]
+}

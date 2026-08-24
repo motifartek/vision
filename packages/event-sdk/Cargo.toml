@@ -1,0 +1,13 @@
+[package]
+name = "motif-event-sdk"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Servisler arası NATS konuları ve mesaj kontratları"
+
+[dependencies]
+motif-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+chrono.workspace = true

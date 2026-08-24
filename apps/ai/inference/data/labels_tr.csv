@@ -1,0 +1,528 @@
+display_name,display_name_tr
+Speech,Konuşma
+"Male speech, man speaking",Erkek konuşması
+"Female speech, woman speaking",Kadın konuşması
+"Child speech, kid speaking",Çocuk konuşması
+Conversation,Sohbet
+"Narration, monologue","Anlatım, monolog"
+Babbling,Agulama
+Speech synthesizer,Konuşma sentezleyici
+Shout,Bağırma
+Bellow,Böğürme
+Whoop,Haykırış
+Yell,Haykırma
+Battle cry,Savaş narası
+Children shouting,Çocuk bağırışları
+Screaming,Çığlık
+Whispering,Fısıltı
+Laughter,Kahkaha
+Baby laughter,Bebek kahkahası
+Giggle,Kıkırdama
+Snicker,Sinsi gülüş
+Belly laugh,Katıla katıla gülme
+"Chuckle, chortle",Gülüşme
+"Crying, sobbing","Ağlama, hıçkırma"
+"Baby cry, infant cry",Bebek ağlaması
+Whimper,Sızlanma
+"Wail, moan","Feryat, inilti"
+Sigh,İç çekme
+Singing,Şarkı söyleme
+Choir,Koro
+Yodeling,Yodel
+Chant,İlahi
+Mantra,Mantra
+Male singing,Erkek şarkı sesi
+Female singing,Kadın şarkı sesi
+Child singing,Çocuk şarkı sesi
+Synthetic singing,Sentetik şarkı sesi
+Rapping,Rap
+Humming,Mırıldanma
+Groan,İnleme
+Grunt,Homurtu
+Whistling,Islık
+Breathing,Nefes alma
+Wheeze,Hırıltılı nefes
+Snoring,Horlama
+Gasp,Nefes tutma
+Pant,Soluma
+Snort,Burun çekme
+Cough,Öksürük
+Throat clearing,Boğaz temizleme
+Sneeze,Hapşırık
+Sniff,Burun çekişi
+Run,Koşma
+Shuffle,Ayak sürüme
+"Walk, footsteps","Yürüme, ayak sesleri"
+"Chewing, mastication",Çiğneme
+Biting,Isırma
+Gargling,Gargara
+Stomach rumble,Karın guruldaması
+"Burping, eructation",Geğirme
+Hiccup,Hıçkırık
+Fart,Yellenme
+Hands,El sesleri
+Finger snapping,Parmak şıklatma
+Clapping,El çırpma
+"Heart sounds, heartbeat",Kalp atışı
+Heart murmur,Kalp üfürümü
+Cheering,Tezahürat
+Applause,Alkış
+Chatter,Gevezelik
+Crowd,Kalabalık
+"Hubbub, speech noise, speech babble","Uğultu, konuşma gürültüsü"
+Children playing,Oyun oynayan çocuklar
+Animal,Hayvan
+"Domestic animals, pets",Evcil hayvanlar
+Dog,Köpek
+Bark,Havlama
+Yip,Ciyaklama
+Howl,Uluma
+Bow-wow,Hav hav
+Growling,Hırlama
+Whimper (dog),Sızlanma (köpek)
+Cat,Kedi
+Purr,Mırlama
+Meow,Miyavlama
+Hiss,Tıslama
+Caterwaul,Kedi feryadı
+"Livestock, farm animals, working animals",Çiftlik hayvanları
+Horse,At
+Clip-clop,Nal sesi
+"Neigh, whinny",Kişneme
+"Cattle, bovinae",Sığır
+Moo,Möleme
+Cowbell,İnek çanı
+Pig,Domuz
+Oink,Domuz homurtusu
+Goat,Keçi
+Bleat,Meleme
+Sheep,Koyun
+Fowl,Kümes hayvanı
+"Chicken, rooster","Tavuk, horoz"
+Cluck,Gıdaklama
+"Crowing, cock-a-doodle-doo",Horoz ötüşü
+Turkey,Hindi
+Gobble,Hindi sesi
+Duck,Ördek
+Quack,Vaklama
+Goose,Kaz
+Honk,Kaz sesi
+Wild animals,Yabani hayvanlar
+"Roaring cats (lions, tigers)","Büyük kediler (aslan, kaplan)"
+Roar,Kükreme
+Bird,Kuş
+"Bird vocalization, bird call, bird song",Kuş ötüşü
+"Chirp, tweet",Cıvıltı
+Squawk,Kuş çığlığı
+"Pigeon, dove",Güvercin
+Coo,Dem çekme
+Crow,Karga
+Caw,Karga sesi
+Owl,Baykuş
+Hoot,Baykuş ötüşü
+"Bird flight, flapping wings",Kanat çırpma
+"Canidae, dogs, wolves","Köpekgiller, kurtlar"
+"Rodents, rats, mice",Kemirgenler
+Mouse,Fare
+Patter,Pıtırtı
+Insect,Böcek
+Cricket,Cırcır böceği
+Mosquito,Sivrisinek
+"Fly, housefly",Karasinek
+Buzz,Vızıltı
+"Bee, wasp, etc.","Arı, yaban arısı"
+Frog,Kurbağa
+Croak,Vraklama
+Snake,Yılan
+Rattle,Çıngırak
+Whale vocalization,Balina sesi
+Music,Müzik
+Musical instrument,Müzik aleti
+Plucked string instrument,Mızraplı telli çalgı
+Guitar,Gitar
+Electric guitar,Elektro gitar
+Bass guitar,Bas gitar
+Acoustic guitar,Akustik gitar
+"Steel guitar, slide guitar",Slide gitar
+Tapping (guitar technique),Tapping (gitar tekniği)
+Strum,Tel tırmalama
+Banjo,Banço
+Sitar,Sitar
+Mandolin,Mandolin
+Zither,Kanun
+Ukulele,Ukulele
+Keyboard (musical),Klavye (müzik)
+Piano,Piyano
+Electric piano,Elektrikli piyano
+Organ,Org
+Electronic organ,Elektronik org
+Hammond organ,Hammond org
+Synthesizer,Sentezleyici
+Sampler,Örnekleyici
+Harpsichord,Klavsen
+Percussion,Vurmalı çalgı
+Drum kit,Davul seti
+Drum machine,Ritim makinesi
+Drum,Davul
+Snare drum,Trampet
+Rimshot,Rimshot
+Drum roll,Trampet yuvarlaması
+Bass drum,Bas davul
+Timpani,Timpani
+Tabla,Tabla
+Cymbal,Zil
+Hi-hat,Hi-hat
+Wood block,Ağaç blok
+Tambourine,Tef
+Rattle (instrument),Çıngırak (çalgı)
+Maraca,Marakas
+Gong,Gong
+Tubular bells,Boru çanlar
+Mallet percussion,Tokmaklı vurmalı çalgı
+"Marimba, xylophone","Marimba, ksilofon"
+Glockenspiel,Çan çalgısı
+Vibraphone,Vibrafon
+Steelpan,Steelpan
+Orchestra,Orkestra
+Brass instrument,Bakır üflemeli çalgı
+French horn,Korno
+Trumpet,Trompet
+Trombone,Trombon
+Bowed string instrument,Yaylı çalgı
+String section,Yaylılar grubu
+"Violin, fiddle",Keman
+Pizzicato,Pizzicato
+Cello,Çello
+Double bass,Kontrbas
+"Wind instrument, woodwind instrument",Üflemeli çalgı
+Flute,Flüt
+Saxophone,Saksofon
+Clarinet,Klarnet
+Harp,Arp
+Bell,Çan
+Church bell,Kilise çanı
+Jingle bell,Çıngıraklı zil
+Bicycle bell,Bisiklet zili
+Tuning fork,Diyapazon
+Chime,Çan sesi
+Wind chime,Rüzgar çanı
+Change ringing (campanology),Çan dizisi
+Harmonica,Mızıka
+Accordion,Akordeon
+Bagpipes,Gayda
+Didgeridoo,Didgeridoo
+Shofar,Şofar
+Theremin,Theremin
+Singing bowl,Tibet kâsesi
+Scratching (performance technique),Scratch (DJ tekniği)
+Pop music,Pop müzik
+Hip hop music,Hip hop müzik
+Beatboxing,Beatbox
+Rock music,Rock müzik
+Heavy metal,Heavy metal
+Punk rock,Punk rock
+Grunge,Grunge
+Progressive rock,Progresif rock
+Rock and roll,Rock and roll
+Psychedelic rock,Psikedelik rock
+Rhythm and blues,Ritim and blues
+Soul music,Soul müzik
+Reggae,Reggae
+Country,Country
+Swing music,Swing müzik
+Bluegrass,Bluegrass
+Funk,Funk
+Folk music,Halk müziği
+Middle Eastern music,Orta Doğu müziği
+Jazz,Caz
+Disco,Disko
+Classical music,Klasik müzik
+Opera,Opera
+Electronic music,Elektronik müzik
+House music,House müzik
+Techno,Tekno
+Dubstep,Dubstep
+Drum and bass,Drum and bass
+Electronica,Elektronika
+Electronic dance music,Elektronik dans müziği
+Ambient music,Ambiyans müziği
+Trance music,Trance
+Music of Latin America,Latin Amerika müziği
+Salsa music,Salsa
+Flamenco,Flamenko
+Blues,Blues
+Music for children,Çocuk müziği
+New-age music,New age müzik
+Vocal music,Vokal müzik
+A capella,A capella
+Music of Africa,Afrika müziği
+Afrobeat,Afrobeat
+Christian music,Hristiyan müziği
+Gospel music,Gospel müzik
+Music of Asia,Asya müziği
+Carnatic music,Karnatik müzik
+Music of Bollywood,Bollywood müziği
+Ska,Ska
+Traditional music,Geleneksel müzik
+Independent music,Bağımsız müzik
+Song,Şarkı
+Background music,Fon müziği
+Theme music,Jenerik müziği
+Jingle (music),Cıngıl
+Soundtrack music,Film müziği
+Lullaby,Ninni
+Video game music,Oyun müziği
+Christmas music,Noel müziği
+Dance music,Dans müziği
+Wedding music,Düğün müziği
+Happy music,Neşeli müzik
+Funny music,Komik müzik
+Sad music,Hüzünlü müzik
+Tender music,Duygusal müzik
+Exciting music,Heyecanlı müzik
+Angry music,Öfkeli müzik
+Scary music,Korkutucu müzik
+Wind,Rüzgar
+Rustling leaves,Yaprak hışırtısı
+Wind noise (microphone),Rüzgar gürültüsü (mikrofon)
+Thunderstorm,Gök gürültülü fırtına
+Thunder,Gök gürültüsü
+Water,Su
+Rain,Yağmur
+Raindrop,Yağmur damlası
+Rain on surface,Yüzeye düşen yağmur
+Stream,Dere
+Waterfall,Şelale
+Ocean,Okyanus
+"Waves, surf",Dalgalar
+Steam,Buhar
+Gurgling,Lıkırtı
+Fire,Ateş
+Crackle,Çıtırtı
+Vehicle,Araç
+"Boat, Water vehicle","Tekne, deniz aracı"
+"Sailboat, sailing ship",Yelkenli
+"Rowboat, canoe, kayak","Kayık, kano"
+"Motorboat, speedboat",Motorbot
+Ship,Gemi
+Motor vehicle (road),Motorlu kara taşıtı
+Car,Otomobil
+"Vehicle horn, car horn, honking",Korna
+Toot,Korna sesi
+Car alarm,Araç alarmı
+"Power windows, electric windows",Elektrikli cam
+Skidding,Savrulma
+Tire squeal,Lastik cıyaklaması
+Car passing by,Geçen araç
+"Race car, auto racing",Yarış arabası
+Truck,Kamyon
+Air brake,Hava freni
+"Air horn, truck horn",Kamyon kornası
+Reversing beeps,Geri vites uyarı sesi
+"Ice cream truck, ice cream van",Dondurmacı arabası
+Bus,Otobüs
+Emergency vehicle,Acil durum aracı
+Police car (siren),Polis aracı (siren)
+Ambulance (siren),Ambulans (siren)
+"Fire engine, fire truck (siren)",İtfaiye aracı (siren)
+Motorcycle,Motosiklet
+"Traffic noise, roadway noise",Trafik gürültüsü
+Rail transport,Raylı ulaşım
+Train,Tren
+Train whistle,Tren düdüğü
+Train horn,Tren kornası
+"Railroad car, train wagon",Vagon
+Train wheels squealing,Tren tekerleği cıyaklaması
+"Subway, metro, underground",Metro
+Aircraft,Hava aracı
+Aircraft engine,Uçak motoru
+Jet engine,Jet motoru
+"Propeller, airscrew",Pervane
+Helicopter,Helikopter
+"Fixed-wing aircraft, airplane",Uçak
+Bicycle,Bisiklet
+Skateboard,Kaykay
+Engine,Motor
+Light engine (high frequency),Hafif motor (yüksek frekans)
+"Dental drill, dentist's drill",Diş hekimi matkabı
+Lawn mower,Çim biçme makinesi
+Chainsaw,Motorlu testere
+Medium engine (mid frequency),Orta motor (orta frekans)
+Heavy engine (low frequency),Ağır motor (düşük frekans)
+Engine knocking,Motor vuruntusu
+Engine starting,Motor çalıştırma
+Idling,Rölanti
+"Accelerating, revving, vroom","Hızlanma, gaz verme"
+Door,Kapı
+Doorbell,Kapı zili
+Ding-dong,Ding-dong
+Sliding door,Sürgülü kapı
+Slam,Kapı çarpma
+Knock,Kapı vurma
+Tap,Hafif vuruş
+Squeak,Gıcırtı
+Cupboard open or close,Dolap açılıp kapanması
+Drawer open or close,Çekmece açılıp kapanması
+"Dishes, pots, and pans",Tabak çanak
+"Cutlery, silverware",Çatal bıçak
+Chopping (food),Doğrama
+Frying (food),Kızartma
+Microwave oven,Mikrodalga fırın
+Blender,Blender
+"Water tap, faucet",Musluk
+Sink (filling or washing),Lavabo
+Bathtub (filling or washing),Küvet
+Hair dryer,Saç kurutma makinesi
+Toilet flush,Sifon
+Toothbrush,Diş fırçası
+Electric toothbrush,Elektrikli diş fırçası
+Vacuum cleaner,Elektrikli süpürge
+Zipper (clothing),Fermuar
+Keys jangling,Anahtar şıngırtısı
+Coin (dropping),Madeni para düşmesi
+Scissors,Makas
+"Electric shaver, electric razor",Elektrikli tıraş makinesi
+Shuffling cards,Kart karıştırma
+Typing,Klavyede yazma
+Typewriter,Daktilo
+Computer keyboard,Bilgisayar klavyesi
+Writing,Yazı yazma
+Alarm,Alarm
+Telephone,Telefon
+Telephone bell ringing,Telefon zili
+Ringtone,Zil sesi
+"Telephone dialing, DTMF",Telefon tuşlama
+Dial tone,Çevir sesi
+Busy signal,Meşgul sinyali
+Alarm clock,Çalar saat
+Siren,Siren
+Civil defense siren,Sivil savunma sireni
+Buzzer,Vızıltılı zil
+"Smoke detector, smoke alarm",Duman dedektörü
+Fire alarm,Yangın alarmı
+Foghorn,Sis düdüğü
+Whistle,Düdük
+Steam whistle,Buhar düdüğü
+Mechanisms,Mekanizmalar
+"Ratchet, pawl",Cırcır mekanizması
+Clock,Saat
+Tick,Tik
+Tick-tock,Tik tak
+Gears,Dişliler
+Pulleys,Makaralar
+Sewing machine,Dikiş makinesi
+Mechanical fan,Vantilatör
+Air conditioning,Klima
+Cash register,Yazar kasa
+Printer,Yazıcı
+Camera,Fotoğraf makinesi
+Single-lens reflex camera,SLR fotoğraf makinesi
+Tools,Aletler
+Hammer,Çekiç
+Jackhammer,Kırıcı
+Sawing,Testereyle kesme
+Filing (rasp),Eğeleme
+Sanding,Zımparalama
+Power tool,Elektrikli el aleti
+Drill,Matkap
+Explosion,Patlama
+"Gunshot, gunfire",Silah sesi
+Machine gun,Makineli tüfek
+Fusillade,Yaylım ateşi
+Artillery fire,Topçu ateşi
+Cap gun,Kapsüllü tabanca
+Fireworks,Havai fişek
+Firecracker,Maytap
+"Burst, pop",Patlama sesi
+Eruption,Püskürme
+Boom,Gümbürtü
+Wood,Ahşap
+Chop,Balta darbesi
+Splinter,Kıymık kırılması
+Crack,Çatlama
+Glass,Cam
+"Chink, clink",Şıngırtı
+Shatter,Cam kırılması
+Liquid,Sıvı
+"Splash, splatter",Su sıçraması
+Slosh,Çalkalanma
+Squish,Ezilme sesi
+Drip,Damlama
+Pour,Dökme
+"Trickle, dribble",Sızıntı
+Gush,Fışkırma
+Fill (with liquid),Sıvı doldurma
+Spray,Sprey
+Pump (liquid),Sıvı pompası
+Stir,Karıştırma
+Boiling,Kaynama
+Sonar,Sonar
+Arrow,Ok
+"Whoosh, swoosh, swish",Vınlama
+"Thump, thud",Gümleme
+Thunk,Tok darbe
+Electronic tuner,Elektronik akort aleti
+Effects unit,Efekt ünitesi
+Chorus effect,Koro efekti
+Basketball bounce,Basketbol topu sekmesi
+Bang,Küt sesi
+"Slap, smack",Şaplak
+"Whack, thwack",Sert vuruş
+"Smash, crash","Çarpma, parçalanma"
+Breaking,Kırılma
+Bouncing,Sekme
+Whip,Kırbaç
+Flap,Çırpınma
+Scratch,Tırmalama
+Scrape,Sürtme
+Rub,Ovma
+Roll,Yuvarlanma
+Crushing,Ezme
+"Crumpling, crinkling",Buruşturma
+Tearing,Yırtma
+"Beep, bleep",Bip sesi
+Ping,Ping sesi
+Ding,Ding sesi
+Clang,Çınlama
+Squeal,Cıyaklama
+Creak,Gıcırdama
+Rustle,Hışırtı
+Whir,Vınlama (mekanik)
+Clatter,Takırtı
+Sizzle,Cızırtı
+Clicking,Tıklama
+Clickety-clack,Takırtı ritmi
+Rumble,Gürleme
+Plop,Cup sesi
+"Jingle, tinkle",Çıngırtı
+Hum,Uğultu
+Zing,İnce vınlama
+Boing,Zıplama sesi
+Crunch,Çıtırdayarak ezilme
+Silence,Sessizlik
+Sine wave,Sinüs dalgası
+Harmonic,Harmonik
+Chirp tone,Cıvıltı tonu
+Sound effect,Ses efekti
+Pulse,Darbe
+"Inside, small room","İç mekan, küçük oda"
+"Inside, large room or hall","İç mekan, büyük salon"
+"Inside, public space","İç mekan, umumi alan"
+"Outside, urban or manmade","Dış mekan, kentsel"
+"Outside, rural or natural","Dış mekan, kırsal"
+Reverberation,Yankılanma
+Echo,Yankı
+Noise,Gürültü
+Environmental noise,Çevresel gürültü
+Static,Parazit
+Mains hum,Şebeke uğultusu
+Distortion,Distorsiyon
+Sidetone,Yan ton
+Cacophony,Kakofoni
+White noise,Beyaz gürültü
+Pink noise,Pembe gürültü
+Throbbing,Zonklama
+Vibration,Titreşim
+Television,Televizyon
+Radio,Radyo
+Field recording,Saha kaydı

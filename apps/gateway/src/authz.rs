@@ -27,6 +27,8 @@ pub async fn check_permission(
             object: object.to_string(),
             relation: relation.to_string(),
             subject: Some(keto::Subject {
+                // `ref` is a Rust keyword, so prost emits the oneof field as a
+                // raw identifier.
                 r#ref: Some(keto::subject::Ref::Id(subject_id.to_string())),
             }),
         }),
