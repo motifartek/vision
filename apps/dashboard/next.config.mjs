@@ -2,7 +2,14 @@
 const nextConfig = {
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
   },
+  allowedDevOrigins: ["127.0.0.1"],
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:4433"
     return {

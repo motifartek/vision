@@ -11,9 +11,10 @@ serve:
     base_url: http://127.0.0.1:4434/
 
 selfservice:
-  default_browser_return_url: http://127.0.0.1:3000/
+  # Dashboard Next.js dev sunucusu 3001'de çalışır (3000 Kratos'a ayrıldı)
+  default_browser_return_url: http://127.0.0.1:3001/
   allowed_return_urls:
-    - http://127.0.0.1:3000
+    - http://127.0.0.1:3001
 
   methods:
     password:
@@ -24,36 +25,36 @@ selfservice:
 
   flows:
     error:
-      ui_url: http://127.0.0.1:3000/error
+      ui_url: http://127.0.0.1:3001/auth/error
 
     settings:
-      ui_url: http://127.0.0.1:3000/settings
+      ui_url: http://127.0.0.1:3001/settings
       privileged_session_max_age: 15m
       required_aal: highest_available
 
     recovery:
       enabled: true
-      ui_url: http://127.0.0.1:3000/recovery
+      ui_url: http://127.0.0.1:3001/auth/recovery
       use: code
 
     verification:
       enabled: true
-      ui_url: http://127.0.0.1:3000/verification
+      ui_url: http://127.0.0.1:3001/auth/verify
       use: code
       after:
-        default_browser_return_url: http://127.0.0.1:3000/
+        default_browser_return_url: http://127.0.0.1:3001/
 
     logout:
       after:
-        default_browser_return_url: http://127.0.0.1:3000/login
+        default_browser_return_url: http://127.0.0.1:3001/auth/login
 
     login:
-      ui_url: http://127.0.0.1:3000/login
+      ui_url: http://127.0.0.1:3001/auth/login
       lifespan: 10m
 
     registration:
       lifespan: 10m
-      ui_url: http://127.0.0.1:3000/registration
+      ui_url: http://127.0.0.1:3001/auth/register
       after:
         password:
           hooks:

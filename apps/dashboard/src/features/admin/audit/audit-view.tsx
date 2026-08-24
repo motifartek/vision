@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/app-shell/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Activity } from "lucide-react"
@@ -18,7 +17,7 @@ const levelVariant = {
 
 export function AuditView() {
   return (
-    <AppShell title="Denetim Günlüğü" description="Sistemdeki tüm kritik işlemlerin kaydı">
+    <div className="flex flex-col gap-4"><div className="mb-2"><h1 className="text-2xl font-bold tracking-tight"></h1><p className="text-muted-foreground"></p></div>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Card>
           <CardHeader>
@@ -49,6 +48,6 @@ export function AuditView() {
           </CardContent>
         </Card>
       </div>
-    </AppShell>
+    </div>
   )
 }

@@ -1,7 +1,6 @@
 "use client"
 
 import { BrainCircuit, Captions, CloudUpload, Mic2, Scissors, Sparkles, WandSparkles } from "lucide-react"
-import { AppShell } from "@/components/app-shell/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
@@ -19,7 +18,7 @@ const tools = [
 
 export function ToolsView() {
   return (
-    <AppShell title="Araçlar" description="İşleme modüllerini ve çalışma davranışını yönetin">
+    <div className="flex flex-col gap-4"><div className="mb-2"><h1 className="text-2xl font-bold tracking-tight"></h1><p className="text-muted-foreground"></p></div>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <section className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-6 md:flex-row md:items-center">
           <div>
@@ -67,6 +66,6 @@ export function ToolsView() {
           ))}
         </div>
       </div>
-    </AppShell>
+    </div>
   )
 }

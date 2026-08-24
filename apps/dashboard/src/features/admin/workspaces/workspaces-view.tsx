@@ -1,4 +1,3 @@
-import { AppShell } from "@/components/app-shell/app-shell"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -12,7 +11,7 @@ const workspaces = [
 
 export function WorkspacesView() {
   return (
-    <AppShell title="Workspace Yönetimi" description="Tüm çalışma alanlarını görüntüleyin ve yönetin">
+    <div className="flex flex-col gap-4"><div className="mb-2"><h1 className="text-2xl font-bold tracking-tight"></h1><p className="text-muted-foreground"></p></div>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <Card>
           <CardHeader>
@@ -47,6 +46,6 @@ export function WorkspacesView() {
           </CardContent>
         </Card>
       </div>
-    </AppShell>
+    </div>
   )
 }

@@ -1,5 +1,6 @@
 version: v0.11.1
 
+dsn: sqlite:///etc/config/keto/keto.sqlite?_fk=true&_journal_mode=WAL
 serve:
   read:
     host: 0.0.0.0

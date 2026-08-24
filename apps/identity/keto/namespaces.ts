@@ -34,3 +34,10 @@ class Video implements Namespace {
       this.related.parents.traverse((p) => p.permits.edit(ctx)),
   }
 }
+
+class Group implements Namespace {
+  related: {
+    members: User[]
+  }
+}
+

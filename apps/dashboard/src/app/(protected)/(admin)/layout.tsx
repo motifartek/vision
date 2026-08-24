@@ -1,6 +1,6 @@
-import { requireSession } from "@/lib/auth/session"
 import { redirect } from "next/navigation"
 import { getSession } from "@/lib/auth/session"
+import { ketoRead } from "@/lib/auth/ory"
 
 /**
  * Admin route grubu layout'u.
@@ -15,9 +15,22 @@ export default async function AdminLayout({
   const session = await getSession()
   if (!session) redirect("/auth/login")
 
-  // TODO: Keto'dan admin rolünü kontrol et
-  // const isAdmin = await checkPermission(session.id, "roles", "admin", "member")
-  // if (!isAdmin) redirect("/")
+  try {
+    const { data } = await ketoRead.checkPermission({
+      namespace: "Group",
+      object: "admin",
+      relation: "members",
+      subjectId: session.id,
+    })
+
+    if (!data.allowed) {
+      // Yetkisi yoksa anasayfaya at
+      redirect("/")
+    }
+  } catch (error) {
+    console.error("Keto yetkilendirme hatası:", error)
+    redirect("/")
+  }
 
   return <>{children}</>
 }

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev --port 3001",
     "build": "next build",
     "start": "next start",
     "lint": "eslint ."
@@ -13,10 +13,14 @@
     "@hookform/resolvers": "^5.9.1",
     "@ory/client": "^1.22.66",
     "@tanstack/react-query": "^5.101.4",
+    "@tanstack/react-table": "^8.21.3",
     "@vercel/analytics": "1.6.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
+    "cmdk": "^1.1.1",
     "lucide-react": "^1.16.0",
+    "media-chrome": "^4.19.2",
+    "motion": "^13.1.1",
     "next": "16.2.6",
     "react": "^19",
     "react-dom": "^19",

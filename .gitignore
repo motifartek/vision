@@ -54,3 +54,4 @@ temp/
 # Misc
 *.bak
 *.orig
+*.sqlite*
