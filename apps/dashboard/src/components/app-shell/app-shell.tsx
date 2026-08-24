@@ -3,10 +3,9 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useState } from "react"
-import { Bell, CircleHelp, Gauge, House, Search, Settings2, SlidersHorizontal, Video, Wrench } from "lucide-react"
+import { Bell, CircleHelp, Gauge, House, Settings2, SlidersHorizontal, Video, Wrench } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { Popover, PopoverContent, PopoverDescription, PopoverHeader, PopoverTitle, PopoverTrigger } from "@/components/ui/popover"
 import { cn } from "@/lib/utils"
 
@@ -22,7 +21,7 @@ function SidebarItem({ item, active }: { item: (typeof nav)[number]; active: boo
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <span onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)} onFocus={() => setOpen(true)} onBlur={() => setOpen(false)}>
-        <PopoverTrigger render={<Link href={item.href} aria-label={item.label} className={cn("flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", active && "bg-accent text-primary")} />}>
+        <PopoverTrigger nativeButton={false} render={<Link href={item.href} aria-label={item.label} className={cn("flex size-10 items-center justify-center rounded-lg text-muted-foreground transition-colors hover:bg-accent hover:text-foreground", active && "bg-accent text-primary")} />}>
           <item.icon className="size-5" />
         </PopoverTrigger>
       </span>
@@ -53,7 +52,6 @@ export function AppShell({ children, title, description }: { children: React.Rea
         <header className="sticky top-0 flex h-16 items-center justify-between border-b bg-background/95 px-4 backdrop-blur md:px-6">
           <div className="min-w-0"><h1 className="truncate text-base font-semibold">{title}</h1><p className="hidden text-xs text-muted-foreground sm:block">{description}</p></div>
           <div className="flex items-center gap-2">
-            <div className="relative hidden md:block"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" /><Input className="w-56 pl-9" placeholder="Proje veya video ara" aria-label="Ara" /></div>
             <Button variant="ghost" size="icon" aria-label="Yardım"><CircleHelp /></Button>
             <Button variant="ghost" size="icon" aria-label="Bildirimler"><Bell /></Button>
             <Avatar className="size-8"><AvatarFallback>AK</AvatarFallback></Avatar>

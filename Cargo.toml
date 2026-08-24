@@ -1,18 +1,24 @@
 [workspace]
 resolver = "2"
+
+# Yalnızca gerçekten Cargo.toml içeren dizinler burada listelenir; eksik bir
+# manifest tüm workspace'in yüklenmesini engelliyor. Bir crate oluşturulduğunda
+# buraya eklenmeli.
+#
+# Henüz oluşturulmamış: apps/ai/orchestrator, apps/ai/memory (#7),
+# packages/database (#2).
+#
+# apps/identity bir Rust crate'i değil: Ory Kratos/Keto dağıtımı
+# (compose.yaml + helm + config).
 members = [
     "apps/gateway",
+    "apps/ai/inference",
     "apps/stream",
     "packages/core",
     "packages/event-sdk",
     "packages/optics",
     "tools/bench",
 ]
-
-# Henüz oluşturulmamış crate'ler bilerek listelenmiyor; workspace aksi halde
-# derlenmez. Sahibi crate'i oluşturduğunda buraya eklenmeli:
-#   apps/ai/orchestrator, apps/ai/inference, apps/ai/memory  (#7, #8)
-#   packages/database                                        (#2)
 
 [workspace.package]
 version = "0.1.0"
