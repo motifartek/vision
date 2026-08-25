@@ -1,0 +1,39 @@
+services:
+  minio:
+    image: minio/minio:RELEASE.2024-07-04T14-25-45Z
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # MinIO Console
+    environment:
+      MINIO_ROOT_USER: motifai
+      MINIO_ROOT_PASSWORD: motifai_secret
+    volumes:
+      - minio-data:/data
+    networks:
+      - default
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # Bucket'i otomatik olusturan tek seferlik baslatici
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 motifai motifai_secret;
+        mc mb --ignore-existing local/stream-storage;
+        mc mb --ignore-existing local/sonic-models;
+        echo 'Bucket olusturuldu.';
+      "
+    networks:
+      - default
+
+volumes:
+  minio-data:

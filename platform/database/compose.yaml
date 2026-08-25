@@ -1,0 +1,26 @@
+services:
+  surrealdb:
+    image: surrealdb/surrealdb:latest
+    restart: unless-stopped
+    command: start --log trace --user root --pass root file://data/surreal.db
+    ports:
+      - "8020:8000" # Gateway port 8000 kullandigi icin host tarafinda 8020 ile esliyoruz
+    volumes:
+      - surreal-data:/data
+    networks:
+      - default
+
+  qdrant:
+    image: qdrant/qdrant:latest
+    restart: unless-stopped
+    ports:
+      - "6333:6333"
+      - "6334:6334"
+    volumes:
+      - qdrant-data:/qdrant/storage
+    networks:
+      - default
+
+volumes:
+  surreal-data:
+  qdrant-data:

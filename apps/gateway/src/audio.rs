@@ -25,7 +25,7 @@ pub struct AudioEventsQuery {
 }
 
 /// Video kimliği doğrudan dosya adına çevrildiği için yalnız güvenli karakterler
-/// kabul edilir; aksi halde `../` ile inference'ın medya kökünden çıkılabilirdi.
+/// kabul edilir; aksi halde `../` ile sonic'ın medya kökünden çıkılabilirdi.
 fn is_safe_video_id(id: &str) -> bool {
     !id.is_empty()
         && id.len() <= 128
@@ -35,7 +35,7 @@ fn is_safe_video_id(id: &str) -> bool {
 /// Bir videonun ses olaylarını döndürür.
 ///
 /// Kimlik doğrulama ve Keto yetki kontrolü `stream_video` ile aynı deseni izler;
-/// asıl çözümlemeyi yerel inference servisi yapar.
+/// asıl çözümlemeyi yerel sonic servisi yapar.
 pub async fn audio_events(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -52,7 +52,7 @@ pub async fn audio_events(
         return Err(GatewayError::Forbidden);
     }
 
-    // Uzantı **eklenmiyor**: inference servisi uzantısız kimliği medya kökünde
+    // Uzantı **eklenmiyor**: sonic servisi uzantısız kimliği medya kökünde
     // kendisi çözüyor (`upload::find_by_id`). `.mp4` varsaymak, mkv/webm/mov
     // olarak yüklenen her videoyu "dosya bulunamadı" ile kırıyordu.
     let mut body = json!({ "path": video_id });
@@ -68,20 +68,20 @@ pub async fn audio_events(
     }
 
     let response = state
-        .inference
+        .sonic
         .client
-        .post(format!("{}/v1/audio/analyze", state.inference.base_url))
+        .post(format!("{}/v1/audio/analyze", state.sonic.base_url))
         .json(&body)
         .send()
         .await
         .map_err(|err| {
-            tracing::error!("inference servisine ulaşılamadı: {}", err);
+            tracing::error!("sonic servisine ulaşılamadı: {}", err);
             GatewayError::InferenceUnreachable
         })?;
 
     let status = response.status();
     let payload: Value = response.json().await.map_err(|err| {
-        tracing::error!("inference yanıtı çözümlenemedi: {}", err);
+        tracing::error!("sonic yanıtı çözümlenemedi: {}", err);
         GatewayError::InternalError
     })?;
 

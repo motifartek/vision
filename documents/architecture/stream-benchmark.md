@@ -209,10 +209,10 @@ geldiğinde asıl ölçüm o küme üzerinde yapılacak.
 ## Yeniden üretme
 
 ```bash
-cargo run --release -p motif-bench -- generate --out datasets/sentetik
-cargo run --release -p motif-bench -- run   --dataset datasets/sentetik
-cargo run --release -p motif-bench -- sweep --dataset datasets/sentetik --param alpha --no-scene-cuts
-cargo run --release -p motif-bench -- sweep --dataset datasets/sentetik --param budget
+cargo run --release -p motif-bench -- generate --out data/fixtures/events
+cargo run --release -p motif-bench -- run   --dataset data/fixtures/events
+cargo run --release -p motif-bench -- sweep --dataset data/fixtures/events --param alpha --no-scene-cuts
+cargo run --release -p motif-bench -- sweep --dataset data/fixtures/events --param budget
 ```
 
 Video dosyaları depoya konmuyor; `generate` deterministik olduğu için ground

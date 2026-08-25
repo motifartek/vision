@@ -1,0 +1,16 @@
+services:
+  nats:
+    image: nats:2.10-alpine
+    restart: unless-stopped
+    # JetStream aktif (kalici mesajlar, yeniden teslim, ack)
+    command: ["-js", "-m", "8222"]
+    ports:
+      - "4222:4222"   # istemci
+      - "8222:8222"   # monitoring HTTP
+    volumes:
+      - nats-data:/data
+    networks:
+      - default
+
+volumes:
+  nats-data:

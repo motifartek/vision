@@ -1,0 +1,46 @@
+[package]
+name = "sonic"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+axum = { version = "0.7", features = ["multipart"] }
+tokio = { version = "1", features = ["full"] }
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# ONNX Runtime (YAMNet ses olay sınıflandırma modeli için)
+ort = "2.0.0-rc.13"
+
+# AudioSet sınıf haritası için (alan adları tırnaklı virgül içerir)
+csv = "1.3"
+
+# CED log-mel ön ucu için gerçek-girdili FFT
+realfft = "3.5"
+
+# Süreç içi ses çözme. ffmpeg alt süreci bu makinede ~960 ms yükleme maliyeti
+# getiriyordu (ölçüldü); symphonia bunu tamamen ortadan kaldırıyor. Desteklemediği
+# formatlar için ffmpeg yedek yol olarak duruyor.
+symphonia = { version = "0.6", features = ["all-codecs", "all-formats", "opt-simd"] }
+# Yeniden örnekleme (44.1 → 16 kHz). Yüksek kaliteli sinc; ucuz bir resampler
+# aliasing yaratıp mel spektrumunu bozardı.
+rubato = "0.16"
+
+# Serileştirme ve Hata Yönetimi
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+thiserror = "1.0"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+motif-core.workspace = true
+motif-observer.workspace = true
+axum-prometheus = "0.7"
+
+# Hedef makinede GPU varsa ilgili özellikle derleyin; ONNX Runtime sağlayıcıyı
+# bulamazsa sessizce CPU'ya döner, yani aynı ikili her iki makinede de çalışır:
+#   cargo build -p inference --release --features cuda
+[features]
+default = []
+cuda = ["ort/cuda"]
+tensorrt = ["ort/tensorrt", "ort/cuda"]
+directml = ["ort/directml"]

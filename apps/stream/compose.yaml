@@ -1,0 +1,26 @@
+services:
+  stream:
+    build:
+      context: ../../
+      dockerfile: apps/stream/Dockerfile
+    image: docker-stream
+    ports:
+      - "8100:8100"
+    environment:
+      - STREAM_BIND=0.0.0.0:8100
+      - STREAM_STORAGE_ROOT=/data/stream
+      # NATS bagli degilse olay yayini sessizce kapanir, servis yine calisiyor
+      - NATS_URL=nats://nats:4222
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      - stream-data:/data/stream
+    # NATS ve observability stack hazir olduktan sonra baslat
+    depends_on:
+      - nats
+    restart: unless-stopped
+    networks:
+      - default
+      - observability
+
+volumes:
+  stream-data:

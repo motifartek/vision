@@ -6,7 +6,7 @@ import { Upload, X, FileVideo, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+const API = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 /** Sunucudaki `VIDEO_EXTENSIONS` ile birebir aynı (upload.rs). */
 const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "mov", "avi", "flv", "wmv", "m4v"]
@@ -81,7 +81,7 @@ export function VideoUploadDialog({ open, onClose }: Props) {
           })
 
           xhr.addEventListener("load", () => {
-            if (xhr.status === 201) {
+            if (xhr.status === 200 || xhr.status === 201) {
               resolve(JSON.parse(xhr.responseText))
             } else {
               let msg = "Yükleme başarısız"
@@ -98,7 +98,7 @@ export function VideoUploadDialog({ open, onClose }: Props) {
           xhr.addEventListener("error", () => reject(new Error("Ağ hatası")))
           xhr.addEventListener("abort", () => reject(new Error("İptal edildi")))
 
-          xhr.open("POST", `${API}/v1/upload`)
+          xhr.open("POST", `${API}/v1/videos`)
           xhr.send(formData)
         })
 

@@ -5,9 +5,9 @@
 //! üretir.
 //!
 //! ```text
-//! bench generate --out datasets/sentetik      # veri kümesini üret
-//! bench run      --dataset datasets/sentetik  # tek ayarla ölç
-//! bench sweep    --dataset datasets/sentetik --param alpha
+//! bench generate --out data/fixtures/events      # veri kümesini üret
+//! bench run      --dataset data/fixtures/events  # tek ayarla ölç
+//! bench sweep    --dataset data/fixtures/events --param alpha
 //! ```
 
 mod dataset;
@@ -76,13 +76,13 @@ impl SamplingArgs {
 enum Command {
     /// Sentetik veri kümesini üretir (ffmpeg gerekir).
     Generate {
-        #[arg(long, default_value = "datasets/sentetik")]
+        #[arg(long, default_value = "data/fixtures/events")]
         out: PathBuf,
     },
 
     /// Veri kümesini tek bir ayarla ölçer.
     Run {
-        #[arg(long, default_value = "datasets/sentetik")]
+        #[arg(long, default_value = "data/fixtures/events")]
         dataset: PathBuf,
         /// Sonuçları JSON olarak buraya yaz.
         #[arg(long)]
@@ -93,7 +93,7 @@ enum Command {
 
     /// Bir parametreyi süpürüp etkisini ölçer.
     Sweep {
-        #[arg(long, default_value = "datasets/sentetik")]
+        #[arg(long, default_value = "data/fixtures/events")]
         dataset: PathBuf,
         /// Süpürülecek parametre: alpha, budget, dedup, noise-floor.
         #[arg(long, default_value = "alpha")]

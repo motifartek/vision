@@ -12,13 +12,13 @@ resolver = "2"
 # (compose.yaml + helm + config).
 members = [
     "apps/gateway",
-    "apps/ai/inference",
+    "apps/ai/sonic",
     "apps/stream",
     "packages/core",
     "packages/observer",
     "packages/event-sdk",
     "packages/optics",
-    "tools/bench",
+    "tools/bench", "apps/ai/orchestrator", "packages/database", 
 ]
 
 [workspace.package]

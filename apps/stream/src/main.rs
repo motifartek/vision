@@ -1,13 +1,13 @@
-//! `apps/stream` â€” video alma ve dinamik kare Ã¶rnekleme servisi.
+//! `apps/stream` — video alma ve dinamik kare ornekleme servisi.
 //!
-//! GÃ¶revi: yÃ¼klenen bir videoyu **gÃ¼venlikle ilgili tÃ¼m olaylarÄ± koruyacak
-//! ÅŸekilde mÃ¼mkÃ¼n olan en az kareye** indirmek ve bu yeteneÄŸi ajana
-//! Ã§aÄŸrÄ±labilir araÃ§lar olarak sunmak.
+//! Gorevi: yuklenen bir videoyu **guvenlikle ilgili tum olaylari koruyacak
+//! sekilde mumkun olan en az kareye** indirmek ve bu yetenegi ajana
+//! cagrilabilir araclar olarak sunmak.
 //!
-//! Servis hiÃ§bir altyapÄ± olmadan ayaÄŸa kalkar: nesne deposu varsayÄ±lan olarak
-//! yerel dosya sistemi, NATS isteÄŸe baÄŸlÄ±. `cargo run -p stream` yeterli.
+//! Servis hicbir altyapi olmadan ayaga kalkar: nesne deposu varsayilan olarak
+//! yerel dosya sistemi, NATS istege bagli. `cargo run -p stream` yeterli.
 //!
-//! Yol haritasÄ±: `documents/architecture/stream-phase-plan.md`
+//! Yol haritasi: `documents/architecture/stream-phase-plan.md`
 
 mod api;
 mod catalog;
@@ -34,9 +34,9 @@ use crate::storage::LocalStore;
 async fn main() -> Result<()> {
     motif_observer::init("stream");
 
-    // Eksik bir baÄŸÄ±mlÄ±lÄ±k ilk video yÃ¼klendiÄŸinde deÄŸil, aÃ§Ä±lÄ±ÅŸta anlaÅŸÄ±lsÄ±n.
-    for (tool, version) in check_dependencies().context("harici baÄŸÄ±mlÄ±lÄ±k kontrolÃ¼")? {
-        tracing::info!(tool = tool.binary(), %version, "harici baÄŸÄ±mlÄ±lÄ±k hazÄ±r");
+    // Eksik bir bagimlilik ilk video yuklendiginde degil, acilista anlasilsin.
+    for (tool, version) in check_dependencies().context("harici bagimlilik kontrolu")? {
+        tracing::info!(tool = tool.binary(), %version, "harici bagimlilik hazir");
     }
 
     let config = Config::from_env();
@@ -44,22 +44,25 @@ async fn main() -> Result<()> {
         storage = %config.storage_root.display(),
         overview_budget = config.overview_budget,
         zoom_budget = config.zoom_budget,
-        "yapÄ±landÄ±rma yÃ¼klendi"
+        "yapilandirma yuklendi"
     );
 
     let store = Arc::new(
-        LocalStore::new(&config.storage_root).context("nesne deposu aÃ§Ä±lamadÄ±")?,
+        LocalStore::new(&config.storage_root).context("nesne deposu acilamadi")?,
     );
     let publisher = EventPublisher::connect(config.nats_url.as_deref()).await;
 
     let bind = config.bind.clone();
     let state = Arc::new(AppState::new(config, store, publisher));
 
-    // AraÃ§lar NATS Ã¼zerinden de Ã§aÄŸrÄ±labilir; HTTP ile aynÄ± gÃ¶vdeyi kullanÄ±r.
+    // Araclar NATS uzerinden de cagrilabilir; HTTP ile ayni govdeyi kullanir.
     nats::serve_tools(state.clone());
 
     let (prometheus_layer, metric_handle) = axum_prometheus::PrometheusMetricLayer::pair();
-    
+
+    // api::router ile prometheus_layer'i birlestiriyoruz.
+    // Onceki hatada api::router(state) hem burada hem axum::serve icinde
+    // cagriliyordu — ikinci cagri prometheus katmanindan gecmiyordu.
     let app = api::router(state)
         .route("/metrics", axum::routing::get(|| async move { metric_handle.render() }))
         .layer(prometheus_layer);
@@ -70,9 +73,16 @@ async fn main() -> Result<()> {
 
     tracing::info!(addr = %listener.local_addr()?, "stream servisi dinleniyor");
 
-    axum::serve(listener, api::router(state))
-        .await
-        .context("sunucu dÃ¼ÅŸtÃ¼")?;
+    let axum_server = axum::serve(listener, app);
+    tokio::select! {
+        res = axum_server => {
+            res.context("sunucu dustu")?;
+        }
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Kapatiliyor...");
+        }
+    }
 
+    motif_observer::shutdown();
     Ok(())
 }

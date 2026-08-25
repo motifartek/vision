@@ -1,0 +1,16 @@
+services:
+  orchestrator:
+    build:
+      context: ../../../
+      dockerfile: apps/ai/orchestrator/Dockerfile
+    image: docker-orchestrator
+    environment:
+      - NATS_URL=nats://nats:4222
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=orchestrator
+    depends_on:
+      - nats
+    restart: unless-stopped
+    networks:
+      - default
+      - observability
