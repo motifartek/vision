@@ -195,6 +195,78 @@ Tek video bir doğrulama değil, bir çürütme denemesidir. Bu kayıt iki hatay
 ortaya çıkardı; başka kayıtlar başkalarını çıkaracak. Golden Dataset (#5)
 geldiğinde asıl ölçüm o küme üzerinde yapılacak.
 
+## Golden Dataset — ilk gerçek ölçüm
+
+10 elle etiketlenmiş gerçek İSG videosu, 39 olay, 5.5 dakika görüntü. Fabrika,
+depo, şantiye, kargo tesisi, tekstil hattı, otomotiv galerisi. Etiketleme
+yöntemi ve güven düzeyleri: `Utilities/golden-dataset/`.
+
+### Varsayılan ayarlarla (bütçe 16, α 0.25)
+
+| Ölçüt | Sentetik | **Gerçek** |
+|---|---|---|
+| Event coverage recall | %100 | **%92** (36/39) |
+| Ortalama sapma | 35 ms | **223 ms** |
+| Kare azaltma | 78x | 57x |
+| Boşluk ihlali | 0 | 0 |
+| Hız | 74x | 118x |
+
+Sentetik küme %100 diyordu; gerçek görüntü %92 diyor. Aradaki fark tam olarak
+sentetik kümenin ölçemediği şey.
+
+### Kaçan üç olayın ortak yanı
+
+| Video | Kaçan olay | Sapma |
+|---|---|---|
+| `-NF8DZCdcUQ` | "Bir çalışan olay yerine yaklaştı" | 1033 ms |
+| `6ZrAeC5mZ5w` | "Çalışanlar tezgâha doğru koşmaya başladı" | 2400 ms |
+| `yukleyici-isciye-carpma` | "İşçi manevra alanında bekliyor" | 1170 ms |
+
+**Üçü de düşük hareketli olay.** Sırasıyla: toz dolu durgun sahnede olay
+sonrası, zaten hareketli bir atölyede olayın başlangıcı, ve tehlikeli noktada
+hareketsiz duran bir kişi. Yüksek hareketli olaylar (çöküş, çarpma, kalabalık
+toplanması) 30–330 ms hassasiyetle yakalanıyor.
+
+Bu, tasarımın öngörülen zayıflığının ölçülmüş hâli: **hareket odaklı örnekleme
+hareketi yakalar, sessiz ama anlamlı anları az örnekler.** Şartnamenin saydığı
+"yerde hareketsiz kişi" tanımı gereği bu kategoride.
+
+### Parametre taraması
+
+| Bütçe | Recall | Sapma | | α (bütçe 16) | Recall | Sapma |
+|---|---|---|---|---|---|---|
+| 4 | %56 | 350 ms | | 0 | %92 | 192 ms |
+| 8 | %79 | 355 ms | | 0.25 | %92 | 223 ms |
+| 12 | %87 | 257 ms | | 0.5 | %92 | 212 ms |
+| 16 | %92 | 223 ms | | 0.75 | %95 | 327 ms |
+| 24 | %95 | 183 ms | | 1.0 | %87 | 344 ms |
+| 32 | %97 | 163 ms | | | | |
+
+**Sentetik kümeden en önemli fark:** orada recall bütçeye karşı düzdü (4 kareyle
+bile %100), burada bütçe belirleyici (%56 → %97). Sentetik küme fazla kolaydı ve
+bu sonucu gizliyordu.
+
+En iyi kombinasyon `bütçe 24 · α 0.5` ile **39/39 (%100)** ölçüldü. Ancak
+`bütçe 32 · α 0.5` %97 veriyor — **daha fazla kareyle daha kötü sonuç mümkün
+değil**, dolayısıyla %95–100 bandı bu örneklem büyüklüğünde gürültüdür. 39 olayda
+iki olay yüzde beş puan ediyor.
+
+Sağlam olan: bütçenin gerçek veride belirleyici olduğu ve 16'nın altına inmenin
+pahalıya patladığı. Gürültü olan: 24 ile 32 arasındaki fark ve α'nın optimum
+noktası.
+
+Önerilen varsayılan değişikliği **bütçe 16 → 24, α 0.25 → 0.5**. Sentetik kümede
+regresyon yok (24/24 sabit, sapma 35 → 26 ms). Küme büyüdükçe yeniden
+doğrulanmalı.
+
+### Açık kalan soru
+
+Gürültü tabanı düşürme iki kümede ters yönde çalışıyor: sentetikte sapmayı
+iyileştiriyor (104 → 35 ms), gerçek görüntüde recall'u düşürüyor gibi
+(%95 → %92). İkisi de gürültü sınırında; daha fazla etiketli video gerekiyor.
+Mekanizma olarak makul: taban düşürme düşük hareketli anları bastırıyor ve
+kaçırdığımız olaylar tam olarak o kategoride.
+
 ## Bilinen sınırlar
 
 - **Sentetik küme gerçek görsel karmaşıklığı temsil etmiyor.** Işık değişimi,
