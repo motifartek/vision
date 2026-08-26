@@ -1,104 +1,107 @@
-# Golden Dataset — İSG Video Kümesi
+# Golden Dataset — Olay Anlatısı Olan İSG Videoları
 
-> Şartname 3. Senaryo'nun olay listesiyle **birebir hizalanmış** gerçek
-> endüstriyel güvenlik kamerası görüntüleri.
+> Tek tek küratörlükle büyür. Her video insan onayından geçer.
 > İlgili issue'lar: #5, #1, #8
 
-## Neden bu küme
+## Aradığımız şey nedir
 
-Şartname ve mentör maili sistemin hangi olayları tespit etmesi gerektiğini
-açıkça sayıyor. Genel amaçlı bir video anomali kümesi (UCF-Crime gibi, ki
-hırsızlık ve kavga ağırlıklı) bu listeyle örtüşmüyor. Golden dataset ölçtüğümüz
-şeyin ta kendisini temsil etmeli.
+Şartname senaryoyu bir örnekle tanımlıyor ve o örnek her şeyi söylüyor:
 
-| Şartnamedeki olay | Kategori | Kaynak etiketi |
-|---|---|---|
-| Alan ihlali | `alan_ihlali` | Safe Walkway Violation, Unauthorized Intervention, moving in a suspicious manner |
-| Uygunsuz ekipman kullanımı | `uygunsuz_ekipman` | Opened Panel Cover, operating heavy equipment dangerously, misusing lift platform |
-| İş kazası | `is_kazasi` | falling load, body pulled into machine, foot stuck in conveyor, structural collapse, warehouse shelves toppling, platform failure |
-| Düşme | `dusme` | person falling down, hanging from something after slip |
-| Forklift kaynaklı riskler | `forklift_riski` | Carrying Overload with Forklift, operating forklift |
-| (yangın — İSG kapsamında) | `yangin` | fire incident, extinguishing fire |
-| Normal operasyon (yanlış alarm kontrolü) | `normal_operasyon` | Safe Walkway, Authorized Intervention, Closed Panel Cover, Safe Carrying + iSafetyBench rutin eylemler |
+```
+00:15 — Forklift devrilmesi
+00:20 — Yerde hareketsiz kişi
+00:35 — Personel toplanması
 
-Eşleme tablosu `fetch_golden.py` içinde kod olarak duruyor; kaynak etiketi bu
-kategorilere düşmüyorsa klip **alınmıyor**.
-
-## Kaynaklar
-
-Her ikisi de **CC BY 4.0** ve gerçek endüstriyel görüntü.
-
-### 1. UnsafeNet — Safe and Unsafe Behaviours
-
-691 klip, 1920×1080, 24 fps, 1–20 sn. **Eskişehir'de bir organize sanayi
-bölgesindeki üretim tesisinin güvenlik kameralarından**, şirket ve çalışan
-izinleri alınarak Kasım–Aralık 2022'de toplanmış.
-
-Türk fabrikası olması ayrıca değerli: finalde karşılaşacağımız görüntülerle
-aynı görsel alan — aynı kamera tipi, aynı yerleşim, aynı iş kıyafetleri.
-
-- Önal, Ö. & Dandıl, E. (2024). *Video dataset for the detection of safe and
-  unsafe behaviours in workplaces.* Data in Brief.
-  <https://doi.org/10.1016/j.dib.2024.110819>
-- Ayna: <https://huggingface.co/datasets/Voxel51/Safe_and_Unsafe_Behaviours>
-
-### 2. iSafetyBench
-
-1100 klip (420 tehlikeli, 680 rutin), 4–8 sn. Fabrika, depo, şantiye, otopark.
-67 tehlikeli eylem etiketi, 10 kategori. Video-dil benchmark'ı olarak
-tasarlandığı için doğrudan VLM değerlendirmesine uygun (#8).
-
-Her klipte serbest metin `caption` var — Türkçe özet kalitesini değerlendirirken
-referans olarak kullanılabilir.
-
-- *iSafetyBench: A video-language benchmark for safety in industrial
-  environment.* arXiv:2508.00399
-- Veri: <https://github.com/iSafetyBench/data> ·
-  <https://huggingface.co/datasets/raiyaanabdullah/isafety-bench>
-
-## Kullanım
-
-```bash
-python fetch_golden.py --plan                    # ne inecek, ne kadar yer tutacak
-python fetch_golden.py --limit 25                # kategori başına 25 klip
-python fetch_golden.py --only dusme,forklift_riski
+Sonuç: Olası iş kazası · Yüksek yaralanma riski
+Öneriler: sağlık ekibi, güvenlik, kayıt
 ```
 
-Videolar `videos/` altına iner, `catalog.json` üretilir. Seçim **tohumlu
-rastgele** (`--seed`, varsayılan 42): aynı tohum aynı kümeyi verir, ölçümler
-tekrar üretilebilir kalır.
+Bu bir **sınıflandırma** değil, bir **anlatı**. Tek videoda, birbirine nedensel
+olarak bağlı, farklı zamanlarda üç olay: kaza olur, sonucu görülür, müdahale
+gelir. §4 bunu açıkça istiyor: *"olayların başlangıç, gelişim ve sonuç
+süreçlerini ayırt edebilmelidir."*
 
-Videolar depoya konmuyor — boyut ve telif. Script'in kendisi ve `catalog.json`
-depoda; küme her zaman yeniden üretilebilir. Bu, Berat'ın görüntü kümesinde
-kullandığı desenin aynısı.
+Forklift devrilmesi sadece bir örnek. Genel mantık şu:
 
-## Zaman damgası: eksik olan parça
+> **Bir şey ters gider → bir sonucu olur → bir tepki verilir.**
 
-Her iki kaynak da **klip seviyesinde** etiketli, kare seviyesinde zaman damgası
-vermiyorlar. Bu, endüstriyel güvenlik veri kümelerinde yaygın bir kalıp.
+Vinç yükü düşürür, altındaki kişi kaçar, çevredekiler koşar. İşçi konveyöre
+sıkışır, iş durur, arkadaşları müdahale eder. Yükleyici işçiye çarpar, kişi
+yerde kalır, kalabalık toplanır. Hepsi aynı yapı.
 
-Bizim için önemli, çünkü şartname puanı kritik anın **zaman damgasıyla**
-belirtilmesinden geliyor ve `tools/bench` içindeki event coverage recall
-ölçütü olayın kaçıncı milisaniyede olduğunu bilmek zorunda.
+## Kabul ölçütleri
 
-İyi haber: klipler 4–20 saniye ve zaten davranışı içerecek şekilde kırpılmış.
-Kritik anın işaretlenmesi klip başına saniyeler süren bir iş.
+Bir videonun kümeye girebilmesi için:
 
-`catalog.json` her klip için `event_ms: null` bırakıyor. İşaretleme adımı
-tamamlanınca bu alan dolar ve katalog doğrudan `bench run --dataset` girdisi
-olur.
+- [ ] **Kırpılmamış.** Olayın öncesi ve sonrası kadrajda olmalı. Sadece çarpma
+      anını gösteren 5 saniyelik klip **kabul edilmez** — yayın ortası, yayın
+      kendisi değil.
+- [ ] **30 saniye – 3 dakika.** Altında yay oluşmuyor, üstünde etiketleme
+      pahalılaşıyor ve final test videoları "kısa" olacak.
+- [ ] **En az iki ayrı zaman damgalı olay.** Tek olaylı video sınıflandırma
+      örneğidir, anlatı değil.
+- [ ] **Gerçek İSG bağlamı.** Fabrika, depo, şantiye, saha operasyonu, liman,
+      tesis. Trafik kazası ya da genel güvenlik kamerası değil.
+- [ ] **Sabit kamera tercih edilir.** Final testinde gözetim kamerası görüntüsü
+      bekleniyor; el kamerası ve sallantılı çekim farklı bir problem.
+- [ ] **Tek sürekli çekim.** Kurgulanmış derleme videosu değil. Sahne kesiti
+      içeren montajlar ayrı bir şey ölçer.
 
-### İşaretleme durumu
+Şüphedeysen sor: *"bu videodan şartnamedeki gibi üç satırlık bir zaman
+çizelgesi çıkarabilir miyim?"* Çıkaramıyorsan video uygun değil.
 
-- [ ] Kritik an işaretleme arayüzü (stream test panosuna eklenecek)
-- [ ] 175 klibin işaretlenmesi (ekip işi, bölünebilir)
-- [ ] `catalog.json` → `GroundTruth` dönüştürücü
+## Neden hazır veri kümesi kullanmıyoruz
 
-## Lisans ve atıf
+Denendi ve ölçüldü; kaydı burada duruyor çünkü şartname "karşılaşılan zorluklar
+ve getirilen çözümler" bölümü istiyor.
 
-Bu dizindeki **script ve katalog** projenin lisansına tabi. **Videolar**
-kaynaklarının CC BY 4.0 lisansı altında; kullanan herkes yukarıdaki iki
-çalışmaya atıf vermek zorunda.
+| Aday | Neden olmadı |
+|---|---|
+| **UnsafeNet** (Eskişehir fabrikası, 691 klip, CC BY 4.0) | Sınıflar uygunluk denetimi: "Safe Walkway Violation" birinin boyalı çizgi dışında yürümesi, "Opened Panel Cover" panel kapağının açık kalması. Kaza değil, sonucu yok, müdahalesi yok. Üstelik sabit bir poligon kuralının çözdüğü şey — §4'ün cezalandırdığı tür. |
+| **iSafetyBench** (1100 klip, CC BY 4.0) | İçerik doğru (`crushed under overturned vehicle`, `person falling down` + `rescue effort`), ama klipler 4–8 sn ve kırpılmış. Ölçüldü: 40 klipte ortanca 7 sn, en uzun 14 sn, **30 sn üstü sıfır**. Şartnamenin 35 saniyelik yayını taşıyamıyor. |
+| **UCF-Crime** (1900 kırpılmamış video) | Kırpılmamış olması doğru, ama hırsızlık/kavga/soygun ağırlıklı. İSG bağlamı yok. |
+| **Le2i / UR Fall** | Gerçek zamansal etiket var ama sahnelenmiş düşmeler, ev ve ofis ortamında. Endüstriyel değil. |
 
-Şartname açık kaynak paylaşımı ve veri setinin herkese açık indirme
-bağlantısını zorunlu tutuyor; ikisi de bu kurulumla karşılanıyor.
+Ortak sorun: **şartnamenin istediği şekle sahip yayınlanmış bir benchmark yok.**
+Kırpılmamış + İSG + çoklu zaman damgalı olay anlatısı, yarışmanın kendi
+tanımladığı bir görev. Bu yüzden küme elle kürate ediliyor.
+
+## Nasıl büyür
+
+Her video tek tek eklenir ve insan onayından geçer.
+
+```bash
+# 1. Videoyu indir/kaydet, gözle kontrol et (yukarıdaki ölçütler)
+# 2. Kataloğa ekle
+python add_video.py "C:/indirilenler/forklift_devrilmesi.mp4" \
+    --kaynak "https://..." \
+    --not "yukleyici isciye carpiyor, kalabalik topluyor"
+
+# 3. Zaman çizelgesini işaretle
+python -m http.server 8200
+#    -> localhost:8200/annotate.html
+```
+
+`annotate.html` şartnamenin çıktı biçiminin aynısını üretiyor: zaman damgalı
+olay listesi, genel özet, risk seviyesi, aksiyon önerileri. Yani **ground truth
+= sistemin üretmesi gereken ideal çıktı.** Bu sayede aynı dosya hem benim
+event coverage recall ölçümüme hem de VLM çıktı karşılaştırmasına (#8) girdi
+oluyor.
+
+## Dosyalar
+
+| | |
+|---|---|
+| `catalog.json` | Küme. Depoda tutuluyor, videolar tutulmuyor. |
+| `videos/` | Ham videolar. `.gitignore`'da — boyut ve telif. |
+| `add_video.py` | Kataloğa tek video ekler, metadata'yı ffprobe ile çıkarır. |
+| `annotate.html` | Zaman çizelgesi işaretleme arayüzü. |
+
+## Telif
+
+Her kaydın `source_url` ve `license` alanı var. Videolar depoya konmuyor;
+katalog kaynağı gösteriyor. Şartname veri setinin herkese açık indirilebilir
+olmasını istiyor — kaynak bağlantıları bunu karşılıyor.
+
+Yayın hakkı belirsiz bir video kümeye **eklenmez**. Şüpheli durumda kaydın
+`license` alanına ne bilindiği yazılır, boş bırakılmaz.
