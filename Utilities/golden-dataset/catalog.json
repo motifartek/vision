@@ -16,10 +16,45 @@
       "codec": "h264",
       "size_bytes": 2946692,
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Malzeme sahasında bekleyen bir işçiye manevra yapan lastikli yükleyici çarptı. İşçi kadrajdan kayboldu ve yerde kaldı. Yükleyici çalışmasına devam etti, görüntü boyunca herhangi bir müdahale görülmedi.",
+        "events": [
+          {
+            "t_ms": 13500,
+            "time": "00:13",
+            "event": "İşçi yükleyicinin manevra alanında bekliyor",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 14800,
+            "time": "00:14",
+            "event": "Yükleyici işçiye çarptı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 15200,
+            "time": "00:15",
+            "event": "İşçi kadrajdan kayboldu, yerde kaldı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 19000,
+            "time": "00:19",
+            "event": "Yükleyici çalışmaya devam etti, müdahale gelmedi",
+            "severity": "Yüksek"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Sahadaki tüm iş makinelerini durdur ve sağlık ekibini çağır",
+          "Yükleyicinin altını ve çevresini derhal kontrol et",
+          "Yaya ile iş makinesi güzergâhlarını fiziksel olarak ayır",
+          "Operatör görüş açısı ve kör nokta kameralarını denetle"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek",
+        "not": "Müdahalenin YOKLUĞU bulgunun kendisi: kaza fark edilmemiş görünüyor."
       }
     },
     {
@@ -43,10 +78,44 @@
         "Çevredekiler olaya baktı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Gıda hazırlama alanında yürüyen bir çalışan dengesini kaybederek yere düştü ve bir süre yerde hareketsiz kaldı. Yaklaşık dört saniye sonra başka bir çalışan yanına gelerek müdahale etti.",
+        "events": [
+          {
+            "t_ms": 8500,
+            "time": "00:08",
+            "event": "Çalışan dengesini kaybetti",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 9000,
+            "time": "00:09",
+            "event": "Çalışan yere düştü",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 9800,
+            "time": "00:09",
+            "event": "Yerde hareketsiz kişi",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 13100,
+            "time": "00:13",
+            "event": "Başka bir çalışan müdahale etti",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Sağlık ekibini çağır, düşen çalışanı hareket ettirmeden değerlendir",
+          "Zeminin kaygan olup olmadığını kontrol et ve alanı işaretle",
+          "Olayı iş kazası olarak kayıt altına al",
+          "Yürüyüş yolundaki zemin ve aydınlatma koşullarını denetle"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek"
       }
     },
     {
@@ -77,6 +146,11 @@
       "review": {
         "durum": "TRIMMED",
         "bulgu": "Kapanış kartı kırpıldı: 39.5 sn -> 34.2 sn. Kesit noktası kendi sahne kesiti dedektörümüzle bulundu."
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "Görüntü kendini tekrar ediyor: kameranın kendi zaman damgası 5.6 sn ve 22.7 sn'de aynı değeri (15:34:21) gösteriyor. Aynı kayıt iki kez eklenmiş."
       }
     },
     {
@@ -98,10 +172,44 @@
         "Çalışanlar kaçıştı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Depoda forklift ile çalışılırken raf sistemi çöktü. Raflardaki malzeme yere döküldü ve ortamı yoğun toz kapladı. Yaklaşık yirmi saniye sonra bir çalışan olay yerine yaklaştı.",
+        "events": [
+          {
+            "t_ms": 12300,
+            "time": "00:12",
+            "event": "Raf sistemi devrilmeye başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 13000,
+            "time": "00:13",
+            "event": "Raftaki malzeme yere döküldü",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 14500,
+            "time": "00:14",
+            "event": "Yoğun toz bulutu yayıldı",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 33500,
+            "time": "00:33",
+            "event": "Bir çalışan olay yerine yaklaştı",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Alanı boşalt ve giriş çıkışı kapat",
+          "Ayakta kalan rafların stabilitesini kontrol et",
+          "Toz dağılmadan solunum koruyucusuz alana girilmesini engelle",
+          "Raf yükleme limitlerini ve forklift manevra alanını denetle"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek"
       }
     },
     {
@@ -131,6 +239,11 @@
       "review": {
         "durum": "NOTE",
         "bulgu": "Ekran kaydi: oynatici arayuzu kadrajda. Icerik gercek CCTV."
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "İncelenmedi."
       }
     },
     {
@@ -157,6 +270,11 @@
         "events": [],
         "risk": null,
         "actions": []
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "Kare örneklemesinde olay ayırt edilemedi."
       }
     },
     {
@@ -179,10 +297,45 @@
         "Müdahale başladı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Talaşlı imalat atölyesinde bir tezgâhta olay yaşandı. Çalışanlar tezgâha doğru koştu, kısa sürede çevrede kalabalık oluştu ve üretim durdu. Olayın kendisi tezgâhın arkasında kaldığı için görüntüde doğrudan görünmüyor.",
+        "events": [
+          {
+            "t_ms": 9000,
+            "time": "00:09",
+            "event": "Çalışanlar bir tezgâha doğru koşmaya başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 12800,
+            "time": "00:12",
+            "event": "Tezgâh çevresinde kalabalık toplandı",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 17000,
+            "time": "00:17",
+            "event": "Üretim durdu, kalabalık büyüdü",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 22800,
+            "time": "00:22",
+            "event": "Çok sayıda çalışan olay yerinde toplandı",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Sağlık ekibini çağır ve olay yerine erişimi aç",
+          "İlgili tezgâhın enerjisini kes ve etiketle",
+          "Kalabalığı dağıt, yalnızca müdahale ekibini alanda tut",
+          "Tezgâh koruyucularını ve çalışma talimatını incelet"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "orta",
+        "not": "Olayın kendisi kadrajda değil; etiketler tepkiye dayanıyor."
       }
     },
     {
@@ -203,10 +356,39 @@
         "Çalışanlar kaçıştı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Depo koridorunda çalışan, raf sisteminin çökeceğini fark ederek koşarak uzaklaştı. Hemen ardından raflar devrildi ve üzerindeki malzeme koridora yayıldı.",
+        "events": [
+          {
+            "t_ms": 6000,
+            "time": "00:06",
+            "event": "Çalışan raflardan uzaklaşmak için koşmaya başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 7200,
+            "time": "00:07",
+            "event": "Raf sistemi çöktü",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 8300,
+            "time": "00:08",
+            "event": "Malzeme ve raf parçaları koridora yayıldı",
+            "severity": "Yüksek"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Koridoru kapat ve komşu rafların stabilitesini kontrol et",
+          "Çalışanın yaralanıp yaralanmadığını teyit et",
+          "Raf yükleme limitlerini ve bağlantı elemanlarını denetle",
+          "Olayı ramak kala kaydı olarak da işle"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek",
+        "not": "Çalışanın çöküşten ÖNCE kaçması dikkate değer: erken uyarı sinyali görsel olarak mevcut."
       }
     },
     {
@@ -227,10 +409,38 @@
         "Müdahale başladı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Kargo ayrıştırma tesisinde çalışan taşıdığı yükü düşürdü; paketler zemine dağıldı ve çalışan bunları toplamaya başladı.",
+        "events": [
+          {
+            "t_ms": 20500,
+            "time": "00:20",
+            "event": "Taşınan yük elden düştü",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 21000,
+            "time": "00:21",
+            "event": "Paketler zemine dağıldı",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 22500,
+            "time": "00:22",
+            "event": "Çalışan dağılan paketleri toplamaya başladı",
+            "severity": "Düşük"
+          }
+        ],
+        "risk": "Orta",
+        "actions": [
+          "Zemine dağılan paketleri kaldır, takılma riskini ortadan kaldır",
+          "Tek seferde taşınan yük miktarını sınırla",
+          "Ayrıştırma istasyonları arasındaki geçiş genişliğini kontrol et"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "orta",
+        "not": "Kaynak açıklaması kişinin kayıp düştüğünü söylüyor; kare incelemesinde düşen bir kişi değil, düşen bir yük görülüyor. Etiketler görülene göre yazıldı."
       }
     },
     {
@@ -251,10 +461,44 @@
         "Çalışanlar kaçıştı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Kamyondan kasa boşaltılırken istif dengesini kaybetti ve kasalar çalışanın üzerine devrildi. Kasa içindeki malzeme zemine dağıldı; çalışan olay sonrası dağılan yükün yanında kaldı.",
+        "events": [
+          {
+            "t_ms": 7900,
+            "time": "00:07",
+            "event": "Kasa istifi devrilmeye başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 8500,
+            "time": "00:08",
+            "event": "Kasalar çalışanın üzerine devrildi",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 10400,
+            "time": "00:10",
+            "event": "Kasa içeriği zemine döküldü",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 14000,
+            "time": "00:14",
+            "event": "Çalışan dağılan yükün yanında durdu",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Altında kalan çalışanı kontrol et ve sağlık ekibini çağır",
+          "Kalan istifin devrilme riskine karşı boşaltmayı durdur",
+          "Dökülen malzemeyi ve kayganlaşan zemini temizle",
+          "İstifleme ve boşaltma yöntemini gözden geçir"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek"
       }
     },
     {
@@ -280,6 +524,11 @@
         "events": [],
         "risk": null,
         "actions": []
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "Sürekli lojistik faaliyet; net bir olay yayı yok."
       }
     },
     {
@@ -302,14 +551,49 @@
         "Müdahale başladı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Otomotiv galerisinde beyaz bir araç içeri alındı. Kısa süre sonra çalışanlar aracın ön tarafında toplandı ve çömelerek müdahale etti; kalabalık giderek büyüdü.",
+        "events": [
+          {
+            "t_ms": 30000,
+            "time": "00:30",
+            "event": "Beyaz araç galeri içine alındı",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 32000,
+            "time": "00:32",
+            "event": "Araç çevresinde ani hareketlenme başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 36000,
+            "time": "00:36",
+            "event": "Çalışanlar aracın önünde toplandı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 42000,
+            "time": "00:42",
+            "event": "Kalabalık aracın ön tarafında çömelerek müdahale etti",
+            "severity": "Yüksek"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Aracı hareket ettirme, sağlık ekibini çağır",
+          "Araç altında veya önünde kalan kişi olup olmadığını kontrol et",
+          "Kapalı alanda araç hareketi için gözcü ve güzergâh kuralı uygula",
+          "Olayı kayıt altına al"
+        ]
       },
       "review": {
         "durum": "TRIMMED",
         "bulgu": "Kapanış kartı kırpıldı: 52.1 sn -> 44.8 sn. Kesit noktası kendi sahne kesiti dedektörümüzle bulundu."
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "orta",
+        "not": "Çarpma anı kadrajda net görünmüyor; etiketler ağırlıklı olarak tepkiye dayanıyor."
       }
     },
     {
@@ -330,10 +614,44 @@
         "Enkazda arama yapıldı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Şantiyede beton döşeme kalıbı üzerinde çalışılırken iskele sistemi çöktü. Döşeme ve iskele yıkılarak enkaz oluştu, ortamı toz kapladı. Kalan platformda bulunan çalışanlar enkazı izledi.",
+        "events": [
+          {
+            "t_ms": 6000,
+            "time": "00:06",
+            "event": "Beton döşeme çökmeye başladı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 7000,
+            "time": "00:07",
+            "event": "İskele sistemi yıkıldı ve enkaz oluştu",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 8000,
+            "time": "00:08",
+            "event": "Toz bulutu yayıldı",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 12000,
+            "time": "00:12",
+            "event": "Çalışanlar kalan platformdan enkaza baktı",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Enkaz altında kalan olup olmadığını derhal tespit et",
+          "Arama kurtarma ve sağlık ekibini çağır",
+          "Kalan iskele bölümünü tahliye et, ikincil çökme riskine karşı alanı kapat",
+          "Kalıp ve iskele hesaplarını ile montajını incelet"
+        ]
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek"
       }
     },
     {
@@ -357,6 +675,11 @@
         "events": [],
         "risk": null,
         "actions": []
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "15. saniyede bir şey oluyor ama kadraja giren mavi kiriş nedeniyle ne olduğu ayırt edilemiyor."
       }
     },
     {
@@ -380,6 +703,11 @@
         "events": [],
         "risk": null,
         "actions": []
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "etiketlenemedi",
+        "not": "Sürekli depo faaliyeti; kırpıp yakınlaştırılmasına rağmen ayırt edilebilir bir olay bulunamadı."
       }
     },
     {
@@ -399,17 +727,57 @@
         "Müdahale başladı"
       ],
       "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
+        "summary": "Tekstil hattında çalışan makineye kapıldı ve yere düştü. Yanındaki çalışan hemen müdahale etti; yaklaşık yedi saniye sonra başka çalışanlar da yardıma koştu ve birlikte kurtarma yaptılar.",
+        "events": [
+          {
+            "t_ms": 2400,
+            "time": "00:02",
+            "event": "Çalışan makineye kapıldı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 3300,
+            "time": "00:03",
+            "event": "Çalışan yere düştü, makine malzemesi üzerine yığıldı",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 4000,
+            "time": "00:04",
+            "event": "Yanındaki çalışan müdahale etti",
+            "severity": "Yüksek"
+          },
+          {
+            "t_ms": 9400,
+            "time": "00:09",
+            "event": "Başka çalışanlar yardıma koştu",
+            "severity": "Orta"
+          },
+          {
+            "t_ms": 11000,
+            "time": "00:11",
+            "event": "Birden fazla kişi kurtarma çalışması yaptı",
+            "severity": "Orta"
+          }
+        ],
+        "risk": "Yüksek",
+        "actions": [
+          "Makinenin acil stop butonuna bas ve enerjiyi kes",
+          "Sağlık ekibini çağır, kapılan uzvu zorlamadan kurtarma yap",
+          "Makine koruyucularının ve acil durdurma erişilebilirliğini denetle",
+          "Olayı ağır iş kazası olarak kayıt altına al"
+        ]
       },
       "review": {
         "durum": "NOTE",
         "bulgu": "Dikey kadraj. Icerik endustriyel ve gecerli."
+      },
+      "annotation": {
+        "kaynak": "kare incelemesi",
+        "guven": "yuksek"
       }
     }
   ],
-  "not": "suggested_events kaynak etiketlerinden türetilmiş ÖNERİLERDİR, doğrulanmamıştır. Zaman damgaları yalnızca video izlenerek işaretlenir.",
+  "not": "ground_truth alanları kare incelemesiyle dolduruldu; zaman damgaları örnekleme çözünürlüğüyle sınırlı (±0.3 sn). annotation.guven alanı hangi kayda ne kadar güvenilebileceğini söylüyor; 'etiketlenemedi' olanlar için gerekçe not alanında.",
   "inceleme_notu": "Görsel inceleme tamamlandı. RED işaretli üç video silindi, TRIM işaretli iki video kırpıldı. 'review' alanı taşıyan kayıtlar bilinen kusurlarını belgeliyor; NOTE kullanılabilir demek."
 }
