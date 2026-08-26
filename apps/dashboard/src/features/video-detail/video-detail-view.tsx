@@ -2,15 +2,20 @@
 
 import Link from "next/link"
 import { useEffect, useRef, useState } from "react"
-import { ArrowLeft, Pause, Play } from "lucide-react"
+import { ArrowLeft, Eye, EyeOff, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAudioAnalysis } from "./audio-analysis"
 import { useMediaFile } from "./media-file"
 import { EditorTimeline } from "./editor-timeline"
+import { MotionOverlay } from "./motion-overlay"
+import { MotionStrip } from "./motion-strip"
 import { NowPlayingPanel } from "./now-playing-panel"
 import { SafetyPanel } from "./safety-panel"
 import { usePlayback } from "./use-playback"
+import { VisionPanel } from "./vision-panel"
+import { playbackSrc, useHeatmap, useStreamVideo, useVisionAnalysis } from "./vision-analysis"
 
 function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: boolean; onToggle: () => void }) {
   return (
@@ -21,7 +26,7 @@ function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: b
         </Button>
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{videoId}</p>
-          <p className="hidden text-[11px] text-muted-foreground sm:block">Ses olay analizi</p>
+          <p className="hidden text-[11px] text-muted-foreground sm:block">Görsel ve işitsel analiz</p>
         </div>
       </div>
       {/* "Geri al / İleri al / Dışa aktar" düğmeleri buradaydı ve hiçbiri bir
@@ -57,6 +62,14 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   // varsaymak o videoları hem oynatıcıda hem analizde kırıyordu. Gerçek dosya
   // adını servis söylüyor.
   const { filename, error: mediaError } = useMediaFile(videoId)
+
+  // Görüntü tarafı ayrı bir serviste; iki depo orijinal dosya adı üzerinden
+  // eşleşiyor. Ayrıntısı `vision-analysis.ts` içinde.
+  const { video: streamVideo, error: streamError } = useStreamVideo(videoId, filename)
+  const streamId = streamVideo?.id ?? null
+  const { heatmap, loading: heatmapLoading, error: heatmapError } = useHeatmap(streamId)
+  const vision = useVisionAnalysis(streamId)
+  const [overlay, setOverlay] = useState(true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
   const { currentTime, duration, playing, seek, toggle, subscribe } = usePlayback(videoRef)
@@ -117,17 +130,54 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
         {/* sol: video üstte, zaman çizelgesi altta */}
         {/* Şeride rahat ama abartısız bir yükseklik: `auto` dibe yapıştırıyor,
             250px ise tek şeritle boş kalıyordu. */}
-        <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_175px] gap-3">
-          <div className="flex min-h-0 items-center justify-center rounded-xl border bg-card p-3">
-            <video
-              ref={videoRef}
-              src={filename ? `/media/${encodeURIComponent(filename)}` : undefined}
-              className="max-h-full max-w-full rounded-lg bg-muted"
-              onClick={toggle}
-              controls
-              playsInline
-            />
+        <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto_175px] gap-3">
+          <div className="relative flex min-h-0 items-center justify-center rounded-xl border bg-card p-3">
+            {/* Isı haritası videoyla aynı kutuya hizalanmalı; sarmalayıcı
+                `<video>` ile birebir aynı boyutta olsun diye `inline-flex`. */}
+            <div className="relative inline-flex max-h-full max-w-full">
+              <video
+                ref={videoRef}
+                src={playbackSrc(filename, streamId)}
+                className="max-h-full max-w-full rounded-lg bg-muted"
+                onClick={toggle}
+                controls
+                playsInline
+              />
+              {overlay && <MotionOverlay heatmap={heatmap} subscribe={subscribe} />}
+            </div>
+
+            {heatmap && (
+              <Button
+                variant="outline"
+                size="xs"
+                className="absolute right-4 top-4 bg-card/90 backdrop-blur"
+                onClick={() => setOverlay((o) => !o)}
+                aria-pressed={overlay}
+                title="Hareket yoğunluğunu video üzerinde gösterir"
+              >
+                {overlay ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
+                Isı haritası
+              </Button>
+            )}
           </div>
+
+          <MotionStrip
+            heatmap={heatmap}
+            duration={duration}
+            events={vision.outcome?.report.events ?? []}
+            analysedRange={
+              vision.outcome?.steps.at(-1)
+                ? {
+                    t0_ms: vision.outcome.steps.at(-1)!.t0_ms,
+                    t1_ms: vision.outcome.steps.at(-1)!.t1_ms,
+                  }
+                : null
+            }
+            onSeek={seek}
+            subscribe={subscribe}
+            loading={heatmapLoading}
+            error={heatmapError ?? streamError}
+          />
 
           <EditorTimeline
             analysis={analysis}
@@ -143,8 +193,27 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           />
         </section>
 
-        {/* sağ: o anda duyulan sesler */}
-        <div className="flex min-h-0 flex-col gap-3">
+        {/* sağ: görsel analiz ve ses, sekmeli */}
+        <Tabs defaultValue="gorsel" className="flex min-h-0 flex-col gap-3">
+          <TabsList className="shrink-0">
+            <TabsTrigger value="gorsel">Görsel</TabsTrigger>
+            <TabsTrigger value="ses">Ses</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="gorsel" className="flex min-h-0 flex-1 flex-col">
+            <VisionPanel
+              outcome={vision.outcome}
+              payload={vision.payload}
+              running={vision.running}
+              error={vision.error}
+              onAnalyze={vision.analyze}
+              onLoadPayload={() => vision.loadPayload()}
+              onSeek={seek}
+              ready={Boolean(streamId)}
+            />
+          </TabsContent>
+
+          <TabsContent value="ses" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
           <NowPlayingPanel
             analysis={analysis}
             source={source}
@@ -221,7 +290,8 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
               )}
             </div>
           </div>
-        </div>
+          </TabsContent>
+        </Tabs>
       </main>
     </div>
   )

@@ -96,7 +96,7 @@ pub fn router(state: Arc<AppState>) -> Router {
     let max_upload = state.config.max_upload_bytes;
 
     Router::new()
-        .route("/", get(test_ui))
+        .route("/", get(index))
         .route("/healthz", get(healthz))
         .route("/v1/videos", get(list_videos).post(upload_video))
         .route("/v1/videos/{id}", get(get_video))
@@ -115,13 +115,15 @@ pub fn router(state: Arc<AppState>) -> Router {
         .with_state(state)
 }
 
-/// Test arayüzü.
+/// Kök sayfa.
 ///
-/// Derleme zamanında ikiliye gömülüyor: ayrı bir sunucu, npm kurulumu ya da
-/// build adımı olmadan `cargo run -p stream` sonrası tarayıcıda açılabilsin.
-/// Amacı ajanı beklemeden davranışı gözle görmek — özellikle yakınlaştırmanın
-/// gerçekten işe yarayıp yaramadığını.
-async fn test_ui() -> Response {
+/// Buradaki test panosu kaldırıldı: hareket ısı haritası, profil şeridi, yük
+/// önizlemesi ve analiz raporu artık operatör panelinde. Aynı görselleştirmeyi
+/// iki yerde tutmak ikisinin de zamanla birbirinden kopması demekti.
+///
+/// Geriye yalnızca servisi tarayıcıda açanı doğru yere yönlendiren bir not
+/// kaldı; `stream` artık saf bir API servisi.
+async fn index() -> Response {
     (
         [(header::CONTENT_TYPE, "text/html; charset=utf-8")],
         include_str!("../static/index.html"),

@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
 const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 /** Sunucudaki `VIDEO_EXTENSIONS` ile birebir aynı (upload.rs). */
 const VIDEO_EXTENSIONS = ["mp4", "mkv", "webm", "mov", "avi", "flv", "wmv", "m4v"]
@@ -27,6 +28,8 @@ export function VideoUploadDialog({ open, onClose }: Props) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<UploadState>("idle")
+  /** Görüntü servisine gönderim; ses yüklemesinden bağımsız başarısız olabilir. */
+  const [streamState, setStreamState] = useState<"idle" | "uploading" | "done" | "failed">("idle")
   const [progress, setProgress] = useState(0)
   const [fileName, setFileName] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
@@ -53,6 +56,7 @@ export function VideoUploadDialog({ open, onClose }: Props) {
 
   const upload = useCallback(
     async (file: File) => {
+      setStreamState("idle")
       // Sunucu da reddediyor (415), ama kullanıcıyı 2 GB göndermeden uyarmak gerek.
       if (!isVideoFile(file.name)) {
         setFileName(file.name)
@@ -101,6 +105,26 @@ export function VideoUploadDialog({ open, onClose }: Props) {
           xhr.open("POST", `${API}/v1/upload`)
           xhr.send(formData)
         })
+
+        // --- görüntü servisine ikinci kopya ---
+        //
+        // İki servis ayrı depo tutuyor: ses tarafı dosya adıyla, `stream` kendi
+        // UUID'siyle. Aynı dosyayı ikisine de göndermek, tarayıcı baytları
+        // zaten elinde tuttuğu için ek indirme gerektirmiyor ve iki tarafı
+        // orijinal ad üzerinden eşleştirilebilir kılıyor.
+        //
+        // Başarısız olursa yükleme başarısız sayılmıyor: ses analizi çalışmaya
+        // devam ediyor, yalnız görsel analiz o video için kapalı kalıyor ve
+        // detay sayfası bunu söylüyor.
+        setStreamState("uploading")
+        try {
+          const sf = new FormData()
+          sf.append("file", file)
+          const r = await fetch(`${STREAM}/v1/videos`, { method: "POST", body: sf })
+          setStreamState(r.ok ? "done" : "failed")
+        } catch {
+          setStreamState("failed")
+        }
 
         setState("done")
 
@@ -162,6 +186,12 @@ export function VideoUploadDialog({ open, onClose }: Props) {
             <CheckCircle2 className="size-12 text-success" />
             <p className="text-sm font-medium">Yükleme tamamlandı!</p>
             <DialogDescription>{fileName} → analiz sayfasına yönlendiriliyorsunuz…</DialogDescription>
+            {streamState === "failed" && (
+              <p className="max-w-xs text-center text-[11px] leading-snug text-muted-foreground">
+                Görüntü servisine ulaşılamadı; bu video için ses analizi çalışır ama görsel
+                analiz kapalı kalır.
+              </p>
+            )}
           </div>
         ) : state === "error" ? (
           <div className="flex flex-col items-center gap-3 py-8">

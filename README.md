@@ -107,13 +107,6 @@ curl -X POST localhost:8110/v1/analyze/sartname -H 'content-type: application/js
 Ajanın hangi adımlardan geçtiğini de görmek isterseniz `/v1/analyze` uç
 noktası raporu olay başına `t_ms`, `severity` ve adım listesiyle döndürür.
 
-### Test arayüzü
-
-`stream` çalışırken <http://localhost:8100> adresinde bir pano var: kaynak
-videoyu hareket ısı haritasıyla üst üste gösterir ve **modele tam olarak ne
-gittiğini** — kesilen klibi, ağır çekim oranını, istemi ve token tahminini —
-birebir sergiler.
-
 ### Panel
 
 ```bash
@@ -130,6 +123,22 @@ bekler:
 ```bash
 docker compose -f platform/docker/compose.yaml up -d
 ```
+
+Analiz burada yapılıyor. Bir videonun sayfasında (`/videos/{id}`):
+
+- **Hareket ısı haritası** video üzerinde, oynatmayla eşzamanlı — boru hattının
+  nereye baktığı görünür olsun diye.
+- **Hareket profili şeridi**: toplam hareket, en hareketli bölge, sahne
+  kesitleri ve raporlanan olaylar aynı zaman ekseninde. Tıklamak o ana gider.
+- **Görsel analiz** sekmesi şartname çıktısını verir: özet, risk, zaman damgalı
+  olaylar ve aksiyon önerileri. Olaya tıklamak videoyu o ana götürür.
+- **Modele giden yük** katlanır bölümü, gönderilen klibin kendisini oynatır;
+  yanında ağır çekim oranı, servisin göreceği kare sayısı, token tahmini ve
+  istemin tam metni durur.
+
+Yüklenen video hem ses hem görüntü servisine gider; ikisi orijinal dosya adı
+üzerinden eşleşir. Görüntü servisi kapalıysa ses analizi çalışmaya devam eder,
+yalnız görsel analiz o video için kapalı kalır.
 
 ## Ölçüm
 
