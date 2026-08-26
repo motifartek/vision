@@ -24,6 +24,8 @@
   .vid b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .vid small{color:var(--muted)}
   .vid .n{color:var(--ok);font-weight:700}
+  .vid.missing b{color:var(--muted)}
+  .vid.missing::after{content:'⬇';float:right;color:var(--warn)}
   .stage{padding:12px}
   video{width:100%;max-height:52vh;background:#000;border-radius:7px;display:block}
   .tl{position:relative;height:38px;margin-top:10px;background:var(--card2);
@@ -115,7 +117,10 @@ async function boot() {
 
     <div class="panel stage">
       <video id="v" controls preload="metadata"></video>
+      <div id="novid" style="display:none;padding:34px 18px;text-align:center;color:var(--muted);
+           background:var(--card2);border:1px solid var(--border);border-radius:7px;line-height:1.9"></div>
       <div class="tl" id="tl"><div class="cur" id="cur"></div></div>
+      <div id="oneri" style="margin-top:9px"></div>
       <div class="ctl">
         <input id="desc" placeholder="Olay açıklaması — ör. Forklift devrildi" style="flex:1;min-width:220px">
         <button id="add">Olayı ekle</button>
@@ -160,13 +165,54 @@ async function boot() {
 function show(i) {
   idx = Math.max(0, Math.min(i, videos.length - 1));
   const v = cur();
-  const src = new URL(v.local_path, location.href).href;
-  if ($('v').src !== src) $('v').src = v.local_path;
+
+  // Katalogda kaydı olan ama henüz indirilmemiş videolar var: aday listesinden
+  // onaylanıp eklendiler, dosyaları sonra geliyor. İşaretleme yapılamaz ama
+  // kayıt ve öneriler görünür.
+  const yok = !v.local_path;
+  $('novid').style.display = yok ? 'block' : 'none';
+  $('v').style.display = yok ? 'none' : 'block';
+  if (yok) {
+    $('novid').innerHTML = `<b>Video henüz indirilmedi.</b><br><br>
+      <a href="${v.source_url}" target="_blank" style="color:var(--primary)">${v.source_url}</a>
+      <br><br>İndirdikten sonra:<br>
+      <code style="color:var(--primary)">python add_video.py &lt;dosya&gt; --id ${v.id} --kaynak ${v.source_url}</code>`;
+  } else {
+    const src = new URL(v.local_path, location.href).href;
+    if ($('v').src !== src) $('v').src = v.local_path;
+  }
   renderAll();
 }
 
 function renderAll() { renderList(); renderEvents(); renderRisk(); renderActions(); renderTimeline();
-  $('summary').value = data(cur().id).summary || ''; }
+  renderOneri(); $('summary').value = data(cur().id).summary || ''; }
+
+/// Kaynak etiketlerinden türetilmiş olay önerileri.
+///
+/// Doğrulanmış değiller — hangi anda olduğunu yalnızca izleyen kişi bilir.
+/// Amaçları metni baştan yazma zahmetini kaldırmak: tıkla, kutuya düşsün,
+/// gerekirse düzelt.
+function renderOneri() {
+  const box = $('oneri');
+  const v = cur();
+  const oneriler = v.suggested_events || [];
+  box.innerHTML = '';
+  if (!oneriler.length) return;
+
+  const et = document.createElement('span');
+  et.textContent = 'öneri:';
+  et.style.cssText = 'color:var(--muted);font-size:11.5px;margin-right:6px';
+  box.appendChild(et);
+
+  for (const o of oneriler) {
+    const c = document.createElement('button');
+    c.className = 'sm ghost';
+    c.textContent = o;
+    c.style.cssText = 'margin:0 5px 5px 0;font-weight:400';
+    c.onclick = () => { $('desc').value = o; $('desc').focus(); };
+    box.appendChild(c);
+  }
+}
 
 function renderList() {
   const list = $('list');
@@ -174,9 +220,10 @@ function renderList() {
   videos.forEach((v, i) => {
     const n = data(v.id).events.length;
     const el = document.createElement('div');
-    el.className = 'vid' + (i === idx ? ' active' : '');
+    const yok = !v.local_path;
+    el.className = 'vid' + (i === idx ? ' active' : '') + (yok ? ' missing' : '');
     el.innerHTML = `<b>${v.id}</b>
-      <small>${fmt(v.duration_ms)} · ${v.width}x${v.height}</small>
+      <small>${yok ? 'video indirilmedi' : fmt(v.duration_ms) + ' · ' + v.width + 'x' + v.height}</small>
       <small class="n">${n ? n + ' olay' : ''}</small>`;
     el.onclick = () => show(i);
     list.appendChild(el);

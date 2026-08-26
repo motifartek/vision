@@ -21,6 +21,452 @@
         "risk": null,
         "actions": []
       }
+    },
+    {
+      "id": "ELLtmRhxG0Q",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=ELLtmRhxG0Q",
+      "license": null,
+      "note": "A person is pushing an electrical machine while one of its panels rotate and fall on his head. Two other people are standing and preparing food. | A person is injured in the head and is holding it while walking. Then he is slipping and falling to the ground. Another person is checking on him. A third person is opening a cabinet and putting things into it. | An injured person is holding his head and getting up while another person is checking a appliance near him. A third person is rotating his hand closing a container.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Makine parçası fırladı",
+        "Ağır cisim kaydı",
+        "Yük düştü",
+        "Kişi düştü",
+        "Müdahale başladı",
+        "Çevredekiler olaya baktı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "Ru2okot9dww",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=Ru2okot9dww",
+      "license": null,
+      "note": "Two people are standing as a crane is lowering a large metal sheet when it bends and bounces back. | One person is backing up while another person is falling as a large metal sheet bounces towards them.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Vinç yükü dengesini kaybetti",
+        "Ağır cisim kaydı",
+        "Yük düştü",
+        "Kişi düştü",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "YVHcrItJwXA",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=YVHcrItJwXA",
+      "license": null,
+      "note": "A heavy metal object suspended by a crane is falling and the people around it are backing away. | A heavy metal object is rolling and a person is looking at it.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yük düştü",
+        "Vinç yükü dengesini kaybetti",
+        "Ağır cisim kaydı",
+        "Çalışanlar kaçıştı",
+        "Çevredekiler olaya baktı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "-NF8DZCdcUQ",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=-NF8DZCdcUQ",
+      "license": null,
+      "note": "A person is operating a forklift but the load causes nearby shelves to collapse in a warehouse. The person quickly moves away from the falling shelves. | A person is quickly running away as shelves collapse in a warehouse.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Forklift manevrası",
+        "Raflar devrildi",
+        "Yük düştü",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "ZWYH_lCpl8w_clip0",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=ZWYH_lCpl8w_clip0",
+      "license": null,
+      "note": "A person is operating a forklift in a warehouse when shelves full of boxes start to fall down. | A group of people are running as shelves full of boxes start to fall down in a warehouse hitting a forklift.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Forklift manevrası",
+        "Raflar devrildi",
+        "Yük düştü",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "6fhnKhZQE4o",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=6fhnKhZQE4o",
+      "license": null,
+      "note": "Two people are backing away as a machine starts malfunctioning with smoke. One of them is falling down. | A person is getting up as machine starts malfunctioning with smoke. Two people are standing and observing. | Two people are discussing about smoke coming out of a machine.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yangın çıktı",
+        "Kişi düştü",
+        "Çalışanlar kaçıştı",
+        "Çevredekiler olaya baktı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "uOAJL-g4Y_w",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=uOAJL-g4Y_w",
+      "license": null,
+      "note": "A person is falling down from a beam as it detaches. Then he is hanging from a rope as other people are trying to help him get down. | A person is hanging from a rope as other people are trying to help him get down. | A person is hanging from a rope as other people are trying to help him get down.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yük düştü",
+        "Kayıp asılı kaldı",
+        "Kişi düştü",
+        "Müdahale başladı",
+        "Yüksekten indirme yapıldı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "6ZrAeC5mZ5w",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=6ZrAeC5mZ5w",
+      "license": null,
+      "note": "A group of people are standing, talking, walking and opearting machines. One machine suddenly starts shaking and a glass shatters from it. | A group of people are running as a glass shatters from a machine. Some other people are standing and watching. One person is checking another person wearing red shirt. | A group of people are checking a malfunctioning machine.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Makine parçası fırladı",
+        "Cam kırıldı",
+        "Çalışanlar kaçıştı",
+        "Çevredekiler olaya baktı",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "1dr3eJH813o",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=1dr3eJH813o",
+      "license": null,
+      "note": "A person is running as a stack of boxes and shelf parts are collapsing on the ground. | A person is running as a stack of boxes and shelf parts are collapsing on the ground.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Raflar devrildi",
+        "Yük düştü",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "4nQuQnaZjy8",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=4nQuQnaZjy8",
+      "license": null,
+      "note": "A person is carrying a box and walking over other boxes when she slips and falls. | A person is lying on the floor injured after slipping and falling.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yük taşırken kaydı",
+        "Kişi düştü",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "JNH-RPABpdA",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=JNH-RPABpdA",
+      "license": null,
+      "note": "Two people are pulling out crates from a van when the crates fall down on them in a car repair shop. A third person is standing and watching them. | Three people are backing up as a stack of crates is falling down from a van in a car repair shop.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Kamyon yükü boşaltılırken düştü",
+        "Çevredekiler olaya baktı",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "VTc91caMAR8",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=VTc91caMAR8",
+      "license": null,
+      "note": "A person operating a forklift is backing down when the vehicle the forklift is in starts moving. Then the forklift falls down in an upside-down position. Another person rushes towards it to help the person operating it. | A person is rescuing another person from beneath a falling forklift.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Forklift manevrası",
+        "Devrilen araç altında kalma",
+        "lifting object off person",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "LY2-Rma6D8Y",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=LY2-Rma6D8Y",
+      "license": null,
+      "note": "A person is lowering a car adjusting a tire when the machine fails and the car falls down in a car repair shop. He is trying to hold the car but is lifted up with it. Then the car falls down on him. | A group of people are trying to lift a car to rescue a person who is trapped under it in a car repair shop. | A group of people are trying to lift a car to rescue a person who is trapped under it in a car repair shop.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Platform çöktü",
+        "Devrilen araç altında kalma",
+        "Araç kenardan düştü",
+        "lifting object off person",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "-0zRCAh9_N4",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=-0zRCAh9_N4",
+      "license": null,
+      "note": "A group of people are working on the roof of a building under construction when it starts collapsing. | A group of people are working on the roof of a building under construction when it starts collapsing. | A group of people are walking and running around a collapsed building under construction, trying to rescue trapped people. | A group of people are walking and running around a collapsed building under construction, trying to rescue trapped people.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yapı çöktü",
+        "Müdahale başladı",
+        "Enkazda arama yapıldı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "fgm48K5v6EU",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=fgm48K5v6EU",
+      "license": null,
+      "note": "A person is pulling the wires of a machine but it suddenly falls down. Another person standing near it crouches down and almost hit by a beam.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Yük düştü",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "2Y6MBNQaFQA",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=2Y6MBNQaFQA",
+      "license": null,
+      "note": "A person is riding a tractor which has lost control, while people around are running to escape from it. | A person is riding a tractor which has lost control, while people around are running to escape from it.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Araç kontrolden çıktı",
+        "Çalışanlar kaçıştı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "8t1ci0ezwP8",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=8t1ci0ezwP8",
+      "license": null,
+      "note": "A person is getting down from a ladder as it starts to slip. The person is falling down and lying the ladder. | A person is getting up after falling from a ladder. Some other people are coming to check the person.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Kişi düştü",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
+    },
+    {
+      "id": "7QFdUqCdML8",
+      "local_path": null,
+      "source_url": "https://www.youtube.com/watch?v=7QFdUqCdML8",
+      "license": null,
+      "note": "A person is being pulled by a machine while another person tries to pull him out in the opposite direction. | Two people are being pulled into a machine as a third person runs to rescue them. | Two people pull back another person who is being pulled by a machine.",
+      "duration_ms": null,
+      "width": null,
+      "height": null,
+      "fps": null,
+      "codec": null,
+      "size_bytes": null,
+      "suggested_events": [
+        "Makineye kapılma",
+        "Müdahale başladı"
+      ],
+      "ground_truth": {
+        "summary": null,
+        "events": [],
+        "risk": null,
+        "actions": []
+      }
     }
-  ]
+  ],
+  "not": "suggested_events kaynak etiketlerinden türetilmiş ÖNERİLERDİR, doğrulanmamıştır. Zaman damgaları yalnızca video izlenerek işaretlenir."
 }
