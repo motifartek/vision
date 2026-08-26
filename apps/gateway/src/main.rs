@@ -66,7 +66,18 @@ async fn stream_video(
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     motif_observer::init("gateway");
 
+    // Yönlendirmeler **takip edilmiyor**. Bu bir vekil; Kratos'un 303'ünü
+    // tarayıcıya olduğu gibi geçirmesi gerekiyor.
+    //
+    // Varsayılan davranış sonsuz döngü üretiyordu: Kratos giriş/kayıt akışını
+    // `303 See Other` + `Location: .../auth/register?flow=<id>` ile başlatıyor.
+    // reqwest bu yönlendirmeyi kendisi izleyip **panelin kendi sayfasını**
+    // çekiyor ve tarayıcıya 200 olarak veriyordu. Tarayıcı API adresinde
+    // kalıyor, kayıt sayfası adreste `?flow` göremiyor ve akışı yeniden
+    // başlatıyordu — ekran sürekli yenileniyor, düğme "Bağlanıyor..." da
+    // takılı kalıyordu.
     let kratos_client = Client::builder()
+        .redirect(reqwest::redirect::Policy::none())
         .pool_idle_timeout(Duration::from_secs(90))
         .build()?;
 
