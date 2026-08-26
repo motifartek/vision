@@ -55,12 +55,12 @@
       "source_url": "https://www.youtube.com/watch?v=Ru2okot9dww",
       "license": null,
       "note": "Two people are standing as a crane is lowering a large metal sheet when it bends and bounces back. | One person is backing up while another person is falling as a large metal sheet bounces towards them.",
-      "duration_ms": 39474,
+      "duration_ms": 34200,
       "width": 480,
       "height": 268,
       "fps": 30.0,
       "codec": "h264",
-      "size_bytes": 1433047,
+      "size_bytes": 904651,
       "suggested_events": [
         "Vinç yükü dengesini kaybetti",
         "Ağır cisim kaydı",
@@ -75,38 +75,8 @@
         "actions": []
       },
       "review": {
-        "durum": "TRIM",
-        "bulgu": "Sonunda YouTube abone kapanis karti var; kirpilmali."
-      }
-    },
-    {
-      "id": "YVHcrItJwXA",
-      "local_path": "videos/YVHcrItJwXA.mp4",
-      "source_url": "https://www.youtube.com/watch?v=YVHcrItJwXA",
-      "license": null,
-      "note": "A heavy metal object suspended by a crane is falling and the people around it are backing away. | A heavy metal object is rolling and a person is looking at it.",
-      "duration_ms": 30861,
-      "width": 360,
-      "height": 640,
-      "fps": 30.0,
-      "codec": "av1",
-      "size_bytes": 1588077,
-      "suggested_events": [
-        "Yük düştü",
-        "Vinç yükü dengesini kaybetti",
-        "Ağır cisim kaydı",
-        "Çalışanlar kaçıştı",
-        "Çevredekiler olaya baktı"
-      ],
-      "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
-      },
-      "review": {
-        "durum": "RED",
-        "bulgu": "Kurgulanmis farkindalik videosu: SAFETY FIRST / CAUTION / OH NO grafik bindirmeleri. Ham kayit degil."
+        "durum": "TRIMMED",
+        "bulgu": "Kapanış kartı kırpıldı: 39.5 sn -> 34.2 sn. Kesit noktası kendi sahne kesiti dedektörümüzle bulundu."
       }
     },
     {
@@ -132,35 +102,6 @@
         "events": [],
         "risk": null,
         "actions": []
-      }
-    },
-    {
-      "id": "ZWYH_lCpl8w_clip0",
-      "local_path": "videos/ZWYH_lCpl8w_clip0.mp4",
-      "source_url": "https://www.youtube.com/watch?v=ZWYH_lCpl8w_clip0",
-      "license": null,
-      "note": "A person is operating a forklift in a warehouse when shelves full of boxes start to fall down. | A group of people are running as shelves full of boxes start to fall down in a warehouse hitting a forklift.",
-      "duration_ms": 45141,
-      "width": 1280,
-      "height": 720,
-      "fps": 29.97,
-      "codec": "av1",
-      "size_bytes": 5185577,
-      "suggested_events": [
-        "Forklift manevrası",
-        "Raflar devrildi",
-        "Yük düştü",
-        "Çalışanlar kaçıştı"
-      ],
-      "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
-      },
-      "review": {
-        "durum": "RED",
-        "bulgu": "TV haber segmenti; icinde studuyo sunuculari var. Ham kayit degil."
       }
     },
     {
@@ -347,12 +288,12 @@
       "source_url": "https://www.youtube.com/watch?v=LY2-Rma6D8Y",
       "license": null,
       "note": "A person is lowering a car adjusting a tire when the machine fails and the car falls down in a car repair shop. He is trying to hold the car but is lifted up with it. Then the car falls down on him. | A group of people are trying to lift a car to rescue a person who is trapped under it in a car repair shop. | A group of people are trying to lift a car to rescue a person who is trapped under it in a car repair shop.",
-      "duration_ms": 52081,
+      "duration_ms": 44800,
       "width": 1280,
       "height": 720,
       "fps": 60.0,
       "codec": "av1",
-      "size_bytes": 3579795,
+      "size_bytes": 4169462,
       "suggested_events": [
         "Platform çöktü",
         "Devrilen araç altında kalma",
@@ -367,8 +308,8 @@
         "actions": []
       },
       "review": {
-        "durum": "TRIM",
-        "bulgu": "Sonunda 'JUST SUBSCRIBE' kapanis karti var; kirpilmali."
+        "durum": "TRIMMED",
+        "bulgu": "Kapanış kartı kırpıldı: 52.1 sn -> 44.8 sn. Kesit noktası kendi sahne kesiti dedektörümüzle bulundu."
       }
     },
     {
@@ -416,33 +357,6 @@
         "events": [],
         "risk": null,
         "actions": []
-      }
-    },
-    {
-      "id": "2Y6MBNQaFQA",
-      "local_path": "videos/2Y6MBNQaFQA.mp4",
-      "source_url": "https://www.youtube.com/watch?v=2Y6MBNQaFQA",
-      "license": null,
-      "note": "A person is riding a tractor which has lost control, while people around are running to escape from it. | A person is riding a tractor which has lost control, while people around are running to escape from it.",
-      "duration_ms": 14981,
-      "width": 360,
-      "height": 640,
-      "fps": 30.0,
-      "codec": "vp9",
-      "size_bytes": 592289,
-      "suggested_events": [
-        "Araç kontrolden çıktı",
-        "Çalışanlar kaçıştı"
-      ],
-      "ground_truth": {
-        "summary": null,
-        "events": [],
-        "risk": null,
-        "actions": []
-      },
-      "review": {
-        "durum": "RED",
-        "bulgu": "Sokak/pazar sahnesi, dikey telefon cekimi. Endustriyel tesis degil."
       }
     },
     {
@@ -497,5 +411,5 @@
     }
   ],
   "not": "suggested_events kaynak etiketlerinden türetilmiş ÖNERİLERDİR, doğrulanmamıştır. Zaman damgaları yalnızca video izlenerek işaretlenir.",
-  "inceleme_notu": "Gorsel inceleme yapildi. 'review' alani tasiyan kayitlar dikkat gerektiriyor: RED = olcut disi, oneri elenmesi. TRIM = kapanis karti kirpilmali. NOTE = kullanilabilir, bilinen kusur."
+  "inceleme_notu": "Görsel inceleme tamamlandı. RED işaretli üç video silindi, TRIM işaretli iki video kırpıldı. 'review' alanı taşıyan kayıtlar bilinen kusurlarını belgeliyor; NOTE kullanılabilir demek."
 }

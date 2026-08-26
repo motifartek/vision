@@ -36,10 +36,19 @@ Bir videonun kümeye girebilmesi için:
 - [ ] **Kırpılmamış.** Olayın öncesi ve sonrası kadrajda olmalı. Sadece çarpma
       anını gösteren 5 saniyelik klip **kabul edilmez** — yayın ortası, yayın
       kendisi değil.
-- [ ] **30 saniye – 3 dakika.** Altında yay oluşmuyor, üstünde etiketleme
-      pahalılaşıyor ve final test videoları "kısa" olacak.
-- [ ] **En az iki ayrı zaman damgalı olay.** Tek olaylı video sınıflandırma
-      örneğidir, anlatı değil.
+- [ ] **En az iki ayrı zaman damgalı olay.** Asıl ölçüt bu. Tek olaylı video
+      sınıflandırma örneğidir, anlatı değil.
+- [ ] **Süre: yaklaşık 15 sn – 3 dk.** Alt sınır katı değil.
+
+      Başlangıçta 30 sn alt sınırı konmuştu; gerçek videolar incelenince fazla
+      katı olduğu görüldü. 26 saniyelik `4nQuQnaZjy8` tam bir yay taşıyor:
+      normal çalışma, kayma, yerde dağılan malzeme, toparlanma. Buna karşılık
+      60 saniyelik bir video tek bir olaydan ibaret olabilir. **Süre bir gösterge,
+      ölçüt değil** — belirleyici olan ayırt edilebilir olay sayısı.
+- [ ] **Ham kayıt.** Grafik bindirmesi ("SAFETY FIRST", ok işaretleri),
+      haber stüdyosu araları, abone kapanış kartı olmamalı. Bunlar hem VLM'i
+      yanıltıyor hem de sahne kesiti dedektörünü tetikliyor. Kapanış kartı
+      varsa kırpılabilir; kurgulanmış farkındalık videosu ise elenmeli.
 - [ ] **Gerçek İSG bağlamı.** Fabrika, depo, şantiye, saha operasyonu, liman,
       tesis. Trafik kazası ya da genel güvenlik kamerası değil.
 - [ ] **Sabit kamera tercih edilir.** Final testinde gözetim kamerası görüntüsü

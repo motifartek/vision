@@ -31,7 +31,11 @@ CATALOG = HERE / "catalog.json"
 
 # README'deki kabul ölçütleriyle aynı sayılar; script uyarı veriyor ama
 # engellemiyor — son karar insanda.
-MIN_SURE_SN = 30
+#
+# Alt sınır 30'dan 15'e indirildi: gerçek videolar incelenince 26 saniyelik bir
+# kaydın tam bir olay yayı taşıyabildiği görüldü. Belirleyici olan süre değil,
+# ayırt edilebilir olay sayısı — onu da script ölçemez, insan görür.
+MIN_SURE_SN = 15
 MAX_SURE_SN = 180
 
 
