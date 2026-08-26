@@ -93,7 +93,10 @@ def save_catalog(catalog: dict) -> None:
     )
 
 
-def format_ms(ms: int) -> str:
+def format_ms(ms: int | None) -> str:
+    """Süreyi biçimler. Henüz indirilmemiş kayıtlarda süre bilinmiyor."""
+    if not ms:
+        return "  —  "
     total = ms // 1000
     return f"{total // 60:02d}:{total % 60:02d}"
 
@@ -104,14 +107,20 @@ def liste(catalog: dict) -> int:
         print("katalog boş. `python add_video.py <dosya>` ile ekleyin.")
         return 0
 
-    print(f"{len(videos)} video\n")
+    inen = sum(1 for v in videos if v.get("local_path"))
+    print(f"{len(videos)} video · {inen} indirilmiş · {len(videos) - inen} bekliyor" + chr(10))
     isaretli = 0
     for v in videos:
         olaylar = v.get("ground_truth", {}).get("events", [])
         if olaylar:
             isaretli += 1
-        durum = f"{len(olaylar)} olay" if olaylar else "işaretlenmemiş"
-        print(f"  {v['id']:<34} {format_ms(v['duration_ms']):>6}  {durum}")
+        if not v.get("local_path"):
+            durum = "video bekleniyor"
+        elif olaylar:
+            durum = f"{len(olaylar)} olay"
+        else:
+            durum = "işaretlenmemiş"
+        print(f"  {v['id']:<26} {format_ms(v.get('duration_ms')):>7}  {durum}")
         if v.get("note"):
             print(f"      {v['note']}")
 
