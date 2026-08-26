@@ -8,10 +8,8 @@
 
 include:
   - path: ../../apps/identity/compose.yaml
-
-# Gelecekte eklenecek servisler buraya include edilir:
-#
   - path: ../../apps/gateway/compose.yaml
+  - path: ../../platform/observability/compose.yaml
 #  - path: ../../apps/notification/compose.yaml
 #  - path: ../../platform/messaging/compose.yaml   # NATS
 #  - path: ../../platform/database/compose.yaml    # SurrealDB

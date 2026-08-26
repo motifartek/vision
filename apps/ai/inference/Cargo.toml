@@ -32,6 +32,10 @@ thiserror = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
+motif-core.workspace = true
+motif-observer.workspace = true
+axum-prometheus = "0.7"
+
 # Hedef makinede GPU varsa ilgili özellikle derleyin; ONNX Runtime sağlayıcıyı
 # bulamazsa sessizce CPU'ya döner, yani aynı ikili her iki makinede de çalışır:
 #   cargo build -p inference --release --features cuda

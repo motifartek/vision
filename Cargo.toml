@@ -15,6 +15,7 @@ members = [
     "apps/ai/inference",
     "apps/stream",
     "packages/core",
+    "packages/observer",
     "packages/event-sdk",
     "packages/optics",
     "tools/bench",
@@ -41,6 +42,7 @@ chrono = { version = "0.4", features = ["serde"] }
 
 # Dahili crate'ler
 motif-core = { path = "packages/core" }
+motif-observer = { path = "packages/observer" }
 motif-event-sdk = { path = "packages/event-sdk" }
 motif-optics = { path = "packages/optics" }
 

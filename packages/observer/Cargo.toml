@@ -1,0 +1,17 @@
+﻿[package]
+name = "motif-observer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "MotifAI merkezi telemetri, metrik ve trace (OpenTelemetry) altyapısı"
+
+[dependencies]
+opentelemetry       = { version = "0.27", features = ["trace", "metrics"] }
+opentelemetry_sdk   = { version = "0.27", features = ["rt-tokio"] }
+opentelemetry-otlp  = { version = "0.27", features = ["grpc-tonic", "tonic", "metrics"] }
+opentelemetry-semantic-conventions = { version = "0.27" }
+tracing-opentelemetry = "0.28"
+tracing.workspace = true
+tracing-subscriber.workspace = true
+tokio.workspace = true

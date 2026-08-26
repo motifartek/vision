@@ -1,0 +1,127 @@
+{
+    "refresh":  "5s",
+    "timezone":  "browser",
+    "tags":  [
+                 "motifai",
+                 "overview"
+             ],
+    "panels":  [
+                   {
+                       "gridPos":  {
+                                       "y":  0,
+                                       "w":  6,
+                                       "x":  0,
+                                       "h":  6
+                                   },
+                       "targets":  [
+                                       {
+                                           "legendFormat":  "Toplam RPS",
+                                           "expr":  "sum(rate(axum_http_requests_total[1m]))"
+                                       }
+                                   ],
+                       "datasource":  {
+                                          "type":  "prometheus",
+                                          "uid":  "prometheus"
+                                      },
+                       "type":  "stat",
+                       "options":  {
+                                       "graphMode":  "area",
+                                       "colorMode":  "value"
+                                   },
+                       "title":  "Trafik (RPS)"
+                   },
+                   {
+                       "gridPos":  {
+                                       "y":  0,
+                                       "w":  6,
+                                       "x":  6,
+                                       "h":  6
+                                   },
+                       "targets":  [
+                                       {
+                                           "legendFormat":  "Hata %",
+                                           "expr":  "sum(rate(axum_http_requests_total{status=~\"5..\"}[1m])) / sum(rate(axum_http_requests_total[1m])) * 100"
+                                       }
+                                   ],
+                       "datasource":  {
+                                          "type":  "prometheus",
+                                          "uid":  "prometheus"
+                                      },
+                       "type":  "stat",
+                       "options":  {
+                                       "colorMode":  "value"
+                                   },
+                       "title":  "Hata Oranı (5xx)"
+                   },
+                   {
+                       "gridPos":  {
+                                       "y":  0,
+                                       "w":  6,
+                                       "x":  12,
+                                       "h":  6
+                                   },
+                       "targets":  [
+                                       {
+                                           "legendFormat":  "Aktif AI İstekleri",
+                                           "expr":  "sum(axum_http_requests_pending{job=\"inference\"})"
+                                       }
+                                   ],
+                       "datasource":  {
+                                          "type":  "prometheus",
+                                          "uid":  "prometheus"
+                                      },
+                       "type":  "stat",
+                       "options":  {
+                                       "graphMode":  "area",
+                                       "colorMode":  "value"
+                                   },
+                       "title":  "Aktif AI İşlemleri (Inference)"
+                   },
+                   {
+                       "fieldConfig":  {
+                                           "defaults":  {
+                                                            "unit":  "s"
+                                                        }
+                                       },
+                       "gridPos":  {
+                                       "y":  0,
+                                       "w":  6,
+                                       "x":  18,
+                                       "h":  6
+                                   },
+                       "targets":  [
+                                       {
+                                           "legendFormat":  "{{job}}",
+                                           "expr":  "histogram_quantile(0.95, sum(rate(axum_http_requests_duration_seconds_bucket[5m])) by (le, job))"
+                                       }
+                                   ],
+                       "datasource":  {
+                                          "type":  "prometheus",
+                                          "uid":  "prometheus"
+                                      },
+                       "type":  "timeseries",
+                       "title":  "P95 Gecikme (Servis Bazlı)"
+                   },
+                   {
+                       "gridPos":  {
+                                       "y":  6,
+                                       "w":  24,
+                                       "x":  0,
+                                       "h":  12
+                                   },
+                       "title":  "Canlı Hata ve Uyarı Akışı (Loki)",
+                       "targets":  [
+                                       {
+                                           "expr":  "{job=~\"gateway|stream|inference\"} |~ \"(?i)(error|warn)\""
+                                       }
+                                   ],
+                       "type":  "logs",
+                       "datasource":  {
+                                          "type":  "loki",
+                                          "uid":  "loki"
+                                      }
+                   }
+               ],
+    "schemaVersion":  36,
+    "title":  "MotifAI - Genel Bakış"
+}

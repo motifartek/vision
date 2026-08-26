@@ -32,7 +32,7 @@ use crate::storage::LocalStore;
 
 #[tokio::main]
 async fn main() -> Result<()> {
-    motif_core::telemetry::init("stream=debug,motif_optics=info,tower_http=info");
+    motif_observer::init("stream");
 
     // Eksik bir bağımlılık ilk video yüklendiğinde değil, açılışta anlaşılsın.
     for (tool, version) in check_dependencies().context("harici bağımlılık kontrolü")? {
@@ -58,13 +58,24 @@ async fn main() -> Result<()> {
     // Araçlar NATS üzerinden de çağrılabilir; HTTP ile aynı gövdeyi kullanır.
     nats::serve_tools(state.clone());
 
+    // Prometheus katmanı ve /metrics ucu. Ölçüm katmanı en dışta duruyor ki
+    // /metrics dahil her isteği saysın.
+    let (prometheus_layer, metric_handle) = axum_prometheus::PrometheusMetricLayer::pair();
+
+    let app = api::router(state)
+        .route(
+            "/metrics",
+            axum::routing::get(|| async move { metric_handle.render() }),
+        )
+        .layer(prometheus_layer);
+
     let listener = tokio::net::TcpListener::bind(&bind)
         .await
         .with_context(|| format!("{bind} dinlenemedi"))?;
 
     tracing::info!(addr = %listener.local_addr()?, "stream servisi dinleniyor");
 
-    axum::serve(listener, api::router(state))
+    axum::serve(listener, app)
         .await
         .context("sunucu düştü")?;
 

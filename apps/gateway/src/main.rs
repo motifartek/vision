@@ -13,6 +13,7 @@ use axum::{
     routing::{get, any},
     Router,
 };
+use axum_prometheus::PrometheusMetricLayer;
 use error::GatewayError;
 use moka::future::Cache;
 use proxy::kratos_proxy_handler;
@@ -20,7 +21,6 @@ use reqwest::Client;
 use std::time::Duration;
 use tonic::transport::Channel;
 use tower_http::cors::CorsLayer;
-use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
 #[derive(Clone)]
 pub struct AppState {
@@ -33,20 +33,11 @@ fn env_or(key: &str, default: &str) -> String {
     std::env::var(key).unwrap_or_else(|_| default.to_string())
 }
 
-/// Video akışı — **henüz uygulanmadı**.
-///
-/// Kimlik doğrulama ve yetki kontrolü çalışıyor ama akışın kendisi yok: medyayı
-/// şu an dashboard kendi statik klasöründen (`public/media`) servis ediyor ve bu
-/// yol gateway'e hiç uğramıyor. Uç nokta eskiden "stream ediliyor..." diyen bir
-/// metin döndürüyordu — çalışıyormuş gibi görünen bir taslak, olmayandan kötü.
-/// Gerçek akış (byte-range, medyanın `public/` dışına taşınması) gateway devreye
-/// alınırken yapılacak.
 async fn stream_video(
     State(state): State<AppState>,
     user: AuthenticatedUser, // Kimlik doğrulandı
     Path(video_id): Path<String>,
 ) -> Result<String, GatewayError> {
-    // Yetki kontrolü (Bu kullanıcı bu videoyu izleyebilir mi?)
     let has_access = check_permission(
         &state.authz,
         &user.identity_id,
@@ -73,20 +64,12 @@ async fn stream_video(
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    tracing_subscriber::registry()
-        .with(
-            tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "gateway=debug,tower_http=debug".into()),
-        )
-        .with(tracing_subscriber::fmt::layer())
-        .init();
+    motif_observer::init("gateway");
 
-    // 1. Kratos için HTTP Client ve Moka Cache
     let kratos_client = Client::builder()
         .pool_idle_timeout(Duration::from_secs(90))
         .build()?;
 
-    // 5 saniye TTL ile in-memory cache (Milyonlarca isteği Gateway seviyesinde eritmek için)
     let session_cache = Cache::builder()
         .time_to_live(Duration::from_secs(5))
         .max_capacity(100_000)
@@ -98,16 +81,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         session_cache,
     };
 
-    // Ses çözümleme servisi (apps/ai/inference); yalnız 127.0.0.1 dinler.
     let inference_state = InferenceState {
         client: Client::builder()
-            // Uzun medyada çözümleme dakikalar sürebilir.
             .timeout(Duration::from_secs(600))
             .build()?,
         base_url: env_or("GATEWAY_INFERENCE_URL", "http://127.0.0.1:8081"),
     };
 
-    // 2. Keto için gRPC Channel
     tracing::info!("Keto gRPC kanalına bağlanılıyor...");
     let keto_url: &'static str =
         Box::leak(env_or("GATEWAY_KETO_URL", "http://127.0.0.1:4466").into_boxed_str());
@@ -128,8 +108,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         inference: inference_state,
     };
 
-    // Dashboard tarayıcıdan çağırdığı için oturum çerezinin gitmesi gerekiyor;
-    // bu yüzden joker origin değil, açık liste kullanılıyor.
+    let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
+
     let cors = CorsLayer::new()
         .allow_origin([
             HeaderValue::from_static("http://localhost:3000"),
@@ -145,17 +125,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_credentials(true);
 
     let app = Router::new()
+        .route("/metrics", get(|| async move { metric_handle.render() }))
         .route("/api/auth/*path", any(kratos_proxy_handler))
         .route("/api/auth", any(kratos_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
         .layer(tower_http::trace::TraceLayer::new_for_http())
+        .layer(prometheus_layer)
         .layer(cors)
         .with_state(state);
 
     let listener = tokio::net::TcpListener::bind("0.0.0.0:8000").await?;
     tracing::info!("Gateway sunucusu {} adresinde dinleniyor...", listener.local_addr()?);
-    axum::serve(listener, app).await?;
-
+    
+    let axum_server = axum::serve(listener, app);
+    tokio::select! {
+        res = axum_server => res?,
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Kapatılıyor...");
+        }
+    }
+    
+    motif_observer::shutdown();
     Ok(())
 }
