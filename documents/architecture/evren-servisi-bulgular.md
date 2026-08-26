@@ -174,8 +174,17 @@ bunu göremezdi; artık üretilen dosyanın süresini ölçen bir test var.
 ## Ekibin bilmesi gerekenler
 
 - **Mimari dokümanı Qwen-2VL diyor, platformda Qwen3-VL-32B var.** Güncellenmeli.
+- **`vlm` modeli araç çağrısını desteklemiyor.** vLLM örneğinde ayrıştırıcı
+  kurulu değil: `tool_choice` "required" ve "auto" 400 dönüyor, "none" ile model
+  kararı `<tool_call>` etiketleri içinde düz metin olarak geliyor. Yapılandırılmış
+  çıktı istemle isteniyor ve `apps/ai/vision` içinde ayrıştırılıyor.
+- **Olay zamanı `MM:SS` olarak istenmeli, milisaniye olarak değil.** Milisaniye
+  istendiğinde model koşudan koşuya tutarsız: aynı video için bir koşuda `12000`
+  (doğru), başkasında `1000` (saniyeyi milisaniye sanmış). `MM:SS` istendiğinde
+  on videonun onunda da zamanlar tutarlı çıktı.
 - **`rerank` modelinin kartında uyarı var:** geri getirme kalitesini *düşürüyor*
   (R@1 0.95 → 0.55). RAG kuracak olan bilmeli.
-- **Şartname "offline, dış API bağımlılığı olmamalı" diyor** ama bu bir hizmet.
-  Finalde yerel olarak sağlanacağı varsayılıyor; **mentöre teyit ettirilmeli.**
+- **Offline kuralı netleşti.** Şartname "dış API bağımlılığı olmamalı" diyor
+  ama organizatörler EVREN altyapısının kullanılmasını istiyor; kastedilen
+  yasak bu servis değil. Karar teyitli, mimari buna göre kuruldu.
 - Takım başına izole Qdrant örneği de veriliyor (`packages/database`, #2).

@@ -42,7 +42,15 @@ pub async fn ingest(
         move || probe(&p)
     })
     .await
-    .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))??;
+    .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))?
+    // ffprobe'un okuyamadığı dosya bozuk ya da video değil demektir; bu
+    // istemcinin hatası, sunucunun değil. Yüklenen dosya diskte kalmasın.
+    .map_err(|e| {
+        let _ = state.store.delete(&object_key);
+        Error::InvalidVideo(format!(
+            "dosya video olarak okunamadı ({original_name}): {e}"
+        ))
+    })?;
 
     // --- H.264 normalizasyonu ---
     //

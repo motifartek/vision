@@ -96,7 +96,7 @@ export function DashboardView() {
   const recent = (videos ?? []).slice(0, 3)
 
   return (
-    <AppShell title="Kontrol Paneli" description="Video üretim akışınızın güncel görünümü">
+    <AppShell>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <section className="flex flex-col justify-between gap-4 rounded-xl border bg-card p-6 md:flex-row md:items-center">
           <div className="flex flex-col gap-2">

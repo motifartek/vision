@@ -1,0 +1,21 @@
+services:
+  vision:
+    build:
+      context: ../../../
+      dockerfile: apps/ai/vision/Dockerfile
+    ports:
+      - "8110:8110"
+    environment:
+      - VISION_BIND=0.0.0.0:8110
+      - STREAM_URL=http://stream:8100
+      # Anahtar depoda tutulmaz; kabuktan aktarılır.
+      #   EVREN_KEY=... docker compose -f platform/docker/compose.yaml up -d
+      - EVREN_KEY=${EVREN_KEY:?EVREN_KEY tanımlı değil}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=vision
+    depends_on:
+      - stream
+    restart: unless-stopped
+    networks:
+      - default
+      - observability

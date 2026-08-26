@@ -33,5 +33,8 @@ http = "1.1"
 
 [build-dependencies]
 tonic-build = "0.12"
+# protoc'u sisteme kurdurmamak icin ikili paketle geliyor: depoyu klonlayan
+# herkes `cargo build` diyebilsin.
+protoc-bin-vendored = "3"
 
 

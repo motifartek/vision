@@ -1,0 +1,21 @@
+services:
+  stream:
+    build:
+      context: ../../
+      dockerfile: apps/stream/Dockerfile
+    ports:
+      - "8100:8100"
+    environment:
+      - STREAM_BIND=0.0.0.0:8100
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=stream
+    volumes:
+      # Yüklenen videolar ve üretilen klipler konteyner ömrünü aşmalı.
+      - stream-data:/var/lib/motif-stream
+    restart: unless-stopped
+    networks:
+      - default
+      - observability
+
+volumes:
+  stream-data:

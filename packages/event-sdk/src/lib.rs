@@ -16,7 +16,9 @@ pub mod tools;
 
 pub use messages::{FrameExtracted, FrameRef, SamplingPass, VideoIngested};
 pub use report::{AnalysisReport, DetectedEvent, RiskLevel};
-pub use tools::{ClipRangeRequest, ClipRef, ClipResponse};
+pub use tools::{
+    ClipRangeRequest, ClipRef, ClipResponse, VideoInfoResponse, ZoomRangeRequest,
+};
 
 /// Kontrat sürümü. Kırıcı değişikliklerde artırılır.
 pub const SCHEMA_VERSION: u32 = 1;

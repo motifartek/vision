@@ -13,6 +13,7 @@ resolver = "2"
 members = [
     "apps/gateway",
     "apps/ai/inference",
+    "apps/ai/vision",
     "apps/stream",
     "packages/core",
     "packages/observer",

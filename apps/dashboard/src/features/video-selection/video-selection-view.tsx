@@ -152,7 +152,7 @@ export function VideoSelectionView() {
   )
 
   return (
-    <AppShell title="Video Seçimi" description="Düzenlemek istediğiniz içeriği seçin">
+    <AppShell>
       <div className="mx-auto flex max-w-7xl flex-col gap-6">
         <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
           <div>

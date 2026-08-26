@@ -136,8 +136,18 @@ fn filters(opts: &ClipOptions) -> Option<String> {
         parts.push(format!("setpts={}*PTS", opts.time_scale));
     }
     if let Some(d) = opts.max_dim {
+        // `min(iw,d)` büyütmeyi engelliyor: `force_original_aspect_ratio=decrease`
+        // tek başına kutuya **sığdırır**, yani küçük videoyu kutuya kadar
+        // şişirir. 400x282'lik bir kayıt 768x541'e çıkıyordu; hem boşuna
+        // token hem de aşağıdaki hata.
+        //
+        // `force_divisible_by=2` ise zorunlu: yuv420p kroma altörneklemesi
+        // çift boyut ister, x264 tek yükseklikte "height not divisible by 2"
+        // deyip çıktıyı hiç yazmıyor. Bu hata gerçek bir golden dataset
+        // videosunda analizi tamamen düşürdü.
         parts.push(format!(
-            "scale=w={d}:h={d}:force_original_aspect_ratio=decrease"
+            "scale=w='min(iw,{d})':h='min(ih,{d})'\
+             :force_original_aspect_ratio=decrease:force_divisible_by=2"
         ));
     }
 
@@ -331,7 +341,7 @@ mod tests {
             ..Default::default()
         };
         let f = filters(&ikisi).unwrap();
-        assert!(f.contains("setpts") && f.contains("scale=w=768"));
+        assert!(f.contains("setpts") && f.contains("force_divisible_by=2"));
     }
 
     /// Sentetik test videosu üretir. ffmpeg yoksa `None` döner.
@@ -390,6 +400,59 @@ mod tests {
             klip.service_frames
         );
         assert_eq!(klip.t1_ms - klip.t0_ms, 3_000, "kaynak aralık korunmalı");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Tek boyutlu ve küçük video klibi kırmamalı.
+    ///
+    /// Regresyon: `scale=...:force_original_aspect_ratio=decrease` küçük videoyu
+    /// kutuya kadar büyütüyordu; 400x282 kayıt 768x541 oluyor, 541 tek olduğu
+    /// için x264 "height not divisible by 2" deyip çıktıyı hiç yazmıyordu.
+    /// Golden dataset'teki `JNH-RPABpdA` bu yüzden analiz edilemiyordu.
+    #[test]
+    fn kucuk_ve_tek_boyutlu_video_klibe_donusur() {
+        let dir = std::env::temp_dir().join("motif-clip-tek-boyut");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // 400x282: hem max_dim'den küçük hem yüksekliği çift ama ölçeklenince
+        // tek sayıya düşen bir oran.
+        let yol = dir.join("kucuk.mp4");
+        let durum = Command::new(ExternalTool::Ffmpeg.binary())
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg("testsrc=size=400x282:rate=20:duration=4")
+            .args(["-c:v", "libx264", "-profile:v", "main", "-pix_fmt", "yuv420p"])
+            .arg(&yol)
+            .status();
+        let Ok(s) = durum else {
+            eprintln!("ffmpeg yok, test atlandı");
+            return;
+        };
+        if !s.success() {
+            eprintln!("kaynak üretilemedi, test atlandı");
+            return;
+        }
+
+        let hedef = dir.join("cikti.mp4");
+        let klip = extract_clip(
+            &yol,
+            0,
+            4_000,
+            &hedef,
+            &ClipOptions {
+                max_dim: Some(768),
+                ..Default::default()
+            },
+        )
+        .expect("küçük/tek boyutlu video klibe dönüşmeli");
+
+        assert!(klip.size_bytes > 0, "çıktı dosyası boş");
+        let bilgi = probe(&hedef).unwrap();
+        assert_eq!(bilgi.width % 2, 0, "genişlik çift olmalı");
+        assert_eq!(bilgi.height % 2, 0, "yükseklik çift olmalı");
+        // Büyütme yapılmamalı.
+        assert!(bilgi.width <= 400, "video büyütülmüş: {}", bilgi.width);
 
         let _ = std::fs::remove_dir_all(&dir);
     }
