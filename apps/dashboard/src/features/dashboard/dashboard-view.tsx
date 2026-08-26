@@ -111,7 +111,7 @@ export function DashboardView() {
               kuralları incelenmesi gereken anları işaretlesin.
             </p>
           </div>
-          <Button render={<Link href="/videos" />} size="lg">
+          <Button nativeButton={false} render={<Link href="/videos" />} size="lg">
             <Play data-icon="inline-start" /> Video seç
           </Button>
         </section>
@@ -139,7 +139,7 @@ export function DashboardView() {
               <CardTitle>Kütüphaneden</CardTitle>
               <CardDescription>Analiz için hazır kayıtlar</CardDescription>
               <CardAction>
-                <Button variant="ghost" size="sm" render={<Link href="/videos" />}>
+                <Button variant="ghost" size="sm" nativeButton={false} render={<Link href="/videos" />}>
                   Tümünü gör <ArrowUpRight data-icon="inline-end" />
                 </Button>
               </CardAction>
