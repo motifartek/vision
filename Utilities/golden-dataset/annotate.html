@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Dataset · Kritik An İşaretleme</title>
+<style>
+  :root{--bg:#070707;--card:#0d0d0d;--border:#292929;--fg:#f5f5f5;--muted:#8a8a8a;
+        --primary:#2ea7ff;--ok:#22c55e;--warn:#f59e0b;color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:16px;padding:12px 20px;
+         border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:10}
+  header h1{font-size:14px;margin:0;font-weight:600}
+  .bar{flex:1;height:6px;background:#1b1b1b;border-radius:3px;overflow:hidden;max-width:320px}
+  .bar i{display:block;height:100%;background:var(--ok);width:0}
+  main{display:grid;grid-template-columns:260px minmax(0,1fr);gap:16px;
+       max-width:1500px;margin:0 auto;padding:16px 20px 60px}
+  .list{border:1px solid var(--border);border-radius:9px;overflow:auto;max-height:78vh}
+  .clip{padding:7px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px;
+        display:flex;justify-content:space-between;gap:8px}
+  .clip:hover{background:#121212}
+  .clip.active{background:#0f1a22;border-left:2px solid var(--primary)}
+  .clip.done{color:var(--muted)}
+  .clip .mk{color:var(--ok);font-weight:700}
+  .stage{border:1px solid var(--border);border-radius:9px;padding:14px;background:var(--card)}
+  video{width:100%;max-height:58vh;background:#000;border-radius:7px;display:block}
+  .meta{margin:12px 0;padding:10px 12px;border:1px solid var(--border);border-radius:7px}
+  .meta .cat{color:var(--primary);font-weight:700;letter-spacing:.03em}
+  .meta .cap{color:var(--muted);margin-top:5px;font-size:13px}
+  .ctl{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:12px}
+  button{background:var(--primary);color:#06131c;border:0;border-radius:6px;padding:8px 15px;
+         font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+  button.warn{background:var(--warn);color:#1c1206}
+  kbd{background:#1b1b1b;border:1px solid var(--border);border-radius:4px;padding:1px 6px;
+      font:11px ui-monospace,monospace;color:var(--muted)}
+  .mark{font-size:22px;font-variant-numeric:tabular-nums;font-weight:700}
+  .mark.none{color:var(--muted);font-weight:400;font-size:14px}
+  .help{color:var(--muted);font-size:12px;margin-top:14px;line-height:1.8}
+  .load{padding:40px 20px;text-align:center;color:var(--muted)}
+  select{background:#121212;color:var(--fg);border:1px solid var(--border);
+         border-radius:6px;padding:5px 8px;font:inherit;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>Kritik An İşaretleme</h1>
+  <div class="bar"><i id="bar"></i></div>
+  <span id="prog" style="font-size:12px;color:var(--muted)"></span>
+  <select id="filter" style="margin-left:auto"><option value="">tüm kategoriler</option></select>
+  <button class="ghost" id="export">catalog.json indir</button>
+</header>
+
+<main id="app"><div class="load">catalog.json yükleniyor…</div></main>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'motifai-golden-marks';
+
+let clips = [], catalog = null, idx = 0;
+let marks = JSON.parse(localStorage.getItem(KEY) || '{}');
+
+const fmt = s => {
+  const t = Math.max(0, s);
+  return `${String(Math.floor(t / 60)).padStart(2,'0')}:${t.toFixed(2).padStart(5,'0')}`;
+};
+
+async function boot() {
+  try {
+    catalog = await (await fetch('catalog.json')).json();
+  } catch {
+    $('app').innerHTML = `<div class="load">
+      <b>catalog.json okunamadı.</b><br><br>
+      Bu sayfa dosya olarak değil, sunucu üzerinden açılmalı. Bu klasörde:<br><br>
+      <code style="color:var(--primary)">python -m http.server 8200</code><br><br>
+      sonra <a href="http://localhost:8200/annotate.html">localhost:8200/annotate.html</a>
+    </div>`;
+    return;
+  }
+
+  clips = catalog.clips.filter(c => c.local_path);
+  const cats = [...new Set(clips.map(c => c.category))].sort();
+  for (const c of cats) {
+    const o = document.createElement('option');
+    o.value = o.textContent = c;
+    $('filter').appendChild(o);
+  }
+
+  $('app').innerHTML = `
+    <div class="list" id="list"></div>
+    <div class="stage">
+      <video id="v" controls preload="metadata"></video>
+      <div class="meta" id="meta"></div>
+      <div class="ctl">
+        <button id="mark">Kritik anı işaretle</button>
+        <span class="mark none" id="cur">işaretlenmedi</span>
+        <button class="ghost" id="clear">Temizle</button>
+        <button class="warn ghost" id="skip">Olay görünmüyor</button>
+        <button class="ghost" id="prev">← önceki</button>
+        <button class="ghost" id="next">sonraki →</button>
+      </div>
+      <div class="help">
+        <kbd>boşluk</kbd> oynat/duraklat &nbsp;
+        <kbd>←</kbd><kbd>→</kbd> kare kare (1/25 sn) &nbsp;
+        <kbd>Shift</kbd>+<kbd>←→</kbd> 1 sn &nbsp;
+        <kbd>Enter</kbd> işaretle ve sonrakine geç &nbsp;
+        <kbd>S</kbd> olay görünmüyor<br>
+        İşaretlenecek an: olayın <b>başladığı</b> kare. Düşmede vücudun dengesini
+        kaybettiği an, çarpmada temas anı, alan ihlalinde sınırın geçildiği an.
+      </div>
+    </div>`;
+
+  bind();
+  render();
+  show(0);
+}
+
+function visible() {
+  const f = $('filter').value;
+  return f ? clips.filter(c => c.category === f) : clips;
+}
+
+function render() {
+  const list = $('list');
+  list.innerHTML = '';
+  visible().forEach((c, i) => {
+    const el = document.createElement('div');
+    const m = marks[c.id];
+    el.className = 'clip' + (i === idx ? ' active' : '') + (m !== undefined ? ' done' : '');
+    el.innerHTML = `<span>${c.category}<br><small style="color:var(--muted)">${c.id.split('/')[1].slice(0,22)}</small></span>
+      <span class="mk">${m === null ? '—' : m !== undefined ? fmt(m/1000) : ''}</span>`;
+    el.onclick = () => show(i);
+    list.appendChild(el);
+  });
+
+  const done = clips.filter(c => marks[c.id] !== undefined).length;
+  $('prog').textContent = `${done}/${clips.length}`;
+  $('bar').style.width = `${done / Math.max(1, clips.length) * 100}%`;
+}
+
+function show(i) {
+  const list = visible();
+  if (!list.length) return;
+  idx = Math.max(0, Math.min(i, list.length - 1));
+  const c = list[idx];
+
+  $('v').src = c.local_path;
+  $('meta').innerHTML = `<div class="cat">${c.category}</div>
+    <div>${c.source_label || '—'} <small style="color:var(--muted)">· ${c.source}</small></div>
+    ${c.caption ? `<div class="cap">${c.caption}</div>` : ''}`;
+
+  const m = marks[c.id];
+  $('cur').textContent = m === null ? 'olay görünmüyor' : m !== undefined ? fmt(m / 1000) : 'işaretlenmedi';
+  $('cur').className = 'mark' + (m === undefined || m === null ? ' none' : '');
+  render();
+}
+
+function save() { localStorage.setItem(KEY, JSON.stringify(marks)); }
+
+function mark(value) {
+  const c = visible()[idx];
+  if (!c) return;
+  if (value === undefined) delete marks[c.id]; else marks[c.id] = value;
+  save();
+  show(idx);
+}
+
+function bind() {
+  $('mark').onclick = () => { mark(Math.round($('v').currentTime * 1000)); };
+  $('clear').onclick = () => mark(undefined);
+  // null = "bu klipte olay görünmüyor". Silmekten farklı: işaretlenmiş ama
+  // olaysız demek, ki bu da bilgi — kaynak etiketi yanlış olabilir.
+  $('skip').onclick = () => { mark(null); next(); };
+  $('prev').onclick = () => show(idx - 1);
+  $('next').onclick = next;
+  $('filter').onchange = () => { idx = 0; show(0); };
+  $('export').onclick = exportCatalog;
+
+  document.onkeydown = e => {
+    if (e.target.tagName === 'SELECT') return;
+    const v = $('v');
+    const step = e.shiftKey ? 1 : 1 / 25;
+    if (e.code === 'Space') { e.preventDefault(); v.paused ? v.play() : v.pause(); }
+    else if (e.code === 'ArrowLeft') { e.preventDefault(); v.currentTime -= step; }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); v.currentTime += step; }
+    else if (e.code === 'Enter') { e.preventDefault(); mark(Math.round(v.currentTime * 1000)); next(); }
+    else if (e.key.toLowerCase() === 's') { mark(null); next(); }
+  };
+}
+
+function next() { if (idx < visible().length - 1) show(idx + 1); }
+
+function exportCatalog() {
+  const out = structuredClone(catalog);
+  let n = 0;
+  for (const c of out.clips) {
+    if (marks[c.id] !== undefined) { c.event_ms = marks[c.id]; n++; }
+  }
+  out.annotated = n;
+  out.annotated_at = new Date().toISOString();
+
+  const blob = new Blob([JSON.stringify(out, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'catalog.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+boot();
+</script>
+</body>
+</html>

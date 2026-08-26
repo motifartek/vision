@@ -68,3 +68,6 @@ datasets/**/*.mp4
 
 # Servis calisma verisi
 data/
+
+# Golden dataset videolari (fetch_golden.py ile yeniden indirilir)
+Utilities/golden-dataset/videos/
