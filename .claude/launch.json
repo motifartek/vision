@@ -4,8 +4,25 @@
     {
       "name": "dashboard",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--dir", "apps/dashboard", "dev"],
+      "runtimeArgs": [
+        "--dir",
+        "apps/dashboard",
+        "dev"
+      ],
       "port": 3000
+    },
+    {
+      "name": "golden-annotate",
+      "runtimeExecutable": "python",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8200",
+        "--directory",
+        "Utilities/golden-dataset"
+      ],
+      "port": 8200,
+      "url": "http://localhost:8200"
     }
   ]
 }

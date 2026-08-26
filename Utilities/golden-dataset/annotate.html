@@ -145,7 +145,12 @@ function show(i) {
   idx = Math.max(0, Math.min(i, list.length - 1));
   const c = list[idx];
 
-  $('v').src = c.local_path;
+  // src yalnızca klip gerçekten değiştiğinde atanıyor. Her seferinde atamak
+  // videoyu yeniden yükleyip başa sarıyordu; işaretini düzeltmek isteyen kişi
+  // aradığı anı baştan bulmak zorunda kalıyordu.
+  const src = new URL(c.local_path, location.href).href;
+  if ($('v').src !== src) $('v').src = c.local_path;
+
   $('meta').innerHTML = `<div class="cat">${c.category}</div>
     <div>${c.source_label || '—'} <small style="color:var(--muted)">· ${c.source}</small></div>
     ${c.caption ? `<div class="cap">${c.caption}</div>` : ''}`;
