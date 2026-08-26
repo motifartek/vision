@@ -136,7 +136,7 @@
           <span style="color:var(--primary)">■</span> toplam hareket
           <span style="color:var(--warn)">■</span> en hareketli bölge
           <span style="color:var(--cut)">■</span> sahne kesiti
-          <span style="color:var(--ok)">▮</span> VLM'e giden kare
+          <span style="color:var(--ok)">▮</span> aralığı seçtiren an
           <span style="margin-left:auto">tıkla: o ana git · sürükle: aralık seç</span>
         </div>
       </div>
@@ -157,23 +157,27 @@
         <input type="number" id="t1" value="5000" step="500" style="width:88px"> ms</label>
       <button id="genZoom">Yakınlaştır</button>
       <span style="margin-left:auto">
-        <button class="ghost" id="playFilm">▶ Modelin gördüğü sırayla oynat</button>
+        <button class="ghost" id="playFilm">▶ Seçtiren anları sırayla gez</button>
       </span>
     </div>
 
     <div class="tok" id="tokens"></div>
-    <div class="film" id="film"><div class="empty">Video seçip "Genel bakış üret"e basın.</div></div>
 
     <div class="cols">
       <div>
-        <h2 style="margin-top:6px">İstem <span class="hint">karelerle birlikte giden metin</span></h2>
-        <pre id="prompt">—</pre>
+        <h2 style="margin-top:6px">Giden klip <span class="hint">modelin göreceği video, birebir</span></h2>
+        <video id="clipVideo" controls playsinline style="width:100%;border-radius:8px;background:#000"></video>
+        <div class="hint" id="clipNote" style="margin-top:6px">—</div>
       </div>
       <div>
-        <h2 style="margin-top:6px">Zaman dizini <span class="hint">modelin saati bilmesi için</span></h2>
-        <pre id="index">—</pre>
+        <h2 style="margin-top:6px">İstem <span class="hint">klible birlikte giden metin</span></h2>
+        <pre id="prompt">—</pre>
       </div>
     </div>
+
+    <h2 style="margin-top:14px">Aralığı seçtiren anlar
+      <span class="hint">modele gitmiyor — pencereyi bunlara bakarak seçtik</span></h2>
+    <div class="film" id="film"><div class="empty">Video seçip "Genel bakış üret"e basın.</div></div>
   </section>
 
   <section>
@@ -183,6 +187,7 @@
         <option>video_info</option><option>motion_profile</option>
         <option>sample_overview</option><option>zoom_range</option>
         <option>get_frame</option><option>crop_region</option>
+        <option>clip_range</option>
       </select>
       <button id="call">Çağır</button>
     </div>
@@ -204,6 +209,8 @@
 
 <script>
 const $ = id => document.getElementById(id);
+// ms -> "01:23" (klip sınırlarını okunur yazmak için)
+const sn = ms => `${String(Math.floor(ms/60000)).padStart(2,'0')}:${String(Math.floor(ms/1000)%60).padStart(2,'0')}`;
 let current = null, duration = 0, heat = null, payload = null, filmTimer = null;
 
 const fmt = ms => {
@@ -364,9 +371,9 @@ function drawTimeline() {
   heat.frames.filter(f => f.is_scene_cut).forEach(f => {
     ctx.beginPath(); ctx.moveTo(X(f.t_ms), 4); ctx.lineTo(X(f.t_ms), h-16); ctx.stroke(); });
 
-  // VLM'e giden kareler
+  // aralığı seçtiren anlar
   if (payload) {
-    payload.frames.forEach(f => {
+    payload.evidence_frames.forEach(f => {
       const x = X(f.t_ms);
       ctx.fillStyle = '#22c55e';
       ctx.fillRect(x-1.5, h-16, 3, 12);
@@ -415,7 +422,7 @@ $('video').addEventListener('timeupdate', () => {
   drawHeatAt(tMs);
   if (payload) {                          // o an modele giden kareyi vurgula
     let bi = -1, bd = Infinity;
-    payload.frames.forEach((f,i) => { const d = Math.abs(f.t_ms - tMs); if (d<bd){bd=d;bi=i;} });
+    payload.evidence_frames.forEach((f,i) => { const d = Math.abs(f.t_ms - tMs); if (d<bd){bd=d;bi=i;} });
     document.querySelectorAll('.shot').forEach((s,i) => s.classList.toggle('now', i===bi && bd<1500));
   }
 });
@@ -425,20 +432,33 @@ $('heatOn').onchange = () => drawHeatAt($('video').currentTime * 1000);
 function renderPayload(p) {
   payload = p;
 
-  const t = p.tokens, r = p.reduction;
+  const t = p.tokens, r = p.reduction, c = p.clip;
   const bytci = t.total > 12000 ? 'warn' : 'good';
+  // Servis 520 kareden fazlasını görmüyor; tavana yaklaşmak sessiz kayıp demek.
+  const kareci = c.service_frames > 520 ? 'warn' : '';
+  const yavas = c.time_scale > 1.01;
+
   $('tokens').innerHTML = `
-    <div><b>${p.frames.length}</b><span>modele giden kare</span></div>
-    <div><b>${r.source_frames}</b><span>videodaki ham kare</span></div>
-    <div class="good"><b>${r.ratio.toFixed(0)}×</b><span>azaltma</span></div>
-    <div><b>${t.frame_width}×${t.frame_height}</b><span>kare çözünürlüğü</span></div>
-    <div><b>${t.per_frame}</b><span>kare başına token (tahmini)</span></div>
-    <div class="${bytci}"><b>${t.total.toLocaleString('tr')}</b><span>toplam token (tahmini)</span></div>
-    <div><b>${(r.tokens_if_naive/1000).toFixed(0)}k</b><span>tüm kareler gitseydi</span></div>`;
+    <div><b>${sn(c.t0_ms)} – ${sn(c.t1_ms)}</b><span>kesilen aralık</span></div>
+    <div class="${yavas?'warn':''}"><b>${yavas ? c.time_scale.toFixed(1)+'×' : 'gerçek zaman'}</b>
+      <span>${yavas ? 'ağır çekim' : 'hız'}</span></div>
+    <div class="${kareci}"><b>${c.service_frames}</b><span>servisin göreceği kare (2 fps)</span></div>
+    <div><b>${c.effective_fps.toFixed(1)}</b><span>kaynaktan efektif fps</span></div>
+    <div class="good"><b>${r.ratio.toFixed(0)}×</b><span>ham kareye göre azaltma</span></div>
+    <div><b>${(c.size_bytes/1e6).toFixed(1)} MB</b><span>klip boyutu</span></div>
+    <div class="${bytci}"><b>${t.total.toLocaleString('tr')}</b><span>toplam token (tahmini)</span></div>`;
+
+  $('clipVideo').src = c.url;
+  $('clipNote').textContent = yavas
+    ? `Kaynakta ${(c.source_span_ms/1000).toFixed(1)} sn olan aralık, ${c.time_scale.toFixed(1)} kat `
+      + `yavaşlatılarak ${(c.duration_ms/1000).toFixed(1)} sn'ye yayıldı. Servis sabit 2 fps örneklediği `
+      + `için bu, kaynaktan ${c.effective_fps.toFixed(1)} fps demek. Modelin verdiği zamanlar bu klibin `
+      + `saatiyle gelir; kaynağa çeviriyi stream yapar.`
+    : `Gerçek zamanlı klip, ${(c.duration_ms/1000).toFixed(1)} sn. Servis 2 fps örneklüyor.`;
 
   const film = $('film'); film.innerHTML = '';
-  if (!p.frames.length) { film.innerHTML = '<div class="empty">Kare yok.</div>'; return; }
-  for (const f of p.frames) {
+  if (!p.evidence_frames.length) { film.innerHTML = '<div class="empty">Kare yok.</div>'; }
+  for (const f of p.evidence_frames) {
     const el = document.createElement('div');
     el.className = 'shot' + (f.is_scene_cut ? ' cut' : '');
     el.innerHTML = `<span class="ord">${f.ord}</span>
@@ -453,7 +473,6 @@ function renderPayload(p) {
   }
 
   $('prompt').textContent = p.prompt;
-  $('index').textContent = p.text_index;
   drawTimeline();
 }
 
@@ -468,8 +487,10 @@ async function generate(zoom) {
     const p = await api(`/v1/videos/${current.id}/payload`, {
       method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body) });
     renderPayload(p);
-    log(`${zoom?'yakınlaştırma':'genel bakış'}: ${p.frames.length} kare, `
-      + `~${p.tokens.total.toLocaleString('tr')} token, ${Math.round(performance.now()-started)} ms`, 'ok');
+    log(`${zoom?'yakınlaştırma':'genel bakış'}: ${sn(p.clip.t0_ms)}–${sn(p.clip.t1_ms)} klibi, `
+      + `${p.clip.time_scale > 1.01 ? p.clip.time_scale.toFixed(1)+'× ağır çekim, ' : ''}`
+      + `${p.clip.service_frames} kare, ~${p.tokens.total.toLocaleString('tr')} token, `
+      + `${Math.round(performance.now()-started)} ms`, 'ok');
   } catch(e) { log(e.message,'err'); }
   finally { btn.disabled = false; }
 }
@@ -486,9 +507,9 @@ $('playFilm').onclick = () => {
     const shots = document.querySelectorAll('.shot');
     shots.forEach((s,k) => s.classList.toggle('now', k===i));
     shots[i]?.scrollIntoView({behavior:'smooth', block:'nearest', inline:'center'});
-    const f = payload.frames[i];
+    const f = payload.evidence_frames[i];
     $('video').currentTime = f.t_ms / 1000;
-    i = (i + 1) % payload.frames.length;
+    i = (i + 1) % payload.evidence_frames.length;
   };
   step(); filmTimer = setInterval(step, 900);
 };

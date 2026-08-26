@@ -210,12 +210,19 @@ pub fn extract_clip(
 
     let mut cmd = Command::new(ExternalTool::Ffmpeg.binary());
     cmd.args(["-y", "-v", "error"])
-        // -ss girdiden ÖNCE: anahtar kareye hızlı atlama. Modern ffmpeg
-        // burada da hassas arama yapıyor.
+        // -ss ve -t ikisi de girdiden ÖNCE. -ss burada anahtar kareye hızlı
+        // atlıyor (modern ffmpeg yine de hassas arama yapıyor).
+        //
+        // -t'nin girdi tarafında olması şart: çıktı tarafına konursa süreyi
+        // **setpts uygulandıktan sonra** kırpar. Ağır çekimde bu, 3 saniyelik
+        // aralığın 24 saniyeye yayılıp hemen 3 saniyeye geri kesilmesi demekti
+        // — klip ağır çekim olduğunu bildiriyor ama aslında olmuyordu.
+        // Girdi tarafında ise kaynaktan okunan süreyi sınırlıyor, sonra
+        // setpts onu serbestçe uzatıyor.
         .args(["-ss", &format!("{:.3}", t0_ms as f64 / 1000.0)])
+        .args(["-t", &format!("{:.3}", kaynak_sure as f64 / 1000.0)])
         .arg("-i")
-        .arg(video)
-        .args(["-t", &format!("{:.3}", kaynak_sure as f64 / 1000.0)]);
+        .arg(video);
 
     if let Some(f) = filters(opts) {
         cmd.args(["-vf", &f]);
@@ -325,6 +332,91 @@ mod tests {
         };
         let f = filters(&ikisi).unwrap();
         assert!(f.contains("setpts") && f.contains("scale=w=768"));
+    }
+
+    /// Sentetik test videosu üretir. ffmpeg yoksa `None` döner.
+    fn ornek_video(dir: &std::path::Path, saniye: u32) -> Option<std::path::PathBuf> {
+        let yol = dir.join("kaynak.mp4");
+        let cikti = Command::new(ExternalTool::Ffmpeg.binary())
+            .args(["-y", "-v", "error", "-f", "lavfi", "-i"])
+            .arg(format!("testsrc=size=320x240:rate=30:duration={saniye}"))
+            .args(["-c:v", "libx264", "-profile:v", "main", "-pix_fmt", "yuv420p"])
+            .arg(&yol)
+            .status()
+            .ok()?;
+        cikti.success().then_some(yol)
+    }
+
+    /// Ağır çekim gerçekten dosyaya yansıyor mu?
+    ///
+    /// Regresyon: `-t` çıktı seçeneği olarak veriliyordu ve `setpts` uzattıktan
+    /// **sonra** kırpıyordu. Klip `time_scale: 8.0` bildiriyor ama süresi
+    /// kaynakla aynı kalıyordu; yani yakınlaştırma hiç çalışmıyordu.
+    /// Filtre metnini sınamak bunu yakalayamaz, üretilen süreyi ölçmek gerekir.
+    #[test]
+    fn agir_cekim_klibin_suresini_gercekten_uzatir() {
+        let dir = std::env::temp_dir().join("motif-clip-agir-cekim");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let Some(kaynak) = ornek_video(&dir, 6) else {
+            eprintln!("ffmpeg yok, test atlandı");
+            return;
+        };
+
+        let hedef = dir.join("yavas.mp4");
+        let klip = extract_clip(
+            &kaynak,
+            2_000,
+            5_000,
+            &hedef,
+            &ClipOptions {
+                time_scale: 8.0,
+                ..Default::default()
+            },
+        )
+        .unwrap();
+
+        // 3 saniyelik aralık 8 kat yavaşlayınca ~24 saniye olmalı.
+        assert!(
+            (23_000..=25_000).contains(&klip.duration_ms),
+            "ağır çekim uygulanmamış: {} ms (beklenen ~24000)",
+            klip.duration_ms
+        );
+        // Servis 2 fps örneklüyor: 24 sn -> ~48 kare. Gerçek zamanda 6 olurdu.
+        assert!(
+            klip.service_frames >= 45,
+            "servis kare sayısı beklenenden az: {}",
+            klip.service_frames
+        );
+        assert_eq!(klip.t1_ms - klip.t0_ms, 3_000, "kaynak aralık korunmalı");
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Gerçek zamanlı kesmede süre kaynakla aynı kalmalı.
+    #[test]
+    fn gercek_zamanli_klip_kaynak_suresini_korur() {
+        let dir = std::env::temp_dir().join("motif-clip-gercek-zaman");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        let Some(kaynak) = ornek_video(&dir, 6) else {
+            eprintln!("ffmpeg yok, test atlandı");
+            return;
+        };
+
+        let hedef = dir.join("normal.mp4");
+        let klip = extract_clip(&kaynak, 1_000, 4_000, &hedef, &ClipOptions::default()).unwrap();
+
+        assert!(
+            (2_800..=3_200).contains(&klip.duration_ms),
+            "kesilen süre yanlış: {} ms",
+            klip.duration_ms
+        );
+        assert!((klip.time_scale - 1.0).abs() < 0.01);
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

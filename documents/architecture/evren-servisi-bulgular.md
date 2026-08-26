@@ -158,6 +158,19 @@ taşıyor, `to_source_ms()` ve `rebase_events()` çeviriyi kodda yapıyor.
 **Detay artarken uydurma riski de artıyor.** Ağır çekim her yere değil, ajanın
 özellikle istediği dar pencerelere uygulanmalı.
 
+### Uçtan uca doğrulama
+
+Boru hattının kendi ürettiği klip servise gönderildi. `zoom_range` 12–15 sn
+aralığını 48 kare bütçesiyle istedi; üretilen klip 8× ağır çekimde 23.7 saniye,
+servisin göreceği kare 47. Model olayları klip saatiyle `00:02`–`00:15` arası
+verdi; `to_source_ms` ile çevrilince hepsi istenen 12–15 sn penceresine düşüyor.
+
+Bu doğrulama bir hata ortaya çıkardı: `-t` ffmpeg'e **çıktı** seçeneği olarak
+veriliyordu, yani `setpts` süreyi uzattıktan *sonra* kırpıyordu. Klip
+`time_scale: 8.0` bildiriyor ama süresi kaynakla aynı kalıyordu — yakınlaştırma
+hiç çalışmıyordu. `-t` girdi tarafına alındı. Filtre metnini sınayan birim testi
+bunu göremezdi; artık üretilen dosyanın süresini ölçen bir test var.
+
 ## Ekibin bilmesi gerekenler
 
 - **Mimari dokümanı Qwen-2VL diyor, platformda Qwen3-VL-32B var.** Güncellenmeli.

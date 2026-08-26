@@ -231,7 +231,7 @@ pub async fn clip_range(state: &Arc<AppState>, req: ClipRangeRequest) -> ToolRes
     Ok(ClipResponse { clip: to_clip_ref(clip, key) })
 }
 
-fn to_clip_ref(clip: motif_optics::Clip, object_key: String) -> ClipRef {
+pub(crate) fn to_clip_ref(clip: motif_optics::Clip, object_key: String) -> ClipRef {
     ClipRef {
         t0_ms: clip.t0_ms,
         t1_ms: clip.t1_ms,

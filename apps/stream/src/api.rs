@@ -28,6 +28,7 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use crate::state::AppState;
+use crate::tools::to_clip_ref;
 use crate::{catalog, payload, pipeline, tools};
 
 /// API hatası.
@@ -378,8 +379,9 @@ struct PayloadBody {
 
 /// **Modele tam olarak ne gidiyor.**
 ///
-/// Kareleri seçer, çıkarır ve orkestratörün göndereceği yükü birebir kurar:
-/// sıralı kare listesi, metin dizini, istem ve token tahmini. Test arayüzü
+/// Aralığı seçer, klibi üretir ve orkestratörün göndereceği yükü birebir kurar:
+/// klibin kendisi, istem ve token tahmini. Yanında aralığı seçtiren kareler de
+/// dönüyor — bunlar modele gitmiyor, kararın kanıtı olarak duruyor. Test arayüzü
 /// bunu gösterdiğinde temsili bir şey değil, gerçek yükü görüyor.
 async fn post_payload(
     State(state): State<Arc<AppState>>,
@@ -390,32 +392,40 @@ async fn post_payload(
     let record = catalog::VideoRecord::load(state.store.as_ref(), &id)?;
     let body = body.map(|Json(b)| b);
 
-    let (frames, pass, range) = match body.as_ref().and_then(|b| b.t0_ms.zip(b.t1_ms)) {
+    let budget = body.as_ref().and_then(|b| b.budget);
+
+    let (pass, evidence, clip, key) = match body.as_ref().and_then(|b| b.t0_ms.zip(b.t1_ms)) {
         Some((t0, t1)) => {
-            let budget = body.as_ref().and_then(|b| b.budget);
-            (
-                pipeline::zoom(&state, &id, t0, t1, budget).await?,
-                motif_event_sdk::SamplingPass::Zoom,
-                Some((t0, t1)),
+            let evidence = pipeline::zoom(&state, &id, t0, t1, budget).await?;
+            let (clip, key) = pipeline::zoom_clip(
+                &state,
+                &id,
+                t0,
+                t1,
+                budget.unwrap_or(state.config.zoom_budget),
             )
+            .await?;
+            (motif_event_sdk::SamplingPass::Zoom, evidence, clip, key)
         }
         None => {
-            let budget = body.as_ref().and_then(|b| b.budget);
             state.reset_zooms(&id).await;
-            (
-                pipeline::overview(&state, &id, budget).await?,
-                motif_event_sdk::SamplingPass::Overview,
-                None,
-            )
+            let evidence = pipeline::overview(&state, &id, budget).await?;
+            // Genel bakışta modele kaydın tamamı gidiyor; hareket profili
+            // burada yalnızca nereye bakılacağını işaretliyor.
+            let (clip, key) =
+                pipeline::range_clip(&state, &id, 0, record.info.duration_ms, None).await?;
+            (motif_event_sdk::SamplingPass::Overview, evidence, clip, key)
         }
     };
 
+    let size_bytes = clip.size_bytes;
     let built = payload::build(
         pass,
-        &frames,
+        &to_clip_ref(clip, key),
+        size_bytes,
+        &evidence,
         &record.info,
         state.config.frame_max_dim,
-        range,
     );
 
     Ok(Json(json!(built)))

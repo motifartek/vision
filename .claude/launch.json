@@ -2,6 +2,18 @@
   "version": "0.0.1",
   "configurations": [
     {
+      "name": "stream",
+      "runtimeExecutable": "cargo",
+      "runtimeArgs": [
+        "run",
+        "--release",
+        "-p",
+        "stream"
+      ],
+      "port": 8100,
+      "url": "http://localhost:8100"
+    },
+    {
       "name": "dashboard",
       "runtimeExecutable": "pnpm",
       "runtimeArgs": [
