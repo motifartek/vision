@@ -1,0 +1,18 @@
+# MotifAI — Dev Ortamı Tek Giriş Noktası
+#
+# Tüm geliştirme ortamı servisleri bu dosyadan yönetilir.
+# Kullanım: docker compose -f platform/docker/compose.yaml up -d
+#
+# Her servis grubu kendi dizinindeki compose dosyasını include eder.
+# include ile eklenen dosyalar kendi bind-mount path'lerini korur.
+
+include:
+  - path: ../../apps/identity/compose.yaml
+
+# Gelecekte eklenecek servisler buraya include edilir:
+#
+  - path: ../../apps/gateway/compose.yaml
+#  - path: ../../apps/notification/compose.yaml
+#  - path: ../../platform/messaging/compose.yaml   # NATS
+#  - path: ../../platform/database/compose.yaml    # SurrealDB
+#  - path: ../../platform/storage/compose.yaml     # S3-uyumlu yerel depolama

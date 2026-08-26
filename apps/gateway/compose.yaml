@@ -1,0 +1,14 @@
+services:
+  gateway:
+    build:
+      context: ../../
+      dockerfile: apps/gateway/Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - KRATOS_URL=http://kratos:4433
+      - KETO_URL=http://keto:4466
+    depends_on:
+      - kratos
+      - keto
+    restart: unless-stopped

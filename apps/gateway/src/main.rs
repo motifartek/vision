@@ -2,6 +2,7 @@ mod audio;
 mod auth;
 mod authz;
 mod error;
+mod proxy;
 
 use audio::InferenceState;
 use auth::{AuthState, AuthenticatedUser};
@@ -9,11 +10,12 @@ use authz::{check_permission, AuthzState, keto::check_service_client::CheckServi
 use axum::{
     extract::{Path, State},
     http::{header, HeaderValue, Method},
-    routing::get,
+    routing::{get, any},
     Router,
 };
 use error::GatewayError;
 use moka::future::Cache;
+use proxy::kratos_proxy_handler;
 use reqwest::Client;
 use std::time::Duration;
 use tonic::transport::Channel;
@@ -133,13 +135,21 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             HeaderValue::from_static("http://localhost:3000"),
             HeaderValue::from_static("http://127.0.0.1:3000"),
         ])
-        .allow_methods([Method::GET])
-        .allow_headers([header::CONTENT_TYPE])
+        .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
+        .allow_headers([
+            header::AUTHORIZATION,
+            header::CONTENT_TYPE,
+            header::COOKIE,
+            header::ACCEPT,
+        ])
         .allow_credentials(true);
 
     let app = Router::new()
+        .route("/api/auth/*path", any(kratos_proxy_handler))
+        .route("/api/auth", any(kratos_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
+        .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(cors)
         .with_state(state);
 

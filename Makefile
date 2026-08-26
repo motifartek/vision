@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help run\:dev dashboard gateway identity stream
+.PHONY: help run\:dev dashboard gateway identity stream infra\:up infra\:down infra\:logs
 
 .DEFAULT_GOAL := help
 
@@ -20,6 +20,30 @@ help:
 	@echo "  make run:dev '#gateway'          Start all services except gateway."
 	@echo "  make run:dev APP=dashboard       Start a specific service through a variable."
 	@echo "  make run:dev EXCLUDE=gateway     Start all services except gateway through a variable."
+	@echo ""
+	@echo "  make infra:up                    Start all Docker infrastructure services (Kratos, Keto, ...)."
+	@echo "  make infra:down                  Stop all Docker infrastructure services."
+	@echo "  make infra:logs                  Tail logs from all infrastructure services."
+
+# Docker altyapısı — platform/docker/compose.yaml üzerinden yönetilir.
+COMPOSE_FILE := platform/docker/compose.yaml
+
+infra\:up:
+	@echo "Starting infrastructure services..."
+	docker compose -f $(COMPOSE_FILE) up -d
+	@echo "Infrastructure is up. Services:"
+	@echo "  Kratos Public  → http://127.0.0.1:4433"
+	@echo "  Kratos Admin   → http://127.0.0.1:4434"
+	@echo "  Keto Read      → http://127.0.0.1:4466"
+	@echo "  Keto Write     → http://127.0.0.1:4467"
+	@echo "  MailSlurper    → http://127.0.0.1:4436"
+
+infra\:down:
+	@echo "Stopping infrastructure services..."
+	docker compose -f $(COMPOSE_FILE) down
+
+infra\:logs:
+	docker compose -f $(COMPOSE_FILE) logs -f
 
 # Start the development environment.
 #

@@ -62,6 +62,7 @@ temp/
 # Misc
 *.bak
 *.orig
+*.sqlite*
 
 # Benchmark videolari (bench generate ile yeniden uretilir)
 datasets/**/*.mp4

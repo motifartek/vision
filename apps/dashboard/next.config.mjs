@@ -5,7 +5,14 @@ const nextConfig = {
   // ilerideki her tip hatası sessizce üretime kadar giderdi.
   images: {
     unoptimized: true,
+    remotePatterns: [
+      {
+        protocol: "https",
+        hostname: "images.unsplash.com",
+      },
+    ],
   },
+  allowedDevOrigins: ["127.0.0.1"],
   experimental: {
     // Rewrite (proxy) uzerinden gecen istek govdesi varsayilan olarak 10MB'da
     // kesiliyor; video yuklemede govde yarida kalinca inference servisi
@@ -15,12 +22,21 @@ const nextConfig = {
     proxyTimeout: 30 * 60 * 1000,
   },
   async rewrites() {
-    return [
-      {
-        source: '/api/inference/:path*',
-        destination: 'http://127.0.0.1:8081/:path*',
-      },
-    ]
+    const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:8000/api/auth"
+    return {
+      beforeFiles: [
+        {
+          source: "/api/auth/:path*",
+          destination: `${gatewayUrl}/:path*`,
+        },
+      ],
+      fallback: [
+        {
+          source: '/api/inference/:path*',
+          destination: 'http://127.0.0.1:8081/:path*',
+        },
+      ]
+    }
   },
 }
 
