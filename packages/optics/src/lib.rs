@@ -21,7 +21,12 @@
 //! 4. [`sample`] — hareket ekseninde adaptif örnekleme
 //! 5. [`extract`] — seçilen karelerin tam kalitede çıkarılması
 //! 6. [`render`] — hareket eğrisinin SVG görselleştirmesi
+//! 7. [`clip`] — klip kesme, H.264 normalizasyonu, ağır çekim
+//!
+//! Çıkarım servisi kare kümesi kabul etmediği için boru hattının **teslim
+//! biçimi klip**; kare çıkarma yalnızca inceleme ve ölçüm içindir.
 
+pub mod clip;
 pub mod decode;
 pub mod extract;
 pub mod motion;
@@ -31,6 +36,10 @@ pub mod render;
 pub mod sample;
 pub mod types;
 
+pub use clip::{
+    extract_clip, fits_in_one_request, needs_normalization, normalize, scale_for_frames,
+    segment_plan, Clip, ClipOptions, SERVICE_MAX_FRAMES, SERVICE_SAMPLE_FPS,
+};
 pub use decode::{decode_gray, measure_spawn_overhead, GrayFrames};
 pub use extract::{extract_gray_at, extract_jpegs, CropBox, ExtractOptions, ExtractedFrame};
 pub use motion::{analyze_frames, build_profile, hamming_distance, MotionProfile, MotionSample};

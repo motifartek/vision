@@ -129,9 +129,34 @@ Kare seçip göndermek yerine:
 
 Yakınlaştırmada dikkat: servis **her zaman 2 fps** örneklüyor, dolayısıyla dar
 bir pencere göndermek zamansal çözünürlüğü artırmıyor (2 sn → 4 kare). Daha
-yüksek çözünürlük isteniyorsa pencere **ağır çekime alınmalı** (2 sn'lik aralık
-20 sn'ye yayılırsa servis 40 kare örnekler = orijinalde 20 fps). Bu henüz
-denenmedi.
+yüksek çözünürlük için pencere **ağır çekime alınıyor**.
+
+## Ağır çekim: denendi, çalışıyor — ama bir tuzağı var
+
+35 saniyelik kaydın 12.0–15.0 sn aralığı iki biçimde gönderildi:
+
+| | Süre | Modelin çıktısı |
+|---|---|---|
+| Gerçek zaman | 3 sn | 4 aşama, her biri tek satır |
+| **8× ağır çekim** | 23.7 sn | 4 aşama, **her biri ayrıntılı** |
+
+Ağır çekimde model forkliftin geri kaçışını, tek tek düşen metal parçaları ve
+toz yoğunluğunun değişimini ayırt etti. Gerçek zamanlı klipte bunların hiçbiri
+yoktu. Yöntem işe yarıyor.
+
+**Tuzak:** model klibin **kendi saatini** raporluyor. Kaynakta 12–15 sn olan
+olayı `00:20 – 00:22` diye verdi ve "yaklaşık 22 saniye içinde gerçekleşiyor"
+dedi.
+
+Prompt'ta dönüşüm formülü açıkça verildi (*"kaynak_saniye = 12.0 + klip/8"*) —
+**düzelmedi**. Model bu aritmetiği güvenilir yapmıyor.
+
+Bu yüzden dönüşüm modele bırakılmıyor: `ClipRef` `t0_ms` ve `time_scale`
+taşıyor, `to_source_ms()` ve `rebase_events()` çeviriyi kodda yapıyor.
+
+İkinci gözlem: ağır çekimde model "forklift devrildi" dedi, oysa devrilen raf.
+**Detay artarken uydurma riski de artıyor.** Ağır çekim her yere değil, ajanın
+özellikle istediği dar pencerelere uygulanmalı.
 
 ## Ekibin bilmesi gerekenler
 

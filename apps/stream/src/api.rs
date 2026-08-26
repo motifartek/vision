@@ -466,6 +466,7 @@ pub async fn dispatch(
         names::ZOOM_RANGE => encode(tools::zoom_range(state, decode(payload)?).await?),
         names::GET_FRAME => encode(tools::get_frame(state, decode(payload)?).await?),
         names::CROP_REGION => encode(tools::crop_region(state, decode(payload)?).await?),
+        names::CLIP_RANGE => encode(tools::clip_range(state, decode(payload)?).await?),
         other => Err(ToolError {
             code: ToolErrorCode::InvalidArgument,
             message: format!(
