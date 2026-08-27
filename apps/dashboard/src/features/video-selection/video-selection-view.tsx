@@ -1,56 +1,71 @@
 "use client"
 
+import { useCallback, useEffect, useState, useMemo } from "react"
 import Link from "next/link"
-import { useEffect, useState } from "react"
-import { Clock3, Film, Grid2X2, HardDrive, List, Search, Trash2, X } from "lucide-react"
-import { AppShell } from "@/components/app-shell/app-shell"
-import { Badge } from "@/components/ui/badge"
+import { Search, Grid2X2, List, Film, Clock3, HardDrive, Trash2, ArrowUpDown } from "lucide-react"
+
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
-import { formatTime } from "@/features/video-detail/time"
+import { Badge } from "@/components/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
+import {
+  MinimalCard,
+  MinimalCardImage,
+  MinimalCardTitle,
+  MinimalCardDescription,
+} from "@/components/ui/mini-card-cult"
 import { VideoUploadDialog } from "./video-upload-dialog"
 
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
-const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
+import {
+  flexRender,
+  getCoreRowModel,
+  getSortedRowModel,
+  useReactTable,
+} from "@tanstack/react-table"
 
-type VideoEntry = {
+export type VideoRecord = {
   id: string
   filename: string
   size: number
-  /** Kapsayıcı başlığından okundu; okunamadıysa null. */
   duration_sec: number | null
 }
 
-function formatSize(bytes: number) {
-  if (bytes < 1024) return `${bytes} B`
-  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`
-  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  return `${(bytes / (1024 * 1024 * 1024)).toFixed(2)} GB`
-}
-
-/** Dosya adından güzel bir başlık üret: tire/alt çizgi → boşluk, baş harf büyük. */
-function prettifyName(id: string) {
-  return id
-    .replace(/[-_]+/g, " ")
-    .replace(/\b\w/g, (c) => c.toLocaleUpperCase("tr"))
-}
+const INFERENCE = process.env.NEXT_PUBLIC_INFERENCE_API ?? "/api/inference"
+const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 const CARD_COLORS = [
-  "bg-primary/20",
-  "bg-success/15",
-  "bg-media/15",
-  "bg-muted",
-  "bg-primary/10",
-  "bg-success/10",
+  "bg-blue-500/10 text-blue-500 border-blue-500/20",
+  "bg-purple-500/10 text-purple-500 border-purple-500/20",
+  "bg-orange-500/10 text-orange-500 border-orange-500/20",
+  "bg-green-500/10 text-green-500 border-green-500/20",
+  "bg-pink-500/10 text-pink-500 border-pink-500/20",
+  "bg-yellow-500/10 text-yellow-500 border-yellow-500/20",
 ]
 
-/**
- * İki adımlı silme: ilk tıklama sorar, ikincisi siler.
- *
- * Modal kurmaya değmez ama tek tıklamayla kalıcı silme de olmaz — dosya diskten
- * gidiyor, geri alınamıyor.
- */
+function formatSize(bytes: number) {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatTime(seconds: number) {
+  const m = Math.floor(seconds / 60)
+  const s = Math.floor(seconds % 60)
+  return `${m}:${s.toString().padStart(2, "0")}`
+}
+
+function prettifyName(id: string) {
+  const parts = id.split("-")
+  if (parts.length > 2) return `${parts[0]}-${parts[1]}`
+  return id
+}
+
 function DeleteControl({
   video,
   armed,
@@ -59,208 +74,229 @@ function DeleteControl({
   onCancel,
   onConfirm,
 }: {
-  video: VideoEntry
+  video: VideoRecord
   armed: boolean
   busy: boolean
   onArm: () => void
   onCancel: () => void
   onConfirm: () => void
 }) {
-  if (busy) return <span className="text-[11px] text-muted-foreground">siliniyor…</span>
+  if (busy) {
+    return (
+      <Button variant="ghost" size="icon" disabled className="size-7">
+        <div className="size-3 animate-spin rounded-full border-2 border-primary border-t-transparent" />
+      </Button>
+    )
+  }
 
   if (armed) {
     return (
-      <span className="flex items-center gap-1">
-        <Button size="xs" variant="destructive" onClick={onConfirm}>
-          Sil
+      <div className="flex items-center gap-1">
+        <Button variant="destructive" size="sm" className="h-7 px-2 text-[10px]" onClick={onConfirm}>
+          Emin misin?
         </Button>
-        <Button size="icon-xs" variant="ghost" onClick={onCancel} aria-label="Vazgeç">
-          <X />
+        <Button variant="ghost" size="sm" className="h-7 px-2 text-[10px]" onClick={onCancel}>
+          İptal
         </Button>
-      </span>
+      </div>
     )
   }
 
   return (
     <Button
-      size="icon-xs"
       variant="ghost"
+      size="icon"
+      className="size-7 text-muted-foreground hover:text-destructive"
       onClick={onArm}
-      aria-label={`${video.filename} dosyasını sil`}
-      title="Videoyu diskten sil"
+      aria-label="Sil"
     >
-      <Trash2 />
+      <Trash2 className="size-3" />
     </Button>
   )
 }
 
 export function VideoSelectionView() {
-  const [query, setQuery] = useState("")
-  const [videos, setVideos] = useState<VideoEntry[]>([])
+  const [videos, setVideos] = useState<VideoRecord[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [uploadOpen, setUploadOpen] = useState(false)
+  const [query, setQuery] = useState("")
   const [view, setView] = useState<"grid" | "list">("grid")
-  /** Silme iki adımlı: ilk tıklama sorar, ikincisi siler. Modal kurmaya değmez. */
+  const [uploadOpen, setUploadOpen] = useState(false)
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
-  /**
-   * Listeyi görüntü servisinden kurar.
-   *
-   * Kaynak `stream`, çünkü görsel analiz ürünün kendisi ve videoların
-   * yüklendiği yer orası. Ses servisi ayrıca sorgulanıyor ama **isteğe bağlı**:
-   * ayakta değilken liste boş kalıyordu ve panelden video eklemek de,
-   * eklenmiş videoyu görmek de imkânsız hâle geliyordu.
-   */
-  const loadVideos = () => {
+  const loadVideos = useCallback(async () => {
     setLoading(true)
-
-    const stream = fetch(`${STREAM}/v1/videos`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json() as Promise<{
-          videos: { id: string; original_name: string; info: { size_bytes: number; duration_ms: number } }[]
-        }>
-      })
-      .then(({ videos }) =>
-        videos.map<VideoEntry>((v) => ({
-          id: v.id,
-          filename: v.original_name,
-          size: v.info.size_bytes,
-          duration_sec: v.info.duration_ms ? v.info.duration_ms / 1000 : null,
-        })),
-      )
-
-    stream
-      .then((data) => {
-        setVideos(data)
-        setError(null)
-      })
-      .catch((err: Error) => {
-        setError(err.message)
-        setVideos([])
-      })
-      .finally(() => setLoading(false))
-  }
+    setError(null)
+    try {
+      const r = await fetch(`${STREAM}/v1/videos`)
+      if (!r.ok) throw new Error(`${r.status}`)
+      const data = await r.json()
+      // Sort newest first normally
+      setVideos((data.videos || []).reverse())
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Bilinmeyen hata")
+    } finally {
+      setLoading(false)
+    }
+  }, [])
 
   useEffect(() => {
     loadVideos()
-  }, [])
+  }, [loadVideos])
+
+  const filtered = useMemo(() => {
+    if (!query.trim()) return videos
+    const lower = query.toLowerCase()
+    return videos.filter(
+      (v) => v.id.toLowerCase().includes(lower) || v.filename.toLowerCase().includes(lower),
+    )
+  }, [videos, query])
 
   const removeVideo = async (id: string) => {
     setBusyId(id)
     try {
-      const r = await fetch(`${STREAM}/v1/videos/${encodeURIComponent(id)}`, { method: "DELETE" })
-      if (!r.ok && r.status !== 404) throw new Error(`HTTP ${r.status}`)
-
-      // Ses tarafındaki kopya kendi kimliğiyle duruyor ve ad üzerinden
-      // eşleşiyor; servis kapalıysa silme başarısız sayılmıyor.
-      const ad = videos.find((v) => v.id === id)?.filename
-      if (ad) {
-        await fetch(`${API}/v1/videos/${encodeURIComponent(ad)}`, { method: "DELETE" }).catch(
-          () => undefined,
-        )
-      }
-
-      setVideos((list) => list.filter((v) => v.id !== id))
+      const r = await fetch(`${STREAM}/v1/videos/${id}`, { method: "DELETE" })
+      if (!r.ok) throw new Error("Silinemedi")
+      setVideos((prev) => prev.filter((v) => v.id !== id))
+      setConfirmId(null)
     } catch (err) {
-      setError(err instanceof Error ? err.message : "silinemedi")
+      alert("Hata: " + (err instanceof Error ? err.message : String(err)))
     } finally {
       setBusyId(null)
-      setConfirmId(null)
     }
   }
 
-  // Upload dialog kapandığında listeyi yenile
-  const handleUploadClose = () => {
+  const handleUploadClose = (success?: boolean) => {
     setUploadOpen(false)
-    loadVideos()
+    if (success) loadVideos()
   }
 
-  const filtered = videos.filter((v) =>
-    prettifyName(v.id).toLocaleLowerCase("tr").includes(query.toLocaleLowerCase("tr")) ||
-    v.filename.toLocaleLowerCase("tr").includes(query.toLocaleLowerCase("tr"))
+  const columns = useMemo(
+    () => [
+      {
+        accessorKey: "filename",
+        header: "Dosya Adı",
+        cell: ({ row }: any) => {
+          const video = row.original
+          return (
+            <Link href={`/videos/${encodeURIComponent(video.id)}`} className="flex items-center gap-3">
+              <span className="flex size-8 shrink-0 items-center justify-center rounded-md border bg-muted">
+                <Film className="size-4" />
+              </span>
+              <div className="flex flex-col">
+                <span className="truncate text-sm font-medium">{prettifyName(video.id)}</span>
+                <span className="truncate text-xs text-muted-foreground">{video.filename}</span>
+              </div>
+            </Link>
+          )
+        },
+      },
+      {
+        accessorKey: "duration_sec",
+        header: "Süre",
+        cell: ({ row }: any) => {
+          const s = row.original.duration_sec
+          return (
+            <div className="flex items-center gap-1 text-sm text-muted-foreground tabular-nums">
+              <Clock3 className="size-3" />
+              {s === null ? "—" : formatTime(s)}
+            </div>
+          )
+        },
+      },
+      {
+        accessorKey: "size",
+        header: "Boyut",
+        cell: ({ row }: any) => (
+          <div className="text-sm text-muted-foreground tabular-nums">{formatSize(row.original.size)}</div>
+        ),
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }: any) => {
+          const video = row.original
+          return (
+            <div className="flex justify-end">
+              <DeleteControl
+                video={video}
+                armed={confirmId === video.id}
+                busy={busyId === video.id}
+                onArm={() => setConfirmId(video.id)}
+                onCancel={() => setConfirmId(null)}
+                onConfirm={() => removeVideo(video.id)}
+              />
+            </div>
+          )
+        },
+      },
+    ],
+    [confirmId, busyId, removeVideo]
   )
 
+  const table = useReactTable({
+    data: filtered,
+    columns,
+    getCoreRowModel: getCoreRowModel(),
+    getSortedRowModel: getSortedRowModel(),
+  })
+
   return (
-    <AppShell>
-      <div className="mx-auto flex max-w-7xl flex-col gap-6">
-        <div className="flex flex-col justify-between gap-4 md:flex-row md:items-end">
-          <div>
-            <h2 className="text-balance text-2xl font-semibold">Video kütüphanesi</h2>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {loading
-                ? "Yükleniyor…"
-                : error
-                  ? "Inference servisi bağlantısı kurulamadı"
-                  : `${videos.length} video`}
-            </p>
-          </div>
-          <Button onClick={() => setUploadOpen(true)}>
-            <Film data-icon="inline-start" /> Video yükle
+    <div className="flex flex-col h-full overflow-hidden p-6 gap-6">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Klipler</h1>
+          <p className="text-muted-foreground mt-1">Yüklenen tüm video klipleri buradan yönetin.</p>
+        </div>
+        <Button onClick={() => setUploadOpen(true)}>
+          <Film className="mr-2 size-4" /> Video yükle
+        </Button>
+      </div>
+
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-3 rounded-xl border bg-card p-3">
+        <div className="relative w-full sm:w-64 transition-all duration-300 focus-within:sm:w-96">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            className="pl-9 w-full bg-background"
+            placeholder="Video ara..."
+          />
+        </div>
+        
+        <div className="flex gap-2">
+          <Button
+            variant={view === "grid" ? "secondary" : "ghost"}
+            size="icon"
+            onClick={() => setView("grid")}
+          >
+            <Grid2X2 className="size-4" />
+          </Button>
+          <Button
+            variant={view === "list" ? "secondary" : "ghost"}
+            size="icon"
+            onClick={() => setView("list")}
+          >
+            <List className="size-4" />
           </Button>
         </div>
+      </div>
 
-        <div className="flex flex-col justify-between gap-3 rounded-xl border bg-card p-3 sm:flex-row">
-          <div className="relative flex-1 sm:max-w-sm">
-            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className="pl-9"
-              placeholder="Video ara..."
-            />
-          </div>
-          {/* "Filtrele" düğmesi buradaydı ve hiçbir şey yapmıyordu; süzme işini
-              zaten soldaki arama kutusu görüyor. Görünüm düğmeleri artık gerçekten
-              görünümü değiştiriyor. */}
-          <div className="flex gap-2">
-            <Button
-              variant={view === "grid" ? "secondary" : "ghost"}
-              size="icon"
-              aria-label="Izgara görünümü"
-              aria-pressed={view === "grid"}
-              onClick={() => setView("grid")}
-            >
-              <Grid2X2 />
-            </Button>
-            <Button
-              variant={view === "list" ? "secondary" : "ghost"}
-              size="icon"
-              aria-label="Liste görünümü"
-              aria-pressed={view === "list"}
-              onClick={() => setView("list")}
-            >
-              <List />
-            </Button>
-          </div>
-        </div>
-
+      <div className="flex-1 overflow-auto">
         {loading ? (
-          /* İskelet */
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
             {Array.from({ length: 6 }).map((_, i) => (
-              <Card key={i} className="animate-pulse">
-                <CardContent className="pt-0">
-                  <div className="flex aspect-video items-center justify-center rounded-lg border bg-muted" />
-                </CardContent>
-                <CardHeader>
-                  <div className="h-5 w-3/4 rounded bg-muted" />
-                </CardHeader>
-                <CardFooter>
-                  <div className="h-3 w-1/2 rounded bg-muted" />
-                </CardFooter>
-              </Card>
+              <MinimalCard key={i} className="animate-pulse h-48">
+                <div className="h-full w-full bg-muted rounded-xl" />
+              </MinimalCard>
             ))}
           </div>
         ) : error ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border bg-card p-12 text-center">
             <HardDrive className="size-10 text-muted-foreground" />
-            <p className="text-sm font-medium">Inference servisi bağlantısı kurulamadı</p>
-            <p className="text-xs text-muted-foreground">
-              Servisin çalıştığından emin olun. Hata: {error}
-            </p>
+            <p className="text-sm font-medium">Bağlantı kurulamadı</p>
+            <p className="text-xs text-muted-foreground">Hata: {error}</p>
             <Button variant="outline" size="sm" onClick={loadVideos}>
               Tekrar dene
             </Button>
@@ -268,50 +304,38 @@ export function VideoSelectionView() {
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center gap-3 rounded-xl border bg-card p-12 text-center">
             <Film className="size-10 text-muted-foreground" />
-            <p className="text-sm font-medium">
-              {videos.length === 0 ? "Henüz video yüklenmemiş" : "Aramanızla eşleşen video yok"}
-            </p>
-            <p className="text-xs text-muted-foreground">
-              {videos.length === 0
-                ? "Başlamak için yukarıdaki \"Video yükle\" butonunu kullanın."
-                : "Farklı bir arama terimi deneyin."}
-            </p>
-            {videos.length === 0 && (
-              <Button size="sm" onClick={() => setUploadOpen(true)}>
-                <Film data-icon="inline-start" /> Video yükle
-              </Button>
-            )}
+            <p className="text-sm font-medium">Bulunamadı</p>
+            <p className="text-xs text-muted-foreground">Eşleşen video yok veya henüz yüklenmedi.</p>
           </div>
-        ) : (
-          <div className={view === "grid" ? "grid gap-4 sm:grid-cols-2 xl:grid-cols-3" : "flex flex-col gap-2"}>
-            {filtered.map((video, i) =>
-              view === "grid" ? (
-                <Card key={video.id} className="group transition-colors hover:bg-accent/30">
-                  <CardContent className="pt-0">
-                    <Link
-                      href={`/videos/${encodeURIComponent(video.id)}`}
-                      className={`panel-grid flex aspect-video items-center justify-center rounded-lg border ${CARD_COLORS[i % CARD_COLORS.length]}`}
-                    >
-                      <div className="flex size-14 items-center justify-center rounded-full border bg-background/80 transition-transform group-hover:scale-105">
-                        <Film className="size-6" />
+        ) : view === "grid" ? (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {filtered.map((video, i) => (
+              <Link href={`/videos/${encodeURIComponent(video.id)}`} key={video.id}>
+                <MinimalCard className="h-full flex flex-col justify-between p-4 group cursor-pointer hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className={`flex size-10 shrink-0 items-center justify-center rounded-xl border ${CARD_COLORS[i % CARD_COLORS.length]}`}>
+                        <Film className="size-5" />
                       </div>
-                    </Link>
-                  </CardContent>
-                  <CardHeader>
-                    <div className="flex items-center justify-between gap-3">
-                      <CardTitle className="truncate">{prettifyName(video.id)}</CardTitle>
-                      <Badge variant="outline">{formatSize(video.size)}</Badge>
+                      <div className="flex flex-col overflow-hidden">
+                        <MinimalCardTitle className="truncate text-sm font-bold">
+                          {prettifyName(video.id)}
+                        </MinimalCardTitle>
+                        <MinimalCardDescription className="truncate text-xs">
+                          {video.filename}
+                        </MinimalCardDescription>
+                      </div>
                     </div>
-                  </CardHeader>
-                  {/* Saat ikonunun yanında eskiden yine boyut yazıyordu; süre
-                      artık gerçekten süre (servis kapsayıcı başlığından okuyor). */}
-                  <CardFooter className="justify-between gap-2 text-xs text-muted-foreground">
-                    <span className="truncate">{video.filename}</span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <span className="flex items-center gap-1 tabular-nums">
-                        <Clock3 className="size-3" />
-                        {video.duration_sec === null ? "—" : formatTime(video.duration_sec)}
-                      </span>
+                    <Badge variant="secondary" className="text-[10px] tabular-nums shrink-0">
+                      {formatSize(video.size)}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between mt-auto pt-4 border-t border-border/50">
+                    <span className="flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
+                      <Clock3 className="size-3" />
+                      {video.duration_sec === null ? "—" : formatTime(video.duration_sec)}
+                    </span>
+                    <div onClick={(e) => e.preventDefault()}>
                       <DeleteControl
                         video={video}
                         armed={confirmId === video.id}
@@ -320,46 +344,65 @@ export function VideoSelectionView() {
                         onCancel={() => setConfirmId(null)}
                         onConfirm={() => removeVideo(video.id)}
                       />
-                    </span>
-                  </CardFooter>
-                </Card>
-              ) : (
-                <div
-                  key={video.id}
-                  className="flex items-center gap-3 rounded-lg border bg-card px-3 py-2 transition-colors hover:bg-accent/30"
-                >
-                  <Link href={`/videos/${encodeURIComponent(video.id)}`} className="flex min-w-0 flex-1 items-center gap-3">
-                    <span className={`flex size-9 shrink-0 items-center justify-center rounded-md border ${CARD_COLORS[i % CARD_COLORS.length]}`}>
-                      <Film className="size-4" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium">{prettifyName(video.id)}</span>
-                      <span className="block truncate text-[11px] text-muted-foreground">{video.filename}</span>
-                    </span>
-                  </Link>
-                  <span className="flex shrink-0 items-center gap-3 text-xs text-muted-foreground">
-                    <span className="flex items-center gap-1 tabular-nums">
-                      <Clock3 className="size-3" />
-                      {video.duration_sec === null ? "—" : formatTime(video.duration_sec)}
-                    </span>
-                    <span className="tabular-nums">{formatSize(video.size)}</span>
-                    <DeleteControl
-                      video={video}
-                      armed={confirmId === video.id}
-                      busy={busyId === video.id}
-                      onArm={() => setConfirmId(video.id)}
-                      onCancel={() => setConfirmId(null)}
-                      onConfirm={() => removeVideo(video.id)}
-                    />
-                  </span>
-                </div>
-              ),
-            )}
+                    </div>
+                  </div>
+                </MinimalCard>
+              </Link>
+            ))}
+          </div>
+        ) : (
+          <div className="rounded-md border bg-card">
+            <Table>
+              <TableHeader>
+                {table.getHeaderGroups().map((headerGroup) => (
+                  <TableRow key={headerGroup.id}>
+                    {headerGroup.headers.map((header) => (
+                      <TableHead key={header.id}>
+                        {header.isPlaceholder
+                          ? null
+                          : flexRender(
+                              header.column.columnDef.header,
+                              header.getContext()
+                            )}
+                      </TableHead>
+                    ))}
+                  </TableRow>
+                ))}
+              </TableHeader>
+              <TableBody>
+                {table.getRowModel().rows?.length ? (
+                  table.getRowModel().rows.map((row) => (
+                    <TableRow
+                      key={row.id}
+                      data-state={row.getIsSelected() && "selected"}
+                    >
+                      {row.getVisibleCells().map((cell) => (
+                        <TableCell key={cell.id}>
+                          {flexRender(
+                            cell.column.columnDef.cell,
+                            cell.getContext()
+                          )}
+                        </TableCell>
+                      ))}
+                    </TableRow>
+                  ))
+                ) : (
+                  <TableRow>
+                    <TableCell
+                      colSpan={columns.length}
+                      className="h-24 text-center"
+                    >
+                      Sonuç yok.
+                    </TableCell>
+                  </TableRow>
+                )}
+              </TableBody>
+            </Table>
           </div>
         )}
       </div>
 
       <VideoUploadDialog open={uploadOpen} onClose={handleUploadClose} />
-    </AppShell>
+    </div>
   )
 }

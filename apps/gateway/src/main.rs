@@ -12,6 +12,7 @@ use axum::{
     http::{header, HeaderValue, Method},
     routing::{get, any},
     Router,
+    response::sse::{Event, Sse},
 };
 use axum_prometheus::PrometheusMetricLayer;
 use error::GatewayError;
@@ -21,6 +22,10 @@ use reqwest::Client;
 use std::time::Duration;
 use tonic::transport::Channel;
 use tower_http::cors::CorsLayer;
+use std::convert::Infallible;
+use tokio_stream::Stream;
+use sqlx::Row;
+use serde_json::json;
 
 #[derive(Clone)]
 pub struct AppState {
@@ -31,6 +36,7 @@ pub struct AppState {
     pub stream_url: String,
     /// Ayrı istemci: video gövdeleri büyük, zaman aşımı Kratos'unkinden uzun.
     pub stream_client: Client,
+    pub db_pool: sqlx::PgPool,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -64,6 +70,78 @@ async fn stream_video(
     Err(GatewayError::NotImplemented(
         "Video akışı henüz gateway üzerinden servis edilmiyor.",
     ))
+}
+
+async fn get_video_events(
+    State(state): State<AppState>,
+    Path(video_id): Path<String>,
+) -> Sse<impl Stream<Item = Result<Event, Infallible>>> {
+    tracing::info!("SSE stream baslatiliyor: {}", video_id);
+    
+    let mut listener = sqlx::postgres::PgListener::connect_with(&state.db_pool).await.unwrap();
+    listener.listen("ai_events").await.unwrap();
+    listener.listen("ai_trace").await.unwrap();
+
+    // Veritabanindaki mevcut son durumu cek
+    let initial_row = sqlx::query("SELECT summary, events, risk, actions FROM ai_events WHERE video_id = $1")
+        .bind(&video_id)
+        .fetch_optional(&state.db_pool)
+        .await
+        .unwrap_or(None);
+
+    let stream = async_stream::stream! {
+        // Istemci baglanir baglanmaz eger onceden analiz varsa hemen gonder
+        if let Some(row) = initial_row {
+            let data = json!({
+                "summary": row.try_get::<String, _>("summary").unwrap_or_default(),
+                "events": row.try_get::<serde_json::Value, _>("events").unwrap_or_default(),
+                "risk": row.try_get::<String, _>("risk").unwrap_or_default(),
+                "actions": row.try_get::<serde_json::Value, _>("actions").unwrap_or_default(),
+            });
+            yield Ok(Event::default().event("report").data(data.to_string()));
+        }
+
+        loop {
+            match listener.recv().await {
+                Ok(notification) => {
+                    let payload = notification.payload();
+                    
+                    if notification.channel() == "ai_trace" {
+                        // Gelen trace payload: {"video_id": "...", "message": "..."}
+                        if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(payload) {
+                            if trace_data["video_id"].as_str() == Some(video_id.as_str()) {
+                                yield Ok(Event::default().event("trace").data(payload));
+                            }
+                        }
+                    } else if notification.channel() == "ai_events" {
+                        // Gelen events payload aslinda sadece video_id string'i
+                        if payload == video_id {
+                            // Postgres'ten guncel datayi cekip firlat
+                            if let Ok(Some(row)) = sqlx::query("SELECT summary, events, risk, actions FROM ai_events WHERE video_id = $1")
+                                .bind(&video_id)
+                                .fetch_optional(&state.db_pool)
+                                .await
+                            {
+                                let data = json!({
+                                    "summary": row.try_get::<String, _>("summary").unwrap_or_default(),
+                                    "events": row.try_get::<serde_json::Value, _>("events").unwrap_or_default(),
+                                    "risk": row.try_get::<String, _>("risk").unwrap_or_default(),
+                                    "actions": row.try_get::<serde_json::Value, _>("actions").unwrap_or_default(),
+                                });
+                                yield Ok(Event::default().event("report").data(data.to_string()));
+                            }
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::error!("PgListener hatasi: {}", e);
+                    break;
+                }
+            }
+        }
+    };
+
+    Sse::new(stream).keep_alive(axum::response::sse::KeepAlive::new())
 }
 
 #[tokio::main]
@@ -117,6 +195,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client: keto_client,
     };
 
+    let db_url = env_or("DATABASE_URL", "postgres://root:root@127.0.0.1:5432/motif");
+    tracing::info!("Veritabanina (Postgres) baglaniliyor...");
+    let db_pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(5)
+        .connect(&db_url)
+        .await?;
+    tracing::info!("Veritabani baglantisi basarili.");
+
     let state = AppState {
         auth: auth_state,
         authz: authz_state,
@@ -126,23 +212,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         stream_client: Client::builder()
             .timeout(Duration::from_secs(1800))
             .build()?,
+        db_pool,
     };
 
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
 
     let cors = CorsLayer::new()
-        .allow_origin([
-            HeaderValue::from_static("http://localhost:3000"),
-            HeaderValue::from_static("http://127.0.0.1:3000"),
-        ])
+        .allow_origin(tower_http::cors::Any)
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE, Method::OPTIONS])
-        .allow_headers([
-            header::AUTHORIZATION,
-            header::CONTENT_TYPE,
-            header::COOKIE,
-            header::ACCEPT,
-        ])
-        .allow_credentials(true);
+        .allow_headers(tower_http::cors::Any)
+        .allow_credentials(false);
 
     let app = Router::new()
         .route("/metrics", get(|| async move { metric_handle.render() }))
@@ -152,6 +231,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/stream", any(stream_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
+        .route("/api/videos/:video_id/events", get(get_video_events))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(prometheus_layer)
         .layer(cors)

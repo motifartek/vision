@@ -16,7 +16,7 @@ include:
   - path: ../../apps/ai/sonic/compose.yaml
   - path: ../../platform/observability/compose.yaml
   - path: ../../platform/messaging/compose.yaml
-  - path: ../../platform/storage/compose.yaml
+#  - path: ../../platform/storage/compose.yaml
 #  - path: ../../apps/notification/compose.yaml
   - path: ../../platform/database/compose.yaml
   - path: ../../apps/ai/orchestrator/compose.yaml

@@ -1,12 +1,18 @@
-# ---- Stage 1: Builder ----
-FROM rust:slim-bookworm AS builder
+FROM ubuntu:24.04 AS builder
 
 RUN apt-get update && \
     apt-get install -y \
+        curl \
         pkg-config \
         libssl-dev \
+        build-essential \
+        clang \
+        lld \
         && \
     rm -rf /var/lib/apt/lists/*
+
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
 
 WORKDIR /app
 
@@ -19,7 +25,7 @@ COPY tools tools
 RUN cargo build --release -p sonic
 
 # ---- Stage 2: Runtime ----
-FROM debian:bookworm-slim
+FROM ubuntu:24.04
 
 RUN apt-get update && \
     apt-get install -y \

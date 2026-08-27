@@ -1,29 +1,27 @@
 pub mod qdrant;
-pub mod surreal;
+pub mod postgres;
 
 use std::sync::Arc;
 
 #[derive(Clone)]
 pub struct DatabaseClients {
-    pub surreal: Arc<surrealdb::Surreal<surrealdb::engine::remote::ws::Client>>,
+    pub postgres: postgres::PostgresDb,
     pub qdrant: Arc<qdrant_client::Qdrant>,
 }
 
 impl DatabaseClients {
     /// Her iki veritabanina baglanir ve istemcileri dondurur.
     pub async fn connect(
-        surreal_url: &str,
-        surreal_ns: &str,
-        surreal_db: &str,
+        postgres_url: &str,
         qdrant_url: &str,
         qdrant_api_key: Option<&str>,
     ) -> Result<Self, Box<dyn std::error::Error>> {
-        let surreal = surreal::connect(surreal_url, surreal_ns, surreal_db).await?;
-        let qdrant = qdrant::connect(qdrant_url, qdrant_api_key).await?;
+        let pg = postgres::PostgresDb::connect(postgres_url).await?;
+        let qd = qdrant::connect(qdrant_url, qdrant_api_key).await?;
 
         Ok(Self {
-            surreal: Arc::new(surreal),
-            qdrant: Arc::new(qdrant),
+            postgres: pg,
+            qdrant: Arc::new(qd),
         })
     }
 }

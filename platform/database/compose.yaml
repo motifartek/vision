@@ -1,12 +1,16 @@
 services:
-  surrealdb:
-    image: surrealdb/surrealdb:latest
+  postgres:
+    image: postgres:15-alpine
     restart: unless-stopped
-    command: start --log trace --user root --pass root file://data/surreal.db
+    environment:
+      POSTGRES_USER: root
+      POSTGRES_PASSWORD: root
+      POSTGRES_DB: motif
     ports:
-      - "8020:8000" # Gateway port 8000 kullandigi icin host tarafinda 8020 ile esliyoruz
+      - "5432:5432"
     volumes:
-      - surreal-data:/data
+      - postgres-data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
     networks:
       - default
 
@@ -22,5 +26,5 @@ services:
       - default
 
 volumes:
-  surreal-data:
+  postgres-data:
   qdrant-data:
