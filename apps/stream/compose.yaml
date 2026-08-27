@@ -7,11 +7,16 @@ services:
       - "8100:8100"
     environment:
       - STREAM_BIND=0.0.0.0:8100
+      - STREAM_STORAGE_ROOT=/data/stream
+      # NATS bağlı değilse olay yayını sessizce kapanır, servis yine çalışır.
+      - NATS_URL=nats://nats:4222
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_SERVICE_NAME=stream
     volumes:
       # Yüklenen videolar ve üretilen klipler konteyner ömrünü aşmalı.
-      - stream-data:/var/lib/motif-stream
+      - stream-data:/data/stream
+    depends_on:
+      - nats
     restart: unless-stopped
     networks:
       - default

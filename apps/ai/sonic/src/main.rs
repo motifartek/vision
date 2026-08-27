@@ -3,9 +3,9 @@ use std::sync::Arc;
 use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
 
-use inference::api::{self, AppState};
-use inference::config::{Config, PROFILES};
-use inference::model;
+use sonic::api::{self, AppState};
+use sonic::config::{Config, PROFILES};
+use sonic::model;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -50,7 +50,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if cfg.media_root.is_none() {
         tracing::warn!(
-            "INFERENCE_MEDIA_ROOT ayarlı değil; analyze uç noktası yerel dosya \
+            "SONIC_MEDIA_ROOT ayarlı değil; analyze uç noktası yerel dosya \
              sistemindeki herhangi bir yolu okuyabilir"
         );
     }

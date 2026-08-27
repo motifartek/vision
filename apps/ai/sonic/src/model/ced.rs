@@ -143,8 +143,8 @@ pub fn load(cfg: &Config) -> Result<LoadedModel, InferenceError> {
             // DirectML varsayılan olarak **0 numaralı** adaptörü seçiyor. Çift
             // GPU'lu laptoplarda bu çoğu zaman tümleşik Intel kartı oluyor ve
             // ayrık kart boşta beklerken kazanç hayal kırıklığı yaratıyor.
-            // `INFERENCE_DML_DEVICE=1` ile doğru adaptöre geçilebilsin.
-            let dml = match std::env::var("INFERENCE_DML_DEVICE")
+            // `SONIC_DML_DEVICE=1` ile doğru adaptöre geçilebilsin.
+            let dml = match std::env::var("SONIC_DML_DEVICE")
                 .ok()
                 .and_then(|v| v.parse::<i32>().ok())
             {
@@ -153,7 +153,7 @@ pub fn load(cfg: &Config) -> Result<LoadedModel, InferenceError> {
                     ort::ep::DirectML::default().with_device_id(id)
                 }
                 None => {
-                    tracing::info!("DirectML varsayılan adaptör (0); değiştirmek için INFERENCE_DML_DEVICE");
+                    tracing::info!("DirectML varsayılan adaptör (0); değiştirmek için SONIC_DML_DEVICE");
                     ort::ep::DirectML::default()
                 }
             };

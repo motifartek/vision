@@ -111,7 +111,7 @@ pub async fn list_videos(
 ) -> Result<Json<Vec<VideoEntry>>, InferenceError> {
     let root = state.media_root.as_ref().ok_or_else(|| {
         InferenceError::Config(
-            "INFERENCE_MEDIA_ROOT ayarli degil; video listesi kullanilamaz".into(),
+            "SONIC_MEDIA_ROOT ayarli degil; video listesi kullanilamaz".into(),
         )
     })?;
 
@@ -150,7 +150,7 @@ pub async fn get_video(
 ) -> Result<Json<VideoEntry>, InferenceError> {
     let root = state.media_root.as_ref().ok_or_else(|| {
         InferenceError::Config(
-            "INFERENCE_MEDIA_ROOT ayarli degil; video listesi kullanilamaz".into(),
+            "SONIC_MEDIA_ROOT ayarli degil; video listesi kullanilamaz".into(),
         )
     })?;
 
@@ -174,7 +174,7 @@ pub async fn delete_video(
     axum::extract::Path(id): axum::extract::Path<String>,
 ) -> Result<StatusCode, InferenceError> {
     let root = state.media_root.as_ref().ok_or_else(|| {
-        InferenceError::Config("INFERENCE_MEDIA_ROOT ayarli degil; silme kullanilamaz".into())
+        InferenceError::Config("SONIC_MEDIA_ROOT ayarli degil; silme kullanilamaz".into())
     })?;
 
     let path = find_by_id(root, &id).ok_or_else(|| InferenceError::MediaNotFound(id.clone()))?;
@@ -189,7 +189,7 @@ pub async fn delete_video(
 /// `limit` 0 ise sınırsız — yükleme belleğe alınmadan akıtıldığı için 10 GB'lık
 /// bir dosya da sorun değil ve "boyut sınırı yoktur" belgelenmiş bir davranış.
 /// Yine de diski dolduran bir isteğin servisi kilitlemesini istemeyen kurulumlar
-/// `INFERENCE_MAX_UPLOAD_BYTES` ile tavan koyabilsin.
+/// `SONIC_MAX_UPLOAD_BYTES` ile tavan koyabilsin.
 async fn stream_to_file(
     mut field: Field<'_>,
     dest: &Path,
@@ -221,7 +221,7 @@ async fn stream_to_file(
 
 /// `POST /v1/upload` — multipart/form-data ile video dosyası yükler.
 ///
-/// Form alanı: `file` (zorunlu). Dosya `INFERENCE_MEDIA_ROOT` altına kaydedilir;
+/// Form alanı: `file` (zorunlu). Dosya `SONIC_MEDIA_ROOT` altına kaydedilir;
 /// aynı **adlı** dosya varsa üzerine yazılır (aynı videoyu yeniden yüklemek
 /// bağlantıyı koparmasın diye bilinçli), aynı **kimliği** farklı uzantıyla
 /// kullanan bir dosya varsa istek reddedilir.
@@ -237,7 +237,7 @@ pub async fn upload_video(
 ) -> Result<(StatusCode, Json<Value>), InferenceError> {
     let root = state.media_root.as_ref().ok_or_else(|| {
         InferenceError::Config(
-            "INFERENCE_MEDIA_ROOT ayarli degil; yukleme kullanilamaz".into(),
+            "SONIC_MEDIA_ROOT ayarli degil; yukleme kullanilamaz".into(),
         )
     })?;
 

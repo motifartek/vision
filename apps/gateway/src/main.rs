@@ -16,7 +16,7 @@ use axum::{
 use axum_prometheus::PrometheusMetricLayer;
 use error::GatewayError;
 use moka::future::Cache;
-use proxy::kratos_proxy_handler;
+use proxy::{kratos_proxy_handler, stream_proxy_handler};
 use reqwest::Client;
 use std::time::Duration;
 use tonic::transport::Channel;
@@ -26,7 +26,11 @@ use tower_http::cors::CorsLayer;
 pub struct AppState {
     pub auth: AuthState,
     pub authz: AuthzState,
-    pub inference: InferenceState,
+    pub sonic: InferenceState,
+    /// `stream` servisinin adresi. Videolar buradan geçiyor.
+    pub stream_url: String,
+    /// Ayrı istemci: video gövdeleri büyük, zaman aşımı Kratos'unkinden uzun.
+    pub stream_client: Client,
 }
 
 fn env_or(key: &str, default: &str) -> String {
@@ -92,7 +96,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         session_cache,
     };
 
-    let inference_state = InferenceState {
+    let sonic_state = InferenceState {
         client: Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?,
@@ -116,7 +120,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = AppState {
         auth: auth_state,
         authz: authz_state,
-        inference: inference_state,
+        sonic: sonic_state,
+        stream_url: env_or("GATEWAY_STREAM_URL", "http://127.0.0.1:8100"),
+        // Klip üretimi ffmpeg çalıştırıyor; uzun videoda dakikaları bulabiliyor.
+        stream_client: Client::builder()
+            .timeout(Duration::from_secs(1800))
+            .build()?,
     };
 
     let (prometheus_layer, metric_handle) = PrometheusMetricLayer::pair();
@@ -139,6 +148,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/metrics", get(|| async move { metric_handle.render() }))
         .route("/api/auth/*path", any(kratos_proxy_handler))
         .route("/api/auth", any(kratos_proxy_handler))
+        .route("/api/stream/*path", any(stream_proxy_handler))
+        .route("/api/stream", any(stream_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
         .layer(tower_http::trace::TraceLayer::new_for_http())

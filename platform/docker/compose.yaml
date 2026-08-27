@@ -13,8 +13,10 @@ include:
   # Kimlik ve ağ geçidi
   - path: ../../apps/identity/compose.yaml
   - path: ../../apps/gateway/compose.yaml
+  - path: ../../apps/ai/sonic/compose.yaml
   - path: ../../platform/observability/compose.yaml
+  - path: ../../platform/messaging/compose.yaml
+  - path: ../../platform/storage/compose.yaml
 #  - path: ../../apps/notification/compose.yaml
-#  - path: ../../platform/messaging/compose.yaml   # NATS
-#  - path: ../../platform/database/compose.yaml    # SurrealDB
-#  - path: ../../platform/storage/compose.yaml     # S3-uyumlu yerel depolama
+  - path: ../../platform/database/compose.yaml
+  - path: ../../apps/ai/orchestrator/compose.yaml

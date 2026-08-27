@@ -10,9 +10,9 @@
 
 use std::error::Error;
 
-use inference::audio::{decode, mel::MelExtractor};
-use inference::config::Config;
-use inference::model::{self, ced::NUM_CLASSES};
+use sonic::audio::{decode, mel::MelExtractor};
+use sonic::config::Config;
+use sonic::model::{self, ced::NUM_CLASSES};
 
 /// sherpa-onnx dokümanlarındaki referans etiketler (aynı test_wavs dosyaları).
 const EXPECTED: [(u32, &str); 4] =
@@ -39,7 +39,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let log_mel = extractor.compute(&decoded.samples);
 
         // Tüm dosya tek pencere — sherpa ile birebir aynı kurulum.
-        let mut feats = Vec::with_capacity(log_mel.n_frames * inference::audio::mel::N_MELS);
+        let mut feats = Vec::with_capacity(log_mel.n_frames * sonic::audio::mel::N_MELS);
         log_mel.push_window(0, log_mel.n_frames, &mut feats);
 
         let probs = model::ced::run_batch(&mut loaded.session, &feats, 1, log_mel.n_frames)?;

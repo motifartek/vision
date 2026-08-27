@@ -1,0 +1,27 @@
+services:
+  sonic:
+    build:
+      context: ../../../
+      dockerfile: apps/ai/sonic/Dockerfile
+    image: docker-sonic
+    ports:
+      - "8081:8081"
+    environment:
+      - SONIC_PORT=8081
+      - SONIC_MODELS_DIR=/app/models
+      # Gateway test3.mp4 dediginde minio'dan veya ortak volume'dan cozebilmeli.
+      # Simdilik ortak media dizinini /media olarak mount ediyoruz:
+      - SONIC_MEDIA_ROOT=/media
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+    volumes:
+      # Modellerin saklandigi yer (minio de kullanilabilirdi ama simdilik local baglayalim)
+      - sonic-models:/app/models
+      # Dashboard'in public/media dizinini okumak icin
+      - ../../../apps/dashboard/public/media:/media:ro
+    restart: unless-stopped
+    networks:
+      - default
+      - observability
+
+volumes:
+  sonic-models:

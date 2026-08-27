@@ -1,4 +1,5 @@
 "use client";
+import React from 'react';
 
 import {
   MediaControlBar,
@@ -117,9 +118,6 @@ export const VideoPlayerMuteButton = ({
 
 export type VideoPlayerContentProps = ComponentProps<"video">;
 
-export const VideoPlayerContent = ({
-  className,
-  ...props
-}: VideoPlayerContentProps) => (
-  <video className={cn("mt-0 mb-0", className)} {...props} />
-);
+export const VideoPlayerContent = React.forwardRef<HTMLVideoElement, VideoPlayerContentProps>(({ className, ...props }, ref) => (
+  <video ref={ref} className={cn("mt-0 mb-0", className)} {...props} />
+));

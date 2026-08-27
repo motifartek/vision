@@ -15,10 +15,10 @@ use std::error::Error;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use inference::audio::decode::{self, DEFAULT_MAX_SAMPLES};
-use inference::audio::mel::{MelExtractor, N_MELS};
-use inference::config::Config;
-use inference::model::{self, ced::NUM_CLASSES};
+use sonic::audio::decode::{self, DEFAULT_MAX_SAMPLES};
+use sonic::audio::mel::{MelExtractor, N_MELS};
+use sonic::config::Config;
+use sonic::model::{self, ced::NUM_CLASSES};
 
 /// İlk-5 skorlarında kabul edilen en büyük fark.
 const SCORE_TOLERANCE: f32 = 0.05;

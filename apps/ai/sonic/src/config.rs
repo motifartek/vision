@@ -45,7 +45,7 @@ pub struct Config {
 
 impl Config {
     pub fn from_env() -> Self {
-        let models_dir = std::env::var_os("INFERENCE_MODELS_DIR")
+        let models_dir = std::env::var_os("SONIC_MODELS_DIR")
             .map(PathBuf::from)
             .unwrap_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("models"));
 
@@ -55,27 +55,27 @@ impl Config {
         // GPU'da batch 256, CED-Base ile 6 GB'lık bir karta sığmıyor: ölçüldü,
         // DirectML `HRESULT 0x887A0006` (cihaz askıda) ile düşüyor. 64 hem
         // mütevazı kartlarda güvenli hem de başlatma maliyetini yeterince
-        // amorti ediyor. Bol VRAM'li makinede INFERENCE_BATCH ile yükseltin.
+        // amorti ediyor. Bol VRAM'li makinede SONIC_BATCH ile yükseltin.
         let default_batch = if gpu { 64 } else { 32 };
 
         Self {
             host: Ipv4Addr::LOCALHOST,
-            port: env_parse("INFERENCE_PORT", 8081),
+            port: env_parse("SONIC_PORT", 8081),
             models_dir,
             // Varsayılan CED-Base: aynı videoda Tiny'nin ürettiği yanlış
             // pozitifleri (At %81, Kalp atışı, Hapşırık, Baykuş) hiç üretmiyor,
             // gerçek sesleri ise koruyor. Hız bedeli var ama 9 dakikalık video
             // yine 7 saniyenin altında bitiyor.
-            // Hız öncelikliyse: INFERENCE_MODEL=ced-tiny
-            model: std::env::var("INFERENCE_MODEL").unwrap_or_else(|_| "ced-base".into()),
-            prefer_int8: env_parse("INFERENCE_INT8", default_int8),
+            // Hız öncelikliyse: SONIC_MODEL=ced-tiny
+            model: std::env::var("SONIC_MODEL").unwrap_or_else(|_| "ced-base".into()),
+            prefer_int8: env_parse("SONIC_INT8", default_int8),
             intra_threads: env_parse(
-                "INFERENCE_THREADS",
+                "SONIC_THREADS",
                 std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4),
             ),
-            batch_size: env_parse("INFERENCE_BATCH", default_batch),
-            media_root: std::env::var_os("INFERENCE_MEDIA_ROOT").map(PathBuf::from),
-            max_upload_bytes: env_parse("INFERENCE_MAX_UPLOAD_BYTES", 0),
+            batch_size: env_parse("SONIC_BATCH", default_batch),
+            media_root: std::env::var_os("SONIC_MEDIA_ROOT").map(PathBuf::from),
+            max_upload_bytes: env_parse("SONIC_MAX_UPLOAD_BYTES", 0),
         }
     }
 }

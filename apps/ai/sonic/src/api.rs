@@ -173,7 +173,7 @@ pub fn is_local_origin(origin: &str) -> bool {
     matches!(host, "localhost" | "127.0.0.1" | "[::1]")
 }
 
-/// `INFERENCE_MEDIA_ROOT` ayarlıysa istenen yol bu kökün dışına çıkamaz.
+/// `SONIC_MEDIA_ROOT` ayarlıysa istenen yol bu kökün dışına çıkamaz.
 /// Mutlak yollar da `join` tarafından kökü ezdiği için aynı denetime takılır.
 ///
 /// Uzantısız kimlik de kabul edilir: `test3` isteği medya kökünde `test3.mkv`
@@ -204,7 +204,7 @@ fn resolve_media_path(state: &AppState, raw: &str) -> Result<PathBuf, InferenceE
 
     if let Some(root) = &state.media_root {
         let root = std::fs::canonicalize(root).map_err(|e| {
-            InferenceError::Config(format!("INFERENCE_MEDIA_ROOT çözümlenemedi: {e}"))
+            InferenceError::Config(format!("SONIC_MEDIA_ROOT çözümlenemedi: {e}"))
         })?;
         if !canonical.starts_with(&root) {
             return Err(InferenceError::PathNotAllowed);

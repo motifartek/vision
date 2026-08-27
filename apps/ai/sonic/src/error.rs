@@ -22,7 +22,7 @@ pub enum InferenceError {
     #[error("Medya dosyası bulunamadı: {0}")]
     MediaNotFound(String),
 
-    #[error("Bu yol INFERENCE_MEDIA_ROOT dışında, erişim reddedildi")]
+    #[error("Bu yol SONIC_MEDIA_ROOT dışında, erişim reddedildi")]
     PathNotAllowed,
 
     #[error("Yalnız video dosyaları yüklenebilir; «{0}» kabul edilmiyor")]

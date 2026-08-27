@@ -1,4 +1,4 @@
-﻿global:
+global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
@@ -17,7 +17,7 @@ scrape_configs:
       - targets: ['host.docker.internal:8100']
     metrics_path: /metrics
 
-  - job_name: inference
+  - job_name: sonic
     static_configs:
       - targets: ['host.docker.internal:8081']
     metrics_path: /metrics

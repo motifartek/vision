@@ -116,6 +116,65 @@ pub async fn kratos_proxy_handler(
     Ok(response)
 }
 
+/// `stream` servisine akışkan vekil.
+///
+/// Kratos vekilinden ayrı: video gövdeleri gigabayta çıkabiliyor ve
+/// `to_bytes` ile belleğe almak servisi düşürürdü. İstek de cevap da
+/// akış olarak geçiyor.
+///
+/// Başlık süzgeci Kratos vekiliyle ortak — `content-encoding` yalanı ve
+/// yutulan `set-cookie` sorunu burada da geçerli.
+pub async fn stream_proxy_handler(
+    State(state): State<AppState>,
+    req: Request,
+) -> Result<Response, GatewayError> {
+    let path = req.uri().path();
+    let path_query = req
+        .uri()
+        .path_and_query()
+        .map(|v| v.as_str())
+        .unwrap_or(path);
+
+    let target_uri = format!(
+        "{}{}",
+        state.stream_url,
+        path_query.replace("/api/stream", "")
+    );
+
+    let method = req.method().clone();
+    tracing::info!("Stream Proxy: İletiliyor -> {} {}", method, target_uri);
+
+    let mut headers = req.headers().clone();
+    headers.remove(http::header::HOST);
+
+    let body_stream = req.into_body().into_data_stream();
+    let reqwest_body = reqwest::Body::wrap_stream(body_stream);
+
+    let res = state
+        .stream_client
+        .request(method, target_uri)
+        .headers(headers)
+        .body(reqwest_body)
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("Stream proxy error: {}", e);
+            GatewayError::InternalError
+        })?;
+
+    let durum = res.status();
+    let basliklar = iletilecek_basliklar(res.headers());
+
+    let mut response_builder = Response::builder().status(durum);
+    if let Some(headers_mut) = response_builder.headers_mut() {
+        *headers_mut = basliklar;
+    }
+
+    response_builder
+        .body(Body::from_stream(res.bytes_stream()))
+        .map_err(|_| GatewayError::InternalError)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -63,7 +63,7 @@
                        "targets":  [
                                        {
                                            "legendFormat":  "Aktif AI İstekleri",
-                                           "expr":  "sum(axum_http_requests_pending{job=\"inference\"})"
+                                           "expr":  "sum(axum_http_requests_pending{job=\"sonic\"})"
                                        }
                                    ],
                        "datasource":  {
@@ -112,7 +112,7 @@
                        "title":  "Canlı Hata ve Uyarı Akışı (Loki)",
                        "targets":  [
                                        {
-                                           "expr":  "{job=~\"gateway|stream|inference\"} |~ \"(?i)(error|warn)\""
+                                           "expr":  "{job=~\"gateway|stream|sonic\"} |~ \"(?i)(error|warn)\""
                                        }
                                    ],
                        "type":  "logs",

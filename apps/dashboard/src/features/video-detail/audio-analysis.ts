@@ -97,9 +97,9 @@ export type AnalysisSource = "live" | "error" | "loading"
 /**
  * Gateway rotası kimlik doğrulaması istiyor ve dashboard'da henüz login akışı
  * yok; bu yüzden yerel geliştirmede doğrudan inference servisine gidiyoruz.
- * Login geldiğinde NEXT_PUBLIC_AUDIO_API gateway'e çevrilir.
+ * Login geldiğinde NEXT_PUBLIC_STREAM_API gateway'e çevrilir.
  */
-export const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+export const API = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 /** Servis kapalı/erişilemez durumunun tek metni. */
 const SERVICE_DOWN = "analiz servisine ulaşılamıyor"
@@ -264,3 +264,4 @@ export function useAudioAnalysis(
 
   return { analysis, source, error, refreshing, nameOf, severityOf }
 }
+

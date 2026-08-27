@@ -1,0 +1,14 @@
+[package]
+name = "orchestrator"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+tokio = { workspace = true, features = ["full"] }
+motif-core = { workspace = true }
+motif-event-sdk = { workspace = true }
+motif-observer = { workspace = true }
+async-nats = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+futures = { workspace = true }

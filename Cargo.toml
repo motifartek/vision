@@ -12,11 +12,13 @@ resolver = "2"
 # (compose.yaml + helm + config).
 members = [
     "apps/gateway",
-    "apps/ai/inference",
+    "apps/ai/sonic",
     "apps/ai/vision",
+    "apps/ai/orchestrator",
     "apps/stream",
     "packages/core",
     "packages/observer",
+    "packages/database",
     "packages/event-sdk",
     "packages/optics",
     "tools/bench",
@@ -44,6 +46,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Dahili crate'ler
 motif-core = { path = "packages/core" }
 motif-observer = { path = "packages/observer" }
+motif-database = { path = "packages/database" }
 motif-event-sdk = { path = "packages/event-sdk" }
 motif-optics = { path = "packages/optics" }
 

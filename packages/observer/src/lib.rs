@@ -21,7 +21,7 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 
 /// Telemetriyi başlatır.
 ///
-/// service_name: "gateway", "stream", "inference" gibi.
+/// service_name: "gateway", "stream", "sonic" gibi.
 /// OTEL_EXPORTER_OTLP_ENDPOINT ayarlıysa OTLP ihracatı etkin olur;
 /// ayarlı değilse sadece stdout loglama yapılır.
 pub fn init(service_name: &str) {

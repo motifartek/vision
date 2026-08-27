@@ -23,7 +23,7 @@ Bedeli: indirme 410 MB (Tiny 29 MB) ve çıkarım ~4,5× yavaş — ama 9 dakika
 video yine 7 saniyenin altında bitiyor. Ölçüm ve karşılaştırma:
 aşağıdaki "Ölçümler" bölümü.
 
-Hız öncelikliyse `INFERENCE_MODEL=ced-tiny` yeterli; iki modeli yan yana
+Hız öncelikliyse `SONIC_MODEL=ced-tiny` yeterli; iki modeli yan yana
 tutup duruma göre geçebilirsiniz.
 
 Ses çözme süreç içinde `symphonia` ile yapılır (WAV, FLAC, MP3, AAC/MP4, MKV,
@@ -34,7 +34,7 @@ kullanıldığı yanıttaki `media.decoder` alanında görünür.
 ## Çalıştırma
 
 ```bash
-INFERENCE_MEDIA_ROOT=/path/to/media cargo run -p inference --release
+SONIC_MEDIA_ROOT=/path/to/media cargo run -p inference --release
 ```
 
 Servis **yalnız `127.0.0.1:8081`** dinler ve bu adres yapılandırılamaz: kendi
@@ -47,16 +47,16 @@ yalnız `localhost` / `127.0.0.1` / `[::1]` kökenli sayfalar istek atabilir.
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
-| `INFERENCE_PORT` | `8081` | Dinlenen port (adres her zaman 127.0.0.1) |
-| `INFERENCE_MODELS_DIR` | `<crate>/models` | Model kök dizini |
-| `INFERENCE_MODEL` | `ced-base` | Alt dizin adı (`ced-tiny`, `ced-small`, …) |
-| `INFERENCE_INT8` | CPU'da `true` | int8 ağırlıkları tercih et |
-| `INFERENCE_THREADS` | çekirdek sayısı | ONNX Runtime iş parçacığı |
-| `INFERENCE_BATCH` | CPU `32`, GPU `64` | Tek çağrıdaki pencere sayısı |
-| `INFERENCE_MEDIA_ROOT` | *(yok)* | Ayarlanırsa istenen yollar bu kökün dışına çıkamaz |
-| `INFERENCE_MAX_UPLOAD_BYTES` | `0` (sınırsız) | Yükleme tavanı; dosya diske akıtıldığı için varsayılan sınırsız |
+| `SONIC_PORT` | `8081` | Dinlenen port (adres her zaman 127.0.0.1) |
+| `SONIC_MODELS_DIR` | `<crate>/models` | Model kök dizini |
+| `SONIC_MODEL` | `ced-base` | Alt dizin adı (`ced-tiny`, `ced-small`, …) |
+| `SONIC_INT8` | CPU'da `true` | int8 ağırlıkları tercih et |
+| `SONIC_THREADS` | çekirdek sayısı | ONNX Runtime iş parçacığı |
+| `SONIC_BATCH` | CPU `32`, GPU `64` | Tek çağrıdaki pencere sayısı |
+| `SONIC_MEDIA_ROOT` | *(yok)* | Ayarlanırsa istenen yollar bu kökün dışına çıkamaz |
+| `SONIC_MAX_UPLOAD_BYTES` | `0` (sınırsız) | Yükleme tavanı; dosya diske akıtıldığı için varsayılan sınırsız |
 
-`INFERENCE_MEDIA_ROOT` ayarlı değilse servis başlarken uyarı basar ve yerel
+`SONIC_MEDIA_ROOT` ayarlı değilse servis başlarken uyarı basar ve yerel
 dosya sistemindeki herhangi bir yolu okuyabilir — üretimde mutlaka ayarlayın.
 
 ## GPU
