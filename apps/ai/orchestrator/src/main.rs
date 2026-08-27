@@ -261,9 +261,30 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await;
 
+        let tools_rows = sqlx::query("SELECT name, title, description FROM external_tools")
+            .fetch_all(&pool)
+            .await;
+
+        let tools_text = if let Ok(rows) = tools_rows {
+            use sqlx::Row;
+            let mut lines = Vec::new();
+            for row in rows {
+                let name: String = row.try_get("name").unwrap_or_default();
+                let title: String = row.try_get("title").unwrap_or_default();
+                let desc: String = row.try_get("description").unwrap_or_default();
+                lines.push(format!("- {} ({}): {}", name, title, desc));
+            }
+            if lines.is_empty() { None } else { Some(lines.join("\n")) }
+        } else {
+            None
+        };
+
         let mut istek = json!({ "video_id": video_id });
         if let Some(ozet) = &ses {
             istek["isitsel_baglam"] = json!(ozet);
+        }
+        if let Some(t) = tools_text {
+            istek["tools"] = json!(t);
         }
 
         let vision_req = http_client

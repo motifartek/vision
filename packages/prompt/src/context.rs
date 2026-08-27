@@ -106,6 +106,8 @@ pub struct PromptContext {
     pub audio: Option<UntrustedText>,
     /// Önceki turun bulgusu. Orchestrator bağlam enjeksiyonuna başlayınca dolar.
     pub prior: Option<UntrustedText>,
+    /// Sisteme kayıtlı ve modele tanıtılacak olan dış araçların metin formatı.
+    pub tools: Option<String>,
 }
 
 impl PromptContext {
@@ -128,6 +130,11 @@ impl PromptContext {
 
     pub fn with_prior(mut self, prior: UntrustedText) -> Self {
         self.prior = Some(prior);
+        self
+    }
+
+    pub fn with_tools(mut self, tools: Option<String>) -> Self {
+        self.tools = tools;
         self
     }
 

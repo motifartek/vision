@@ -34,6 +34,8 @@ pub struct AnalyzeBody {
     /// olmasın diye (tasarım §K7).
     #[serde(default)]
     pub isitsel_baglam: Option<String>,
+    #[serde(default)]
+    pub tools: Option<String>,
 }
 
 impl AnalyzeBody {
@@ -77,7 +79,7 @@ async fn analyze(
     State(agent): State<Arc<VisionAgent>>,
     Json(body): Json<AnalyzeBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let outcome = agent.analyze(&body.video_id, body.isitsel()).await?;
+    let outcome = agent.analyze(&body.video_id, body.isitsel(), body.tools.clone()).await?;
     Ok(Json(json!({
         "report": outcome.report,
         "steps": outcome.steps,
@@ -89,7 +91,7 @@ async fn analyze_sartname(
     State(agent): State<Arc<VisionAgent>>,
     Json(body): Json<AnalyzeBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let outcome = agent.analyze(&body.video_id, body.isitsel()).await?;
+    let outcome = agent.analyze(&body.video_id, body.isitsel(), body.tools.clone()).await?;
     Ok(Json(outcome.report.to_sartname_json()))
 }
 
@@ -111,6 +113,8 @@ pub struct PreviewBody {
     /// görebilsin.
     #[serde(default)]
     pub isitsel_baglam: Option<String>,
+    #[serde(default)]
+    pub tools: Option<String>,
 }
 
 /// Modele gidecek metni gönderilmeden üretir.
@@ -133,13 +137,10 @@ async fn preview_prompt(
     if let Some(clip) = body.clip {
         ctx = ctx.with_clip(clip);
     }
-    if let Some(ses) = body
-        .isitsel_baglam
-        .as_deref()
-        .filter(|s| !s.trim().is_empty())
-    {
-        ctx = ctx.with_audio(UntrustedText::new(ses));
+    if let Some(audio) = body.isitsel_baglam.as_deref().filter(|s| !s.trim().is_empty()) {
+        ctx = ctx.with_audio(UntrustedText::new(audio));
     }
+    ctx = ctx.with_tools(body.tools.clone());
 
     let p = agent.preview(kind, &ctx);
     let metin = p.joined();
