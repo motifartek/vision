@@ -20,3 +20,4 @@ include:
 #  - path: ../../apps/notification/compose.yaml
   - path: ../../platform/database/compose.yaml
   - path: ../../apps/ai/orchestrator/compose.yaml
+  - path: ../../apps/toolbox/compose.yaml

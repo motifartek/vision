@@ -1,0 +1,14 @@
+services:
+  toolbox:
+    build:
+      context: ../../
+      dockerfile: apps/toolbox/Dockerfile
+    environment:
+      - DATABASE_URL=${DATABASE_URL:-postgres://root:root@postgres:5432/motif}
+      - NATS_URL=${NATS_URL:-nats://nats:4222}
+      - RUST_LOG=info
+    networks:
+      - default
+    depends_on:
+      - nats
+      - postgres

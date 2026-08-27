@@ -21,7 +21,7 @@ members = [
     "packages/database",
     "packages/event-sdk",
     "packages/optics",
-    "tools/bench",
+    "tools/bench", "apps/toolbox",
 ]
 
 [workspace.package]

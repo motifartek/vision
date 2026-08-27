@@ -1,20 +1,20 @@
-//! NATS konu (subject) sabitleri.
+﻿//! NATS konu (subject) sabitleri.
 //!
-//! Konu adları asla elle string olarak yazılmaz; her zaman buradan alınır.
+//! Konu adlarÄ± asla elle string olarak yazÄ±lmaz; her zaman buradan alÄ±nÄ±r.
 
-/// Ham video alındı ve nesne deposuna yazıldı.
+/// Ham video alÄ±ndÄ± ve nesne deposuna yazÄ±ldÄ±.
 pub const VIDEO_INGESTED: &str = "stream.video.ingested";
 
-/// Bir grup kare çıkarıldı ve nesne deposuna yazıldı.
+/// Bir grup kare Ã§Ä±karÄ±ldÄ± ve nesne deposuna yazÄ±ldÄ±.
 pub const FRAME_EXTRACTED: &str = "stream.frame.extracted";
 
-/// AI katmanı bir risk tespit etti; gateway bunu SSE ile panele iletir.
+/// AI katmanÄ± bir risk tespit etti; gateway bunu SSE ile panele iletir.
 pub const RISK_DETECTED: &str = "event.risk.detected";
 
-/// Stream tool çağrılarının (pass 3) konu öneki. İstek/cevap desenidir.
+/// Stream tool Ã§aÄŸrÄ±larÄ±nÄ±n (pass 3) konu Ã¶neki. Ä°stek/cevap desenidir.
 pub const TOOL_PREFIX: &str = "stream.tool.";
 
-/// Belirli bir tool için tam konu adını üretir.
+/// Belirli bir tool iÃ§in tam konu adÄ±nÄ± Ã¼retir.
 ///
 /// ```
 /// use motif_event_sdk::subjects;
@@ -23,3 +23,6 @@ pub const TOOL_PREFIX: &str = "stream.tool.";
 pub fn tool(name: &str) -> String {
     format!("{TOOL_PREFIX}{name}")
 }
+
+/// Toolbox mikroservisi için sanal bir araç çalıştırma komutu
+pub const TOOL_EXECUTE: &str = "toolbox.execute";

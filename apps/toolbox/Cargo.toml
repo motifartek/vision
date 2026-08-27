@@ -1,0 +1,17 @@
+[package]
+name = "toolbox"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+motif-core = { path = "../../packages/core" }
+motif-event-sdk = { path = "../../packages/event-sdk" }
+motif-observer = { path = "../../packages/observer" }
+
+tokio = { workspace = true, features = ["full"] }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+async-nats = "0.50"
+sqlx = { version = "0.7.4", features = ["postgres", "runtime-tokio-rustls"] }
+futures = "0.3.31"

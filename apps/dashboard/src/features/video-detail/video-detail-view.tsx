@@ -74,6 +74,40 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const { currentTime, duration, playing, seek, toggle, subscribe } = usePlayback(videoRef)
   const [profile, setProfile] = useState("dengeli")
+
+  // Mock Toolbox Alert state'i
+  const [toolAlerts, setToolAlerts] = useState<{id: number; title: string; message: string}[]>([])
+
+  useEffect(() => {
+    // Gateway üzerinden ToolAlerts'leri (ve diğer olayları) SSE ile dinleyelim
+    // streamId henüz null olabilir, videoId ile bağlanıyoruz (çünkü gateway doğrudan o string üzerinden yönlendiriyor)
+    const sse = new EventSource(`http://localhost:8000/api/videos/${videoId}/events`)
+    
+    sse.addEventListener("alert", (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        const newAlert = {
+          id: Date.now() + Math.random(),
+          title: data.title || "Dış Sistem Uyarıldı",
+          message: data.message || "Bilinmeyen bir işlem gerçekleştirildi."
+        }
+        
+        setToolAlerts(prev => [...prev, newAlert])
+        
+        // 5 saniye sonra alert'i ekrandan kaldır
+        setTimeout(() => {
+          setToolAlerts(prev => prev.filter(a => a.id !== newAlert.id))
+        }, 5000)
+      } catch(e) {
+        console.error("Alert parse error:", e)
+      }
+    })
+
+    return () => {
+      sse.close()
+    }
+  }, [videoId])
+
   /**
    * İki ayrı eşik var ve bu bilinçli:
    *
@@ -123,7 +157,24 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   }, [toggle, seek, currentTime])
 
   return (
-    <div className="flex h-dvh min-w-[720px] flex-col overflow-hidden bg-background">
+    <div className="flex h-screen flex-col overflow-hidden bg-background">
+      {/* TOOL ALERTS TOAST CONTAINER */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-3 pointer-events-none">
+        {toolAlerts.map(alert => (
+          <div 
+            key={alert.id} 
+            className="pointer-events-auto flex items-start gap-3 bg-red-950/90 border border-red-500/50 text-red-50 p-4 rounded-xl shadow-2xl backdrop-blur-sm animate-in slide-in-from-right fade-in duration-300"
+          >
+            <div className="mt-0.5 text-red-500">
+              <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>
+            </div>
+            <div>
+              <h4 className="font-semibold text-sm">{alert.title}</h4>
+              <p className="text-xs text-red-200 mt-1">{alert.message}</p>
+            </div>
+          </div>
+        ))}
+      </div>
       <EditorNav videoId={videoId} playing={playing} onToggle={toggle} />
 
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_330px]">

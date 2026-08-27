@@ -81,6 +81,7 @@ async fn get_video_events(
     let mut listener = sqlx::postgres::PgListener::connect_with(&state.db_pool).await.unwrap();
     listener.listen("ai_events").await.unwrap();
     listener.listen("ai_trace").await.unwrap();
+    listener.listen("tool_alerts").await.unwrap();
 
     // Veritabanindaki mevcut son durumu cek
     let initial_row = sqlx::query("SELECT summary, events, risk, actions FROM ai_events WHERE video_id = $1")
@@ -106,7 +107,13 @@ async fn get_video_events(
                 Ok(notification) => {
                     let payload = notification.payload();
                     
-                    if notification.channel() == "ai_trace" {
+                    if notification.channel() == "tool_alerts" {
+                        if let Ok(alert_data) = serde_json::from_str::<serde_json::Value>(payload) {
+                            if alert_data["video_id"].as_str() == Some(video_id.as_str()) {
+                                yield Ok(Event::default().event("alert").data(payload));
+                            }
+                        }
+                    } else if notification.channel() == "ai_trace" {
                         // Gelen trace payload: {"video_id": "...", "message": "..."}
                         if let Ok(trace_data) = serde_json::from_str::<serde_json::Value>(payload) {
                             if trace_data["video_id"].as_str() == Some(video_id.as_str()) {
