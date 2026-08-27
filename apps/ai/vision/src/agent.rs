@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use motif_event_sdk::{AnalysisReport, ClipRef, DetectedEvent, RiskLevel, SCHEMA_VERSION};
-use motif_prompt::{PromptContext, PromptKind, PromptRegistry};
+use motif_prompt::{PromptContext, PromptKind, PromptRegistry, RenderedPrompt};
 
 use crate::stream_client::ClipSource;
 use crate::vlm::{Decision, RawReport, VlmProvider};
@@ -85,6 +85,19 @@ impl VisionAgent {
         }
     }
 
+    /// Bir prompt'u **göndermeden** üretir.
+    ///
+    /// Panelin "Modele giden yük" bölümü bunu çağırıyor — ve `analyze` de
+    /// aynı fonksiyondan geçiyor. Ayrım iddia değil, yapısal: tek kod yolu
+    /// olduğu için gösterilen metin modele gidenden farklı olamaz.
+    ///
+    /// Önceden böyle değildi: `apps/stream/src/payload.rs` kendi prompt'unu
+    /// üretiyor, panel onu gösteriyordu. İkisi ayrışmıştı ve panelin
+    /// gösterdiği metin modele servisin desteklemediği araçları tanıtıyordu.
+    pub fn preview(&self, kind: PromptKind, ctx: &PromptContext) -> RenderedPrompt {
+        self.prompts.render(kind, ctx)
+    }
+
     pub async fn analyze(&self, video_id: &str) -> Result<AgentOutcome, AgentError> {
         let basladi = std::time::Instant::now();
         let mut steps = Vec::new();
@@ -95,8 +108,7 @@ impl VisionAgent {
             .full_clip(video_id, info.duration_ms, Some(MAX_DIM))
             .await?;
         let mut prompt = self
-            .prompts
-            .render(
+            .preview(
                 PromptKind::VisionIlkBakis,
                 &PromptContext::new(info.duration_ms),
             )
@@ -159,8 +171,7 @@ impl VisionAgent {
 
                     clip = self.stream.zoom_clip(video_id, t0, t1, ZOOM_BUDGET).await?;
                     prompt = self
-                        .prompts
-                        .render(
+                        .preview(
                             PromptKind::VisionYakinlastirma,
                             &PromptContext::new(info.duration_ms).with_clip(clip.clone()),
                         )
@@ -316,6 +327,71 @@ actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne daya
 
     fn katalog() -> PromptRegistry {
         PromptRegistry::embedded().expect("gömülü katalog")
+    }
+
+    /// Panelin gösterdiği metin ile modele gidenin aynı olduğu yapısal;
+    /// bu test o yapının bozulmadığını kontrol ediyor.
+    #[tokio::test]
+    async fn onizleme_ile_gonderilen_ayni() {
+        let kaynak = Arc::new(SahteKaynak {
+            istekler: Mutex::new(Vec::new()),
+        });
+        let model = Arc::new(YakalayanModel {
+            gorulen: Mutex::new(Vec::new()),
+        });
+        let ajan = VisionAgent::new(kaynak, model.clone(), Arc::new(katalog()));
+
+        let _ = ajan.analyze("v1").await;
+
+        let gonderilen = model.gorulen.lock().unwrap().first().cloned().unwrap();
+        let onizleme = ajan
+            .preview(PromptKind::VisionIlkBakis, &PromptContext::new(35_000))
+            .joined();
+        assert_eq!(gonderilen, onizleme);
+    }
+
+    /// Servis araç çağrısını desteklemiyor; istemde araç tanıtılmamalı.
+    ///
+    /// Eski `stream` istemi `zoom_range(t0_ms, t1_ms)` ve `crop_region(...)`
+    /// diye araçlar tanıtıyordu ve o cümleler boşa gidiyordu.
+    #[test]
+    fn olu_arac_cumleleri_yok() {
+        let k = katalog();
+        for kind in [PromptKind::VisionIlkBakis, PromptKind::VisionYakinlastirma] {
+            let metin = k
+                .render(kind, &PromptContext::new(35_000).with_clip(test_clip()))
+                .joined();
+            assert!(!metin.contains("crop_region"), "{kind:?}: crop_region tanıtılmış");
+            assert!(
+                !metin.contains("zoom_range(t0_ms"),
+                "{kind:?}: zoom_range aracı tanıtılmış"
+            );
+        }
+    }
+
+    fn test_clip() -> ClipRef {
+        ClipRef {
+            t0_ms: 12_000,
+            t1_ms: 15_000,
+            object_key: "clips/x.mp4".into(),
+            duration_ms: 24_000,
+            time_scale: 8.0,
+            service_frames: 47,
+            effective_fps: 16.0,
+        }
+    }
+
+    /// Modele giden istemleri kaydeden sahte model.
+    struct YakalayanModel {
+        gorulen: Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl VlmProvider for YakalayanModel {
+        async fn analyze(&self, prompt: &str, _c: &[u8]) -> Result<Decision, VlmError> {
+            self.gorulen.lock().unwrap().push(prompt.to_string());
+            Ok(rapor("00:12"))
+        }
     }
 
     /// Genel bakış istemi katalogdan aynı çıkıyor mu?

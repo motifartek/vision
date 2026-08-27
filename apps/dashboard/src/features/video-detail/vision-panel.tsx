@@ -5,7 +5,13 @@ import { ChevronDown, Loader2, Play, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { formatTime } from "./time"
-import { streamUrl, type AgentStep, type Outcome, type Payload } from "./vision-analysis"
+import {
+  streamUrl,
+  type AgentStep,
+  type Outcome,
+  type Payload,
+  type PromptPreview,
+} from "./vision-analysis"
 
 /**
  * Görsel analiz sonucu — sistemin nihai çıktısı.
@@ -17,6 +23,7 @@ import { streamUrl, type AgentStep, type Outcome, type Payload } from "./vision-
 export function VisionPanel({
   outcome,
   payload,
+  prompt,
   running,
   error,
   onAnalyze,
@@ -26,6 +33,7 @@ export function VisionPanel({
 }: {
   outcome: Outcome | null
   payload: Payload | null
+  prompt: PromptPreview | null
   running: boolean
   error: string | null
   onAnalyze: () => void
@@ -65,7 +73,7 @@ export function VisionPanel({
 
       {outcome && <Report outcome={outcome} onSeek={onSeek} />}
 
-      <PayloadSection payload={payload} onLoad={onLoadPayload} ready={ready} />
+      <PayloadSection payload={payload} prompt={prompt} onLoad={onLoadPayload} ready={ready} />
     </div>
   )
 }
@@ -193,10 +201,12 @@ function Steps({ steps }: { steps: AgentStep[] }) {
  */
 function PayloadSection({
   payload,
+  prompt,
   onLoad,
   ready,
 }: {
   payload: Payload | null
+  prompt: PromptPreview | null
   onLoad: () => void
   ready: boolean
 }) {
@@ -255,8 +265,10 @@ function PayloadSection({
                 <Row k="Azaltma" v={`${payload.reduction.ratio.toFixed(0)}×`} />
                 <Row
                   k="Token (tahmini)"
-                  v={payload.tokens.total.toLocaleString("tr")}
-                  vurgu={payload.tokens.total > 12000}
+                  v={((payload.tokens.total + (prompt?.text_tokens ?? 0)) as number).toLocaleString(
+                    "tr",
+                  )}
+                  vurgu={payload.tokens.total + (prompt?.text_tokens ?? 0) > 12000}
                 />
                 <Row
                   k="Kare boyutu"
@@ -274,9 +286,19 @@ function PayloadSection({
               )}
 
               <div className="flex flex-col gap-1">
-                <span className="text-[10px] font-medium text-muted-foreground">İstem</span>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[10px] font-medium text-muted-foreground">İstem</span>
+                  {prompt && (
+                    <span
+                      className="font-mono text-[9px] text-muted-foreground"
+                      title="Prompt kataloğu sürümü ve içerik özeti"
+                    >
+                      v{prompt.version.number} · {prompt.version.hash}
+                    </span>
+                  )}
+                </div>
                 <pre className="max-h-40 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-2 font-mono text-[10px] leading-snug">
-                  {payload.prompt}
+                  {prompt ? prompt.joined : "İstem alınamadı — görüntü ajanına ulaşılamıyor."}
                 </pre>
               </div>
 

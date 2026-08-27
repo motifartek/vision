@@ -174,9 +174,9 @@ export type Payload = {
     service_frames: number
     effective_fps: number
     size_bytes: number
+    object_key: string
     url: string
   }
-  prompt: string
   tokens: { frame_width: number; frame_height: number; per_frame: number; total: number }
   reduction: { source_frames: number; sent_frames: number; ratio: number }
   evidence_frames: { ord: number; t_ms: number; time: string; url: string; motion_score: number; is_scene_cut: boolean }[]
@@ -188,9 +188,26 @@ export type Payload = {
  * İkisi de **açıkça istenince** çalışıyor, sayfa açılınca değil: her ikisi de
  * çıkarım servisine gerçek istek atıyor ve servis bütün takımlarca paylaşılıyor.
  */
-export function useVisionAnalysis(videoId: string | null) {
+/**
+ * Modele gidecek istem.
+ *
+ * `stream` bunu artık üretmiyor: bir zamanlar üretiyordu ve `vision`'ın
+ * gönderdiğiyle ayrışmıştı — panel gönderilmeyen bir metni "tam olarak bu
+ * gidiyor" diye gösteriyordu. Metin artık ajanın kendi render'ından geliyor.
+ */
+export type PromptPreview = {
+  kind: "ilk_bakis" | "yakinlastirma"
+  prefix: string
+  suffix: string
+  joined: string
+  version: { agent: string; number: number; hash: string }
+  text_tokens: number
+}
+
+export function useVisionAnalysis(videoId: string | null, durationMs: number) {
   const [outcome, setOutcome] = useState<Outcome | null>(null)
   const [payload, setPayload] = useState<Payload | null>(null)
+  const [prompt, setPrompt] = useState<PromptPreview | null>(null)
   const [running, setRunning] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -198,6 +215,7 @@ export function useVisionAnalysis(videoId: string | null) {
   useEffect(() => {
     setOutcome(null)
     setPayload(null)
+    setPrompt(null)
     setError(null)
   }, [videoId])
 
@@ -230,14 +248,38 @@ export function useVisionAnalysis(videoId: string | null) {
           body: JSON.stringify(range ?? {}),
         })
         setPayload(p)
+
+        // İstem ayrı serviste: metnin tek kaynağı ajanın kendi render'ı.
+        // Klip bilgisini buradan taşıyoruz ki önizleme yan etkisiz kalsın —
+        // `vision` klip üretmiyor, üretileni anlatıyor.
+        const yakinlastirma = p.clip.t0_ms > 0 || p.clip.time_scale > 1.01
+        const pr = await iste<PromptPreview>(`${VISION}/v1/prompts/preview`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            duration_ms: durationMs,
+            clip: yakinlastirma
+              ? {
+                  t0_ms: p.clip.t0_ms,
+                  t1_ms: p.clip.t1_ms,
+                  object_key: p.clip.object_key,
+                  duration_ms: p.clip.duration_ms,
+                  time_scale: p.clip.time_scale,
+                  service_frames: p.clip.service_frames,
+                  effective_fps: p.clip.effective_fps,
+                }
+              : null,
+          }),
+        })
+        setPrompt(pr)
       } catch (e) {
         setError((e as Error).message)
       }
     },
-    [videoId],
+    [videoId, durationMs],
   )
 
-  return { outcome, payload, running, error, analyze, loadPayload }
+  return { outcome, payload, prompt, running, error, analyze, loadPayload }
 }
 
 /** Blob adresini panelin proxy'si üzerinden çözer. */

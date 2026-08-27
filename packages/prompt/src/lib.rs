@@ -304,6 +304,76 @@ mod tests {
         assert_eq!(a.version.hash, c.version.hash, "aynı metin, aynı özet");
     }
 
+    /// Ölçülmüş hata: model kameranın bastığı "14:26:11" saatini yazıyordu.
+    /// Kural prompt'tan düşerse aynı hata geri gelir.
+    #[test]
+    fn kamera_saati_kurali_her_istemde_var() {
+        let r = PromptRegistry::embedded().unwrap();
+
+        let genel = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert!(genel
+            .joined()
+            .contains("Kameranın görüntü üzerine bastığı saati"));
+
+        let yakin = r.render(
+            PromptKind::VisionYakinlastirma,
+            &PromptContext::new(35_000).with_clip(test_clip(8.0)),
+        );
+        // Yakınlaştırmada kural farklı: zamanlar klibin saatiyle isteniyor.
+        assert!(yakin.joined().contains("BU KLİBİN başından itibaren"));
+    }
+
+    /// Ağır çekim uyarısı yalnız gerçekten yavaşlatılmış klipte çıkmalı.
+    ///
+    /// Ölçülmüştü: modele dönüşüm formülü verilse bile aritmetiği yapmıyor,
+    /// o yüzden "kaynak kayda çevirmeye çalışma" cümlesi kritik.
+    #[test]
+    fn agir_cekim_uyarisi_kosullu() {
+        let r = PromptRegistry::embedded().unwrap();
+
+        let yavas = r
+            .render(
+                PromptKind::VisionYakinlastirma,
+                &PromptContext::new(35_000).with_clip(test_clip(8.0)),
+            )
+            .joined();
+        assert!(yavas.contains("ağır çekimde"));
+        assert!(yavas.contains("çevirmeye çalışma"));
+
+        let normal = r
+            .render(
+                PromptKind::VisionYakinlastirma,
+                &PromptContext::new(35_000).with_clip(test_clip(1.0)),
+            )
+            .joined();
+        assert!(!normal.contains("ağır çekimde"));
+    }
+
+    /// Şartnamenin dört anahtarı istemde tarif edilmeli; ayrıştırıcı bunu
+    /// bekliyor ve düşerse çıktının kendisi kırılır.
+    #[test]
+    fn sozlesme_dort_anahtari_tarif_ediyor() {
+        let r = PromptRegistry::embedded().unwrap();
+        let metin = r
+            .render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000))
+            .joined();
+        for anahtar in ["summary", "events", "risk", "actions"] {
+            assert!(metin.contains(anahtar), "{anahtar} istemde yok");
+        }
+    }
+
+    fn test_clip(scale: f32) -> motif_event_sdk::ClipRef {
+        motif_event_sdk::ClipRef {
+            t0_ms: 12_000,
+            t1_ms: 15_000,
+            object_key: "clips/x.mp4".into(),
+            duration_ms: (3_000.0 * scale) as u64,
+            time_scale: scale,
+            service_frames: 47,
+            effective_fps: 2.0 * scale as f64,
+        }
+    }
+
     #[test]
     fn faz1_son_ek_bos() {
         // Faz 1 saf tekilleştirme; parçaların son eke taşınması Faz 3.

@@ -7,6 +7,16 @@
 //! yani arayüzde görülen şey modele gidenin **birebir aynısı** olur, temsili
 //! bir gösterim değil.
 //!
+//! # Prompt burada üretilmiyor
+//!
+//! Bir zamanlar üretiliyordu ve `apps/ai/vision` ile ayrışmıştı: panel
+//! gönderilmeyen bir metni *"tam olarak bu gidiyor"* diye gösteriyor, üstelik
+//! modele servisin desteklemediği araçları tanıtıyordu. Metnin tek kaynağı
+//! artık `packages/prompt`; panel istemi `vision`'ın
+//! `POST /v1/prompts/preview` ucundan alıyor.
+//!
+//! Burada kalan iş klibin kendisi ve maliyeti.
+//!
 //! # Teslim biçimi klip
 //!
 //! Bu modül önce seçilmiş kareleri JPEG olarak yollamak üzere yazılmıştı. EVREN
@@ -15,7 +25,7 @@
 //! artık **hangi saniye aralığının kesileceğini** belirliyor; modele giden şey
 //! o aralığın klibi.
 
-use motif_event_sdk::{format_timestamp, ClipRef, FrameRef, SamplingPass};
+use motif_event_sdk::{ClipRef, FrameRef, SamplingPass};
 use motif_optics::VideoInfo;
 use serde::Serialize;
 
@@ -27,9 +37,6 @@ use serde::Serialize;
 /// EVREN üzerinde ölçülen değerlerle mertebe olarak tutuyor: 35 saniyelik 480p
 /// kayıt 11.064 giriş token'ı harcadı, kabaca **saniyede ~300 token**.
 const VLM_PATCH_STRIDE: u32 = 28;
-
-/// Türkçe metinde kabaca bir token'a düşen karakter sayısı.
-const CHARS_PER_TOKEN: usize = 4;
 
 /// Aralığı seçtiren an.
 ///
@@ -73,7 +80,8 @@ pub struct TokenEstimate {
     pub frame_height: u32,
     pub per_frame: u32,
     pub frames_total: u32,
-    pub text: u32,
+    /// Klibin kare maliyeti. İstem metninin token'ı buraya **dahil değil**;
+    /// onu `vision` önizleme ucu bildiriyor, panel ikisini topluyor.
     pub total: u32,
     pub note: &'static str,
 }
@@ -94,8 +102,6 @@ pub struct Reduction {
 pub struct VlmPayload {
     pub pass: SamplingPass,
     pub clip: PayloadClip,
-    /// Modele gidecek talimatın tamamı.
-    pub prompt: String,
     pub tokens: TokenEstimate,
     pub reduction: Reduction,
     /// Aralığı seçtiren anlar. Modele gitmiyor, inceleme içindir.
@@ -122,62 +128,6 @@ fn estimate_frame_tokens(w: u32, h: u32) -> u32 {
     let gw = w.div_ceil(VLM_PATCH_STRIDE).max(1);
     let gh = h.div_ceil(VLM_PATCH_STRIDE).max(1);
     gw * gh
-}
-
-/// Her istemin içine giren zaman kuralı.
-///
-/// Ölçülmüş bir hatayı kapatıyor: üzerinde saat basılı bir CCTV kaydında model
-/// `"14:26:11"` yazdı, yani kameranın damgasını okudu. Şartname ise videonun
-/// başından itibaren geçen süreyi istiyor. Bu cümle eklenince düzeldi.
-const ZAMAN_KURALI: &str = "Zaman damgalarını videonun başından itibaren geçen \
-     süre olarak, MM:SS biçiminde ver. Kameranın görüntü üzerine bastığı saati \
-     kullanma.";
-
-fn overview_prompt(duration_ms: u64) -> String {
-    format!(
-        "Bu bir iş sağlığı ve güvenliği kamera kaydı; uzunluğu {}.\n\n\
-         Önce sahnede genel olarak ne olduğunu belirle. Ardından riskli ya da \
-         olağandışı bir durum olup olmadığını değerlendir.\n\n\
-         {ZAMAN_KURALI}\n\n\
-         Bir an dikkatini çekiyor ama ayrıntı yetmiyorsa, o aralığı \
-         `zoom_range(t0_ms, t1_ms)` ile isteyebilirsin; sana o aralığın çok daha \
-         ayrıntılı bir klibi verilecek. Bir bölgeye yakından bakman gerekiyorsa \
-         `crop_region(t_ms, bbox)` kullan.",
-        format_timestamp(duration_ms)
-    )
-}
-
-/// Yakınlaştırma istemi.
-///
-/// Ağır çekimde modelden **klibin kendi saatini** istiyoruz, kaynağınkini değil.
-/// Sebebi ölçüldü: 12.0–15.0 sn aralığı 8 kat yavaşlatılıp gönderildiğinde model
-/// olayları `00:20–00:22` diye verdi. İsteme dönüşüm formülü açıkça yazılmasına
-/// rağmen düzelmedi — model bu aritmetiği güvenilir yapmıyor. Çeviriyi
-/// `ClipRef::to_source_ms` yapıyor.
-fn zoom_prompt(clip: &PayloadClip) -> String {
-    let baslik = format!(
-        "Bu klip, kaydın {} – {} aralığından alındı.",
-        format_timestamp(clip.t0_ms),
-        format_timestamp(clip.t1_ms)
-    );
-
-    if clip.time_scale > 1.01 {
-        format!(
-            "{baslik} Klip **{:.0} kat ağır çekime** alınmış durumda: olaylar \
-             gerçekte burada göründüğünden {:.0} kat hızlı gelişiyor.\n\n\
-             Bu aralıkta tam olarak ne olduğunu adım adım anlat.\n\n\
-             Zamanları **bu klibin** başından itibaren ver; kaynak kayda \
-             çevirmeye çalışma, o hesabı biz yapıyoruz.",
-            clip.time_scale, clip.time_scale
-        )
-    } else {
-        format!(
-            "{baslik}\n\n\
-             Bu aralıkta tam olarak ne olduğunu ve kaçıncı saniyede olduğunu \
-             belirle.\n\n\
-             Zamanları bu klibin başından itibaren ver."
-        )
-    }
 }
 
 /// Klip ve onu seçtiren karelerden modele gidecek yükü kurar.
@@ -215,15 +165,9 @@ pub fn build(
         })
         .collect();
 
-    let prompt = match pass {
-        SamplingPass::Zoom => zoom_prompt(&payload_clip),
-        SamplingPass::Overview => overview_prompt(info.duration_ms),
-    };
-
     let (fw, fh) = scaled_dims(info, max_dim);
     let per_frame = estimate_frame_tokens(fw, fh);
     let frames_total = per_frame * payload_clip.service_frames;
-    let text = (prompt.len() / CHARS_PER_TOKEN) as u32;
 
     let source_frames = (info.duration_ms as f64 / 1000.0 * info.fps).round() as u64;
 
@@ -234,8 +178,7 @@ pub fn build(
             frame_height: fh,
             per_frame,
             frames_total,
-            text,
-            total: frames_total + text,
+            total: frames_total,
             note: "Qwen-VL ailesi için tahmin: (G/28)×(Y/28) × servisin çıkaracağı \
                    kare. Servis her videoyu 2 fps örneklüyor.",
         },
@@ -246,7 +189,6 @@ pub fn build(
             tokens_if_naive: source_frames * per_frame as u64,
         },
         clip: payload_clip,
-        prompt,
         evidence_frames,
     }
 }
@@ -333,34 +275,24 @@ mod tests {
         assert_eq!(dolu.reduction.sent_frames, 70, "gonderilen kare klipten gelir");
     }
 
+    // Not: istem metnine bakan testler `packages/prompt`e taşındı. Burası
+    // artık prompt üretmiyor; kalan iddialar klibin kendisiyle ilgili.
+
     #[test]
-    fn agir_cekimde_istem_modelden_klip_saatini_ister() {
+    fn agir_cekim_klibin_suresine_yansir() {
         let c = clip_ref(12_000, 15_000, 8.0, 47);
         let p = build(SamplingPass::Zoom, &c, 480_000, &[], &info(), 768);
 
-        assert!(p.prompt.contains("ağır çekime"));
-        // Model dönüşüm aritmetiğini yapamıyor; ondan istemiyoruz.
-        assert!(p.prompt.contains("çevirmeye çalışma"));
         assert_eq!(p.clip.source_span_ms, 3_000);
         assert_eq!(p.clip.duration_ms, 24_000);
     }
 
     #[test]
-    fn gercek_zamanli_klipte_agir_cekim_uyarisi_yok() {
+    fn gercek_zamanli_klipte_sure_kaynakla_ayni() {
         let c = clip_ref(10_000, 22_000, 1.0, 24);
         let p = build(SamplingPass::Zoom, &c, 200_000, &[], &info(), 768);
 
-        assert!(!p.prompt.contains("ağır çekime"));
         assert_eq!(p.clip.source_span_ms, p.clip.duration_ms);
-    }
-
-    #[test]
-    fn genel_bakis_istemi_kamera_saatini_yasaklar() {
-        let c = clip_ref(0, 35_000, 1.0, 70);
-        let p = build(SamplingPass::Overview, &c, 900_000, &[], &info(), 768);
-
-        // Ölçülmüş hata: model kameranın bastığı "14:26:11" saatini yazmıştı.
-        assert!(p.prompt.contains("Kameranın görüntü üzerine bastığı saati"));
     }
 
     #[test]

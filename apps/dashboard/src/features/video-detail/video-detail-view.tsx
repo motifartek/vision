@@ -68,7 +68,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   const { video: streamVideo, error: streamError } = useStreamVideo(videoId, filename)
   const streamId = streamVideo?.id ?? null
   const { heatmap, loading: heatmapLoading, error: heatmapError } = useHeatmap(streamId)
-  const vision = useVisionAnalysis(streamId)
+  const vision = useVisionAnalysis(streamId, streamVideo?.info.duration_ms ?? 0)
   const [overlay, setOverlay] = useState(true)
 
   const videoRef = useRef<HTMLVideoElement>(null)
@@ -204,6 +204,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             <VisionPanel
               outcome={vision.outcome}
               payload={vision.payload}
+              prompt={vision.prompt}
               running={vision.running}
               error={vision.error}
               onAnalyze={vision.analyze}
