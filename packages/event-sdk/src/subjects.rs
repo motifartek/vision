@@ -1,20 +1,20 @@
-﻿//! NATS konu (subject) sabitleri.
+//! NATS konu (subject) sabitleri.
 //!
-//! Konu adlarÄ± asla elle string olarak yazÄ±lmaz; her zaman buradan alÄ±nÄ±r.
+//! Konu adları asla elle string olarak yazılmaz; her zaman buradan alınır.
 
-/// Ham video alÄ±ndÄ± ve nesne deposuna yazÄ±ldÄ±.
+/// Ham video alındı ve nesne deposuna yazıldı.
 pub const VIDEO_INGESTED: &str = "stream.video.ingested";
 
-/// Bir grup kare Ã§Ä±karÄ±ldÄ± ve nesne deposuna yazÄ±ldÄ±.
+/// Bir grup kare çıkarıldı ve nesne deposuna yazıldı.
 pub const FRAME_EXTRACTED: &str = "stream.frame.extracted";
 
-/// AI katmanÄ± bir risk tespit etti; gateway bunu SSE ile panele iletir.
+/// AI katmanı bir risk tespit etti; gateway bunu SSE ile panele iletir.
 pub const RISK_DETECTED: &str = "event.risk.detected";
 
-/// Stream tool Ã§aÄŸrÄ±larÄ±nÄ±n (pass 3) konu Ã¶neki. Ä°stek/cevap desenidir.
+/// Stream tool çağrılarının (pass 3) konu öneki. İstek/cevap desenidir.
 pub const TOOL_PREFIX: &str = "stream.tool.";
 
-/// Belirli bir tool iÃ§in tam konu adÄ±nÄ± Ã¼retir.
+/// Belirli bir tool için tam konu adını üretir.
 ///
 /// ```
 /// use motif_event_sdk::subjects;

@@ -1,4 +1,4 @@
-﻿//! Olay gÃ¼dÃ¼mlÃ¼ (pub/sub) mesajlar.
+//! Olay güdümlü (pub/sub) mesajlar.
 
 use chrono::{DateTime, Utc};
 use motif_core::VideoId;
@@ -6,13 +6,13 @@ use serde::{Deserialize, Serialize};
 
 use crate::SCHEMA_VERSION;
 
-/// `stream.video.ingested` â€” ham video alÄ±ndÄ±, metadata Ã§Ä±karÄ±ldÄ±.
+/// `stream.video.ingested` — ham video alındı, metadata çıkarıldı.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct VideoIngested {
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
     pub video_id: VideoId,
-    /// Ham videonun nesne deposundaki anahtarÄ±.
+    /// Ham videonun nesne deposundaki anahtarı.
     pub object_key: String,
     pub duration_ms: u64,
     pub fps: f64,
@@ -23,11 +23,11 @@ pub struct VideoIngested {
     pub ingested_at: DateTime<Utc>,
 }
 
-/// Karelerin hangi geÃ§iÅŸte Ã¼retildiÄŸi.
+/// Karelerin hangi geçişte üretildiği.
 ///
-/// TÃ¼ketici tarafÄ±n ayÄ±rt etmesi gerekir: `Overview` videonun tamamÄ±nÄ±n
-/// kaba taramasÄ±, `Zoom` ise ajanÄ±n talebi Ã¼zerine dar bir aralÄ±ktan
-/// Ã§Ä±karÄ±lmÄ±ÅŸ yoÄŸun karelerdir.
+/// Tüketici tarafın ayırt etmesi gerekir: `Overview` videonun tamamının
+/// kaba taraması, `Zoom` ise ajanın talebi üzerine dar bir aralıktan
+/// çıkarılmış yoğun karelerdir.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum SamplingPass {
@@ -35,29 +35,29 @@ pub enum SamplingPass {
     Zoom,
 }
 
-/// Tek bir seÃ§ilmiÅŸ kare.
+/// Tek bir seçilmiş kare.
 ///
-/// Kare verisi mesaja **gÃ¶mÃ¼lmez**; sadece nesne deposu anahtarÄ± taÅŸÄ±nÄ±r.
-/// BÃ¶ylece NATS mesajlarÄ± kÃ¼Ã§Ã¼k kalÄ±r ve tÃ¼keticiler sadece ihtiyaÃ§
-/// duyduklarÄ±nÄ± indirir.
+/// Kare verisi mesaja **gömülmez**; sadece nesne deposu anahtarı taşınır.
+/// Böylece NATS mesajları küçük kalır ve tüketiciler sadece ihtiyaç
+/// duyduklarını indirir.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrameRef {
-    /// Karenin videodaki gerÃ§ek zamanÄ±. Ajan zamanÄ± sÄ±radan Ã§Ä±karmak
+    /// Karenin videodaki gerçek zamanı. Ajan zamanı sıradan çıkarmak
     /// zorunda kalmaz.
     pub t_ms: u64,
     pub object_key: String,
-    /// 0..1 aralÄ±ÄŸÄ±nda normalize edilmiÅŸ hareket skoru.
+    /// 0..1 aralığında normalize edilmiş hareket skoru.
     pub motion_score: f32,
     pub is_scene_cut: bool,
 }
 
-/// `stream.frame.extracted` â€” bir grup kare hazÄ±r.
+/// `stream.frame.extracted` — bir grup kare hazır.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FrameExtracted {
     #[serde(default = "default_schema_version")]
     pub schema_version: u32,
     pub video_id: VideoId,
-    /// AynÄ± geÃ§iÅŸe ait kareleri gruplamak iÃ§in.
+    /// Aynı geçişe ait kareleri gruplamak için.
     pub batch_id: String,
     pub pass: SamplingPass,
     pub frames: Vec<FrameRef>,
@@ -67,7 +67,7 @@ fn default_schema_version() -> u32 {
     SCHEMA_VERSION
 }
 
-/// 	oolbox.execute - Dış bir aracı (mock) çalıştırma isteği
+/// `toolbox.execute` — dış bir aracı (mock) çalıştırma isteği.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ToolExecuteRequest {
     #[serde(default = "default_schema_version")]
