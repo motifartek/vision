@@ -14,7 +14,7 @@ import { MotionStrip } from "./motion-strip"
 import { NowPlayingPanel } from "./now-playing-panel"
 import { SafetyPanel } from "./safety-panel"
 import { usePlayback } from "./use-playback"
-import { VisionPanel } from "./vision-panel"
+import { VisionPanel, PayloadSection, RawResponseSection } from "./vision-panel"
 import { playbackSrc, useHeatmap, useStreamVideo, useVisionAnalysis } from "./vision-analysis"
 
 function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: boolean; onToggle: () => void }) {
@@ -259,6 +259,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           <TabsList className="shrink-0">
             <TabsTrigger value="gorsel">Görsel</TabsTrigger>
             <TabsTrigger value="ses">Ses</TabsTrigger>
+            <TabsTrigger value="veri">Veri</TabsTrigger>
           </TabsList>
 
           <TabsContent value="gorsel" className="flex min-h-0 flex-1 flex-col">
@@ -274,6 +275,16 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
               onSeek={seek}
               ready={Boolean(streamId)}
             />
+          </TabsContent>
+
+          <TabsContent value="veri" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+            <PayloadSection 
+              payload={vision.payload} 
+              prompt={vision.prompt} 
+              onLoad={() => vision.loadPayload()} 
+              ready={Boolean(streamId)} 
+            />
+            <RawResponseSection outcome={vision.outcome} />
           </TabsContent>
 
           <TabsContent value="ses" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">

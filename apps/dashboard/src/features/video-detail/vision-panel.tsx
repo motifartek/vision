@@ -79,8 +79,6 @@ export function VisionPanel({
       </div>
 
       {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} />}
-
-      <PayloadSection payload={payload} prompt={prompt} onLoad={onLoadPayload} ready={ready} />
     </div>
   )
 }
@@ -255,7 +253,7 @@ function Steps({ steps }: { steps: AgentStep[] }) {
  * yanında ağır çekim oranı ve token maliyeti duruyor; yani burada görülen şey
  * temsili bir gösterim değil, modele gidenin birebir aynısı.
  */
-function PayloadSection({
+export function PayloadSection({
   payload,
   prompt,
   onLoad,
@@ -394,5 +392,37 @@ function Row({ k, v, vurgu }: { k: string; v: string; vurgu?: boolean }) {
         {v}
       </dd>
     </>
+  )
+}
+
+
+export function RawResponseSection({ outcome }: { outcome: Outcome | null }) {
+  const [open, setOpen] = useState(false)
+  return (
+    <div className="flex shrink-0 flex-col rounded-xl border bg-card">
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        className="flex items-center justify-between gap-2 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
+        aria-expanded={open}
+      >
+        <span className="text-xs font-medium">Modelden D�nen Ham Cevap</span>
+        <ChevronDown
+          className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
+        />
+      </button>
+
+      {open && (
+        <div className="flex flex-col gap-3 border-t px-4 py-3">
+          {!outcome ? (
+            <p className="text-[11px] text-muted-foreground">Hen�z analiz sonucu yok.</p>
+          ) : (
+            <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-[10px] leading-snug">
+              {JSON.stringify(outcome, null, 2)}
+            </pre>
+          )}
+        </div>
+      )}
+    </div>
   )
 }
