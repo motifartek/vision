@@ -242,7 +242,7 @@ async fn varyanti_kosl(
         };
 
         let basladi = Instant::now();
-        match ajan.analyze(&kimlik).await {
+        match ajan.analyze(&kimlik, None).await {
             Ok(cikti) => {
                 let r = &cikti.report;
                 let tahmin: Vec<i64> = r.events.iter().map(|e| e.t_ms as i64).collect();

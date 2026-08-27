@@ -18,13 +18,36 @@ use tower_http::cors::CorsLayer;
 use tower_http::trace::TraceLayer;
 
 use motif_event_sdk::ClipRef;
-use motif_prompt::{PromptContext, PromptKind};
+use motif_prompt::{PromptContext, PromptKind, UntrustedText};
 
 use crate::agent::{AgentError, VisionAgent};
 
 #[derive(Debug, Deserialize)]
 pub struct AnalyzeBody {
     pub video_id: String,
+    /// `sonic`'in ses analizinden çıkan özet.
+    ///
+    /// İsteğe bağlı: verilmezse prompt bayt bayt eskisiyle aynı kalıyor, yani
+    /// ses hattı bağlanmamış bir kurulumda davranış değişmiyor. Orchestrator
+    /// bu alanı doldurduğunda metin prompt'un ayraçlı güvenilmez bölgesine
+    /// giriyor — modelin kendi çıktısı bir sonraki prompt'un talimatı
+    /// olmasın diye (tasarım §K7).
+    #[serde(default)]
+    pub isitsel_baglam: Option<String>,
+}
+
+impl AnalyzeBody {
+    /// Ses bağlamını güvenilmez metne çevirir.
+    ///
+    /// Boş ya da yalnızca boşluktan oluşan bir değer `None` sayılıyor: aksi
+    /// hâlde içi boş bir "güvenilmez bağlam" bölümü açılır, bağlamı şişirir
+    /// ve modele söyleyecek şeyi olmayan bir bölüm gösterirdi.
+    fn isitsel(&self) -> Option<UntrustedText> {
+        self.isitsel_baglam
+            .as_deref()
+            .filter(|s| !s.trim().is_empty())
+            .map(UntrustedText::new)
+    }
 }
 
 pub fn router(agent: Arc<VisionAgent>) -> Router {
@@ -54,7 +77,7 @@ async fn analyze(
     State(agent): State<Arc<VisionAgent>>,
     Json(body): Json<AnalyzeBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let outcome = agent.analyze(&body.video_id).await?;
+    let outcome = agent.analyze(&body.video_id, body.isitsel()).await?;
     Ok(Json(json!({
         "report": outcome.report,
         "steps": outcome.steps,
@@ -66,7 +89,7 @@ async fn analyze_sartname(
     State(agent): State<Arc<VisionAgent>>,
     Json(body): Json<AnalyzeBody>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let outcome = agent.analyze(&body.video_id).await?;
+    let outcome = agent.analyze(&body.video_id, body.isitsel()).await?;
     Ok(Json(outcome.report.to_sartname_json()))
 }
 
@@ -81,6 +104,13 @@ pub struct PreviewBody {
     /// Verilirse yakınlaştırma istemi, verilmezse genel bakış istemi.
     #[serde(default)]
     pub clip: Option<ClipRef>,
+    /// Örnek ses bağlamı.
+    ///
+    /// Önizlemede de kabul ediliyor ki yönetici güvenilmez bölgenin nasıl
+    /// render edildiğini — ve ayraç kaçırmanın çalıştığını — göndermeden
+    /// görebilsin.
+    #[serde(default)]
+    pub isitsel_baglam: Option<String>,
 }
 
 /// Modele gidecek metni gönderilmeden üretir.
@@ -102,6 +132,13 @@ async fn preview_prompt(
     let mut ctx = PromptContext::new(body.duration_ms);
     if let Some(clip) = body.clip {
         ctx = ctx.with_clip(clip);
+    }
+    if let Some(ses) = body
+        .isitsel_baglam
+        .as_deref()
+        .filter(|s| !s.trim().is_empty())
+    {
+        ctx = ctx.with_audio(UntrustedText::new(ses));
     }
 
     let p = agent.preview(kind, &ctx);
@@ -242,5 +279,43 @@ impl IntoResponse for ApiError {
 
         tracing::warn!(hata = %self.0, "analiz başarısız");
         (kod, Json(json!({"code": tur, "error": self.0.to_string()}))).into_response()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn govde(ses: Option<&str>) -> AnalyzeBody {
+        AnalyzeBody {
+            video_id: "v1".into(),
+            isitsel_baglam: ses.map(str::to_string),
+        }
+    }
+
+    /// Alan hiç verilmezse ses bağlamı yok sayılmalı.
+    ///
+    /// `#[serde(default)]` olmadan eski istemciler 422 alırdı; orchestrator
+    /// ve panel bu alanı bilmeden de çağırabilmeli.
+    #[test]
+    fn alan_verilmezse_ses_yok() {
+        let g: AnalyzeBody = serde_json::from_str(r#"{"video_id":"v1"}"#).unwrap();
+        assert!(g.isitsel().is_none());
+    }
+
+    /// Boş ya da yalnız boşluktan oluşan değer bölge açmamalı.
+    ///
+    /// Aksi hâlde `sonic` hiçbir şey duymadığında prompt'a içi boş bir
+    /// "güvenilmez bağlam" bölümü girer: bağlamı şişirir ve modele söyleyecek
+    /// şeyi olmayan bir bölüm gösterir.
+    #[test]
+    fn bos_deger_bolge_acmaz() {
+        assert!(govde(Some("")).isitsel().is_none());
+        assert!(govde(Some("   \n\t ")).isitsel().is_none());
+    }
+
+    #[test]
+    fn dolu_deger_guvenilmez_metne_cevriliyor() {
+        assert!(govde(Some("cam kırıldı")).isitsel().is_some());
     }
 }
