@@ -72,12 +72,21 @@ pub enum PromptKind {
     VisionIlkBakis,
     /// Ajanın istediği aralığın klibi.
     VisionYakinlastirma,
+    /// Son tur: yakınlaştırma hakkı bitti, rapor zorunlu.
+    ///
+    /// Yakınlaştırmadan tek farkı çıktı sözleşmesinin **zoom dalını
+    /// içermemesi**. Talimatla yasaklamak ölçüldü ve çalışmadı: istem "artık
+    /// yakınlaştırma isteme" derken şema zoom sunmaya devam ediyordu, model
+    /// şemayı takip ediyordu ve analiz boş dönüyordu.
+    VisionSonTur,
 }
 
 impl PromptKind {
     pub fn agent(self) -> &'static str {
         match self {
-            PromptKind::VisionIlkBakis | PromptKind::VisionYakinlastirma => "vision",
+            PromptKind::VisionIlkBakis
+            | PromptKind::VisionYakinlastirma
+            | PromptKind::VisionSonTur => "vision",
         }
     }
 }
@@ -447,25 +456,29 @@ text = \"\"\"
                     "zaman_kurali",
                     "arac_kullanimi",
                     "sozlesme",
+                    "zoom_secenegi",
                 ],
                 vec!["kayit_bilgisi"],
             ),
-            PromptKind::VisionYakinlastirma => {
+            PromptKind::VisionYakinlastirma | PromptKind::VisionSonTur => {
                 let mut son = vec!["pencere_bilgisi"];
                 if ctx.agir_cekimde() {
                     son.push("agir_cekim");
                 }
-                (
-                    vec![
-                        "olay_olmayan",
-                        "cozunurluk",
-                        "yakinlastirma_talimati",
-                        "yakinlastirma_zaman_kurali",
-                        "arac_kullanimi",
-                        "sozlesme",
-                    ],
-                    son,
-                )
+                let mut on = vec![
+                    "olay_olmayan",
+                    "cozunurluk",
+                    "yakinlastirma_talimati",
+                    "yakinlastirma_zaman_kurali",
+                    "arac_kullanimi",
+                    "sozlesme",
+                ];
+                // Son turda zoom dalı şemaya hiç girmiyor: yasak talimatta
+                // değil sözleşmede duruyor.
+                if kind == PromptKind::VisionYakinlastirma {
+                    on.push("zoom_secenegi");
+                }
+                (on, son)
             }
         };
 
@@ -936,5 +949,60 @@ text = \"Uzunluk {sure}.\"
         assert!(p.suffix.contains("00:12"), "pencere son ekte değil");
         assert!(p.suffix.contains("8 kat"), "ağır çekim oranı son ekte değil");
         assert!(p.prefix.contains("Yalnızca JSON"), "sözleşme ön ekte olmalı");
+    }
+
+    // --- son tur ---
+    //
+    // Ölçüldü: son turda istem "artık yakınlaştırma isteme" derken şema zoom
+    // sunmaya devam ediyordu. Model şemayı takip etti ve 30 koşum-videonun
+    // 10'unda hiç rapor gelmedi. Bu testler yasağın şemada kalmasını kilitliyor.
+
+    #[test]
+    fn son_turda_zoom_semada_yok() {
+        let r = PromptRegistry::embedded().unwrap();
+        let ctx = PromptContext::new(20_000).with_clip(test_clip(1.0));
+        let p = r.render(PromptKind::VisionSonTur, &ctx);
+        let metin = p.joined();
+        assert!(
+            !metin.contains("\"zoom\""),
+            "son turda zoom dalı hâlâ sunuluyor:
+{metin}"
+        );
+    }
+
+    #[test]
+    fn yakinlastirmada_zoom_semada_var() {
+        let r = PromptRegistry::embedded().unwrap();
+        let ctx = PromptContext::new(20_000).with_clip(test_clip(1.0));
+        let p = r.render(PromptKind::VisionYakinlastirma, &ctx);
+        assert!(
+            p.joined().contains("\"zoom\""),
+            "yakınlaştırma turunda zoom seçeneği kaybolmuş"
+        );
+    }
+
+    /// Zoom dalı çıkınca rapor sözleşmesi eksilmemeli.
+    ///
+    /// İkisi ayrı parçada durduğu için birbirinden ayrışamaz; bu test o
+    /// ayrımın korunduğunu doğruluyor.
+    #[test]
+    fn son_turda_rapor_sozlesmesi_tam() {
+        let r = PromptRegistry::embedded().unwrap();
+        let ctx = PromptContext::new(20_000).with_clip(test_clip(1.0));
+        let metin = r.render(PromptKind::VisionSonTur, &ctx).joined();
+        for anahtar in ["summary", "events", "risk", "actions"] {
+            assert!(metin.contains(anahtar), "{anahtar} sözleşmeden düştü");
+        }
+    }
+
+    /// İlk bakışta yakınlaştırma hâlâ teklif edilmeli: kaba-bakıştan-inceye
+    /// tasarımı son turdaki yasakla kapanmamalı.
+    #[test]
+    fn ilk_bakista_zoom_teklif_ediliyor() {
+        let r = PromptRegistry::embedded().unwrap();
+        let metin = r
+            .render(PromptKind::VisionIlkBakis, &PromptContext::new(20_000))
+            .joined();
+        assert!(metin.contains("\"zoom\""));
     }
 }

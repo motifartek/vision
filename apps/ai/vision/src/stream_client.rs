@@ -62,31 +62,62 @@ impl StreamClient {
         })
     }
 
+    /// Geçici arızada bir kez yeniden denenen POST.
+    ///
+    /// # Neden
+    ///
+    /// Klip üretimi ffmpeg alt süreci ve dosya sistemi kullanıyor; ikisi de
+    /// geçici olarak düşebiliyor. Ölçümde görüldü: aynı çağrı yoğun dosya
+    /// trafiği altında `500 G/Ç hatası` verdi, tek başına tekrarlandığında
+    /// 5/5 başarılı oldu.
+    ///
+    /// Bu yol tekrarlanabilir: `clip_range` ve `video_info` yan etkisiz,
+    /// `zoom_range` ise yakınlaştırma bütçesinden hak harcıyor — o yüzden
+    /// **yalnız istek servise ulaşamadığında ya da 5xx döndüğünde**
+    /// tekrarlanıyor. 4xx (bütçe bitti, geçersiz aralık) tekrarlanmıyor:
+    /// aynı cevabı getirir ve `429` durumunda hakkı boşa harcardı.
     async fn post<T: Serialize>(&self, yol: &str, govde: &T) -> Result<Value, StreamError> {
         let url = format!("{}{yol}", self.base_url);
-        let res = self
-            .client
-            .post(&url)
-            .json(govde)
-            .send()
-            .await
-            .map_err(|source| StreamError::Transport {
-                url: url.clone(),
-                source,
-            })?;
+        let mut son_hata: Option<StreamError> = None;
 
-        let status = res.status();
-        if !status.is_success() {
-            let body = res.text().await.unwrap_or_default();
-            return Err(StreamError::Status {
-                status: status.as_u16(),
-                body: body.chars().take(400).collect(),
-            });
+        for deneme in 0..2 {
+            if deneme > 0 {
+                tracing::warn!(%url, hata = ?son_hata, "stream çağrısı geçici olarak düştü, tekrar deneniyor");
+                tokio::time::sleep(std::time::Duration::from_millis(500)).await;
+            }
+
+            let res = match self.client.post(&url).json(govde).send().await {
+                Ok(r) => r,
+                Err(source) => {
+                    son_hata = Some(StreamError::Transport {
+                        url: url.clone(),
+                        source,
+                    });
+                    continue;
+                }
+            };
+
+            let status = res.status();
+            if !status.is_success() {
+                let body = res.text().await.unwrap_or_default();
+                let hata = StreamError::Status {
+                    status: status.as_u16(),
+                    body: body.chars().take(400).collect(),
+                };
+                if status.is_server_error() {
+                    son_hata = Some(hata);
+                    continue;
+                }
+                return Err(hata);
+            }
+
+            return res
+                .json()
+                .await
+                .map_err(|e| StreamError::Decode(e.to_string()));
         }
 
-        res.json()
-            .await
-            .map_err(|e| StreamError::Decode(e.to_string()))
+        Err(son_hata.unwrap_or_else(|| StreamError::Decode("bilinmeyen".into())))
     }
 
 }

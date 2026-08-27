@@ -210,7 +210,66 @@ karşılaştırma harness'a eklenecek.
 
 ---
 
-### Faz 1 — Rapor kaybını sıfırla *(yarım gün)*
+### Faz 1 — Rapor kaybını sıfırla *(bitti)*
+
+*Kabul karşılandı ve fazlasıyla.* Ölçüm:
+`documents/measurements/stream-faz1-olcumu.md`
+
+| | taban | Faz 1 |
+|---|---|---|
+| olay eşleşmesi | 7,7/24 (%32) | **14,7/24 (%61)** |
+| rapor üretemeyen | 10/30 | **0/30** |
+| şema geçerli | 20/30 | **30/30** |
+| boş aksiyon | 10 | **0** |
+| gürültü bandı | 5 olay | **1 olay** |
+| kararlı video | 4/10 | **9/10** |
+
+Kazanç (+7 olay) hem eski hem yeni gürültü bandının çok üstünde; bu fark
+iddia edilebilir.
+
+**Asıl neden şema değişikliği.** Hata sınıflarına ayırınca net görünüyor:
+
+| hata sınıfı | taban | Faz 1 (ara) | Faz 1 (son) |
+|---|---|---|---|
+| `model rapor vermedi` | 8 | **0** | **0** |
+| `stream ... döndü` | 1 | 7 | **0** |
+
+Zoom dalını son turun şemasından çıkarmak `no_report` sınıfını **tamamen**
+kaldırdı. Talimatla yasaklamak çalışmıyordu, şemadan çıkarmak çalıştı.
+
+**Gürültünün kendisi arızadan geliyormuş.** Faz 0'da bandın tamamını açan
+`coklu-olay` (1/6, 1/6, 6/6) artık **6/6, 6/6, 6/6**. Yani o savrulma modelin
+rastgeleliği değil, yakınlaştırma döngüsünün kararsızlığıydı. Band 5'ten 1'e
+düştü — Faz 3'ün ölçülebilmesi için gereken hassasiyet böylece kazanıldı.
+
+**Yeniden deneme ölçülebilir iş yapıyor.** Faz 0'ın "her koşuda taze video"
+değişikliği dosya trafiğini artırdı ve `data/stream` OneDrive altından Docker'a
+bind mount edildiği için geçici `500 G/Ç hatası` üretmeye başladı. Ara ölçümde
+7 analiz bu yüzden kaybolmuştu.
+
+Son koşuda `stream` günlüğünde **24** adet 500 var, harness'ta **0** hata:
+tekrar denemeler hepsini soğurdu. (Bench tracing kurmadığı için uyarı satırları
+görünmüyor; ilk bakışta "tetiklenmedi" sanmıştım — günlük sayımı tersini
+gösterdi.)
+
+**Yer tutucu rapor hiç devreye girmedi.** Kök neden düzeltildiği için ağa gerek
+kalmadı; yine de kuyruk durumlar için duruyor.
+
+#### Kalan zayıf noktalar — artık kararlı
+
+Bunlar boru hattı arızası değil, modelin kaçırması. Kararlı oldukları için
+Faz 3'te ölçülebilirler:
+
+| video | sonuç | not |
+|---|---|---|
+| `uzun-iki-olay` | 0/4 ×3 | 120 sn, tek klipte 240 kare — Faz 3'ün asıl hedefi |
+| `net-olay` | 0/2 ×3 | 17 sn, belirgin olay |
+| `cok-kisa-an` | 0/2 ×3 | yarım saniyelik olay |
+| `uzun-tek-olay` | 1/2 ×3 | 120 sn |
+
+---
+
+### Faz 1 — özgün plan *(referans)*
 
 En yüksek getirili faz ve **hiçbir dezavantajı yok**: bugün sıfır dönen
 senaryolardan alacağımız her şey net kazanç.

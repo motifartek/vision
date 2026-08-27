@@ -149,6 +149,7 @@ async fn preview_prompt(
         "kind": match kind {
             PromptKind::VisionIlkBakis => "ilk_bakis",
             PromptKind::VisionYakinlastirma => "yakinlastirma",
+            PromptKind::VisionSonTur => "son_tur",
         },
         "prefix": p.prefix,
         "suffix": p.suffix,
@@ -291,6 +292,7 @@ mod tests {
         AnalyzeBody {
             video_id: "v1".into(),
             isitsel_baglam: ses.map(str::to_string),
+            tools: None,
         }
     }
 
