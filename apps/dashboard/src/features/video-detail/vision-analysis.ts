@@ -256,11 +256,26 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
         setPayload(p)
 
         const yakinlastirma = p.clip.t0_ms > 0 || p.clip.time_scale > 1.01
+        
+        let toolsText = null
+        try {
+          const tRes = await fetch("/api/tools")
+          if (tRes.ok) {
+            const toolsList = await tRes.json() as {name: string, title: string, description: string}[]
+            if (toolsList && toolsList.length > 0) {
+              toolsText = toolsList.map(t => `- ${t.name} (${t.title}): ${t.description}`).join("\n")
+            }
+          }
+        } catch {
+          // Ignore tools fetch error
+        }
+
         const pr = await iste<PromptPreview>(`${VISION}/v1/prompts/preview`, {
           method: "POST",
           headers: { "content-type": "application/json" },
           body: JSON.stringify({
             duration_ms: durationMs,
+            tools: toolsText,
             clip: yakinlastirma
               ? {
                   t0_ms: p.clip.t0_ms,
