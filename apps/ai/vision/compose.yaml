@@ -8,6 +8,7 @@ services:
     environment:
       - VISION_BIND=0.0.0.0:8110
       - STREAM_URL=http://stream:8100
+      - DATABASE_URL=postgres://motif:motif@postgres:5432/motif
       # Anahtar depoda tutulmaz; kabuktan aktarılır.
       #   EVREN_KEY=... docker compose -f platform/docker/compose.yaml up -d
       - EVREN_KEY=${EVREN_KEY:?EVREN_KEY tanımlı değil}
@@ -15,6 +16,7 @@ services:
       - OTEL_SERVICE_NAME=vision
     depends_on:
       - stream
+      - postgres
     restart: unless-stopped
     networks:
       - default
