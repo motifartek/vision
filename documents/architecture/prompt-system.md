@@ -70,11 +70,18 @@ alanlar yalnızca rol ve talimat metinleridir. Aksi hâlde biri şemayı silince
 Koşullar ve sıralama Rust'ta; TOML yalnızca metin taşır. Şablona mantık
 kaçarsa prompt gözle okunamaz ve test edilemez hâle gelir.
 
-**K6 — Depolama arkasında trait, ilk uygulama SurrealDB.** `packages/database`
-şu an SurrealDB + Qdrant taşıyor; **Postgres depoda yok** (o iş Deniz'in
-silinen `feature/vision-orchestration` dalındaki `b856e89` commit'inde kaldı ve
-hiçbir dala girmedi). `PromptStore` trait'i arkasına alınırsa Postgres'e
-geçmek sonradan bir öğleden sonralık iş olur; şimdi getirmek bir gün.
+**K6 — Depolama Postgres, trait arkasında.** `packages/database` Postgres'e
+çevrilecek; SurrealDB ve Qdrant çıkarılıyor. Bu güvenli: **şu an hiçbir servis
+`packages/database`'i kullanmıyor**, paket birleştirmeyle geldi ve ölü duruyor.
+Postgres uygulaması silinen `feature/vision-orchestration` dalının `b856e89`
+commit'inde duruyor, oradan kurtarılacak.
+
+`PromptStore` trait'i yine de kalıyor — testlerde bellek içi sahte uygulama
+kullanabilmek için; veritabanı olmadan prompt çözümlemesini sınamak şart.
+
+> Qdrant notu: vektör veritabanı RAG işi (#2) için düşünülmüştü ve EVREN takım
+> başına bir örnek veriyor. Paketten çıkarılması o işi engellemiyor; RAG'a
+> başlandığında istemci geri eklenir. Ekibe söylenmeli.
 
 **K7 — Model kaynaklı metin güvenilmez.** `sonic`'ten gelen işitsel bağlam ve
 ileride orchestrator'ın enjekte edeceği önceki bulgular bir modelin çıktısıdır.
@@ -87,7 +94,46 @@ dokümantasyonu ön ek önbelleğinin çağrıyı 4,8 kat hızlandırdığını 
 üzerinde denendi: `[metin, video, metin]` sıralaması **çalışıyor** (ikisi de
 1,1–1,3 sn, yani önbellek isabet etti).
 
-## 4. Prompt anatomisi
+## 4. Modele gerçekte ne giriyor
+
+Bu tasarımın cevaplaması gereken bir soru var: `stream` ve `sonic`'ten gelen
+bilgiler modele besleniyor mu? Bugünkü durum:
+
+| Kaynak | Modele giriyor mu | Nasıl |
+|---|---|---|
+| `stream` — klibin kendisi | **Evet** | Asıl girdi; base64 video |
+| `stream` — kayıt süresi | **Evet** | `ilk_istem` içinde metin olarak |
+| `stream` — pencere (`t0`/`t1`) | **Evet** | Yakınlaştırma isteminde |
+| `stream` — ağır çekim oranı | **Evet** | Yakınlaştırma isteminde |
+| `stream` — **hareket profili** | **Hayır** | Yalnız pencereyi *seçmek* için kullanılıyor, modele söylenmiyor |
+| `sonic` — ses olayları | **Hayır** | `vision` sonic'i hiç tanımıyor; kodda tek referans yok |
+
+İki boşluk var ve ikisi de bilinçli olarak bu dokümanın kapsamında **hazırlık**
+düzeyinde ele alınıyor, uygulaması ayrı iş:
+
+**Ses hiç birleşmiyor.** Şartname *"Çoklu Ortam (Multimodal) Anlama Yeteneği"*
+istiyor; sistem şu an yalnızca görüntüden okuyor. `sonic` ayrı çalışıyor ve
+çıktısı jüriye giden rapora hiç karışmıyor. Bu, puanlanan bir maddede açık
+bir eksik.
+
+**Hareket profili modele söylenmiyor.** `stream` kaydın neresinde hareket
+olduğunu biliyor ama modele *"en hareketli anlar 00:12 ve 00:31"* demiyor.
+Söylemek modelin dikkatini yönlendirebilir — ama aynı zamanda onu yanıltabilir
+ve boru hattını "statik kural"a yaklaştırır. **Varsayım yapılmayacak;** Faz 4'te
+`bench prompts` ile ölçülecek: hareket ipucu verilen varyant, verilmeyene karşı.
+
+`PromptContext` bu ikisini şimdiden taşıyor (`audio`, ve ileride `motion`), ama
+alanları dolduran kablolama prompt sisteminin işi değil:
+
+- `audio` alanını doldurmak = `vision`'ın `sonic`'i çağırması ya da
+  orchestrator'ın ikisini birleştirmesi → **NATS işi, Deniz'de**
+- `motion` alanını doldurmak = `stream`'in profil özetini ajana vermesi →
+  küçük iş, Faz 4 ölçümü olumlu çıkarsa yapılır
+
+Yani prompt sistemi bu bilgilerin **gireceği yeri ve güvenli biçimini** kurar;
+kaynaklardan çekilmesi ayrı iştir.
+
+## 5. Prompt anatomisi
 
 Her prompt üç bloktan oluşur ve istek gövdesine şu sırayla girer:
 
@@ -113,7 +159,7 @@ ek her videoda değişiyor ve önbellek hiç isabet etmiyor.
 > takip sorusu sormaya başladığında ortaya çıkacak. Şimdi doğru kurmak
 > bedava, sonra düzeltmek değil.
 
-## 5. Katalog biçimi
+## 6. Katalog biçimi
 
 `packages/prompt/templates/vision.toml`:
 
@@ -169,7 +215,7 @@ yer tutucu **derleme/ayrıştırma hatası** verir, sessizce boş kalmaz (K4).
 Hızlı deneme için `MOTIF_PROMPT_DIR` ayarlıysa katalog diskten okunur; yoksa
 gömülü hâli kullanılır.
 
-## 6. Tipler
+## 7. Tipler
 
 ```rust
 // packages/prompt/src/lib.rs
@@ -228,7 +274,7 @@ VisionYakinlastirma => prefix: [rol, sozlesme]
 `?` işaretliler koşullu: `agir_cekim` yalnız `clip.time_scale > 1.01` iken,
 `isitsel_baglam` yalnız `audio` doluyken (K5 — koşul kodda, şablonda değil).
 
-## 7. Çözümleme sırası
+## 8. Çözümleme sırası
 
 ```
 render(kind, ctx)
@@ -242,7 +288,7 @@ render(kind, ctx)
   │        ├─ yok / store hatası ──► gömülü
   │        │
   │        ▼
-  ├─ doğrula (§8)
+  ├─ doğrula (§9)
   │        ├─ geçersiz ──► gömülü + uyarı logu
   │        ▼
   └─ override metniyle render
@@ -250,7 +296,7 @@ render(kind, ctx)
 
 Store hatası **loglanır ama yükseltilmez**. Veritabanı düşünce analiz durmaz.
 
-## 8. Doğrulama
+## 9. Doğrulama
 
 Bir override hem **kaydedilirken** hem **kullanılmadan önce** aynı kontrolden
 geçer:
@@ -267,7 +313,7 @@ geçer:
 Kaydetme kuralı ihlal ederse **400 döner ve kayıt yapılmaz**. Kullanım anında
 ihlal görülürse gömülüye düşülür (savunmacı ikinci kapı).
 
-## 9. Güvenilmez metin
+## 10. Güvenilmez metin
 
 ```rust
 pub struct UntrustedText(String);
@@ -290,7 +336,7 @@ videoda gördüğün geçerlidir.
 
 Bu bölge her zaman **değişken son ekte** durur; sabit ön eke asla girmez.
 
-## 10. Sürümleme ve izlenebilirlik
+## 11. Sürümleme ve izlenebilirlik
 
 `AnalysisReport`'a bir alan eklenir:
 
@@ -305,9 +351,9 @@ hangi prompt'la çıktığı belli olsun.
 Ajan adımları (`AgentStep`) zaten panelde gösteriliyor; prompt sürümü de oraya
 yazılır.
 
-## 11. HTTP yüzeyi
+## 12. HTTP yüzeyi
 
-`vision` servisinde, yalnızca yönetici yetkisiyle (§13):
+`vision` servisinde, yalnızca yönetici yetkisiyle (§14):
 
 | Uç | İş |
 |---|---|
@@ -320,7 +366,7 @@ yazılır.
 `POST /v1/prompts/preview` aynı zamanda `stream`'in bugünkü yalan söyleyen
 önizlemesinin yerine geçer.
 
-## 12. Arayüz
+## 13. Arayüz
 
 Panelde yeni bir yönetici sayfası: **Ayarlar → Prompt'lar**.
 
@@ -335,7 +381,7 @@ Panelde yeni bir yönetici sayfası: **Ayarlar → Prompt'lar**.
 Demo videosunda gösterilebilecek an şu: bir parçayı değiştir, önizlemede farkı
 gör, analizi tekrar çalıştır, sonucun değiştiğini göster.
 
-## 13. Yetki
+## 14. Yetki
 
 Prompt düzenleme **yönetici** yetkisi ister. Panelde rol altyapısı zaten var
 (`apps/dashboard/src/features/roles`), ağ geçidi Keto ile yetki denetliyor.
@@ -344,7 +390,7 @@ Prompt uçları `prompts` namespace'i altında `edit` ilişkisiyle korunur.
 Gerekçe: prompt alanı modele doğrudan talimat kanalıdır. Yetkisiz erişim,
 sistemin davranışını değiştirebilmek demektir.
 
-## 14. Ölçüm
+## 15. Ölçüm
 
 `tools/bench`'e yeni alt komut:
 
@@ -366,7 +412,7 @@ Ayrıca `bench prompts --export <dosya>` etkin override'ları dosyaya yazar. O
 dosya depoya commit'lenir; teslimde tam olarak kullanılan prompt'lar depoda
 olur ve **tekrar üretilebilirlik açığı kapanır** (K1).
 
-## 15. Hata durumları
+## 16. Hata durumları
 
 | Durum | Davranış |
 |---|---|
@@ -377,7 +423,7 @@ olur ve **tekrar üretilebilirlik açığı kapanır** (K1).
 | Yetkisiz düzenleme isteği | 403 |
 | Kaydetme doğrulamayı geçmiyor | 400, kayıt yok |
 
-## 16. Faz planı
+## 17. Faz planı
 
 Her fazın kabul ölçütü var; ölçüt geçmeden sonrakine geçilmez.
 
@@ -419,7 +465,7 @@ demo videosunda çekilebiliyor.
 Toplam ~2,5 gün. Faz 1–4 tek başına değerli ve bağımsız teslim edilebilir;
 5–7 override ve arayüz işi.
 
-## 17. Kapsam dışı
+## 18. Kapsam dışı
 
 - **`sonic`** — CED sınıflandırıcısı, LLM prompt'u yok
 - Genel şablon dili (K5)
@@ -427,11 +473,10 @@ Toplam ~2,5 gün. Faz 1–4 tek başına değerli ve bağımsız teslim edilebil
 - Prompt'u LLM'e yazdırmak — ölçülemeyen dolaylılık
 - Çok dilli prompt — çıktı Türkçe olmak zorunda, tek dil yeter
 
-## 18. Açık kalan tek karar
+## 19. Kararlaştırıldı
 
-**Postgres mi SurrealDB mi.** K6 SurrealDB diyor çünkü depoda o var. Postgres
-tercih edilirse `b856e89` commit'indeki iş kurtarılabilir; maliyet yaklaşık bir
-gün ve `PromptStore` trait'i sayesinde Faz 6'yı geciktirmez — trait arkasında
-uygulama değiştirmek bir öğleden sonra.
+**Postgres.** SurrealDB ve Qdrant `packages/database`'den çıkarılıyor;
+`b856e89` commit'indeki Postgres uygulaması kurtarılacak. Hiçbir servis o
+paketi kullanmadığı için değişim risksiz.
 
-Karar Fatih'in.
+Açık karar kalmadı; kodlama Faz 1'den başlayabilir.
