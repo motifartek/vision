@@ -85,6 +85,11 @@ impl VisionAgent {
         }
     }
 
+    /// Prompt kataloğu — arayüz uçları için.
+    pub fn prompts(&self) -> &Arc<PromptRegistry> {
+        &self.prompts
+    }
+
     /// Bir prompt'u **göndermeden** üretir.
     ///
     /// Panelin "Modele giden yük" bölümü bunu çağırıyor — ve `analyze` de

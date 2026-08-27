@@ -1,26 +1,27 @@
-services:
-  surrealdb:
-    image: surrealdb/surrealdb:latest
-    restart: unless-stopped
-    command: start --log trace --user root --pass root file://data/surreal.db
-    ports:
-      - "8020:8000" # Gateway port 8000 kullandigi icin host tarafinda 8020 ile esliyoruz
-    volumes:
-      - surreal-data:/data
-    networks:
-      - default
+# Postgres — prompt override deposu.
+#
+# İsteğe bağlı: servis DATABASE_URL yoksa ya da veritabanına ulaşamazsa
+# gömülü katalogla çalışmaya devam eder.
 
-  qdrant:
-    image: qdrant/qdrant:latest
-    restart: unless-stopped
+services:
+  postgres:
+    image: postgres:16-alpine
     ports:
-      - "6333:6333"
-      - "6334:6334"
+      # 5433: makinede yerel bir Postgres kuruluysa 5432'yi o tutuyor ve
+      # konteynerin önüne geçiyor. Ölçümde tam olarak bu oldu.
+      - "5433:5432"
+    environment:
+      - POSTGRES_USER=motif
+      - POSTGRES_PASSWORD=motif
+      - POSTGRES_DB=motif
     volumes:
-      - qdrant-data:/qdrant/storage
-    networks:
-      - default
+      - pg-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U motif"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
 
 volumes:
-  surreal-data:
-  qdrant-data:
+  pg-data:

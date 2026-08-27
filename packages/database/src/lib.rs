@@ -1,29 +1,11 @@
-pub mod qdrant;
-pub mod surreal;
+//! Postgres bağlantısı ve üstündeki depolar.
+//!
+//! SurrealDB ve Qdrant çıkarıldı: ikisi de hiçbir servis tarafından
+//! kullanılmıyordu ve seçim Postgres'ten yana yapıldı. Vektör veritabanı RAG
+//! işine (#2) başlandığında geri gelebilir.
 
-use std::sync::Arc;
+pub mod postgres;
+pub mod prompt_store;
 
-#[derive(Clone)]
-pub struct DatabaseClients {
-    pub surreal: Arc<surrealdb::Surreal<surrealdb::engine::remote::ws::Client>>,
-    pub qdrant: Arc<qdrant_client::Qdrant>,
-}
-
-impl DatabaseClients {
-    /// Her iki veritabanina baglanir ve istemcileri dondurur.
-    pub async fn connect(
-        surreal_url: &str,
-        surreal_ns: &str,
-        surreal_db: &str,
-        qdrant_url: &str,
-        qdrant_api_key: Option<&str>,
-    ) -> Result<Self, Box<dyn std::error::Error>> {
-        let surreal = surreal::connect(surreal_url, surreal_ns, surreal_db).await?;
-        let qdrant = qdrant::connect(qdrant_url, qdrant_api_key).await?;
-
-        Ok(Self {
-            surreal: Arc::new(surreal),
-            qdrant: Arc::new(qdrant),
-        })
-    }
-}
+pub use postgres::{connect, PgPool};
+pub use prompt_store::PostgresPromptStore;

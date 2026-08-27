@@ -25,14 +25,17 @@
 
 use std::collections::BTreeMap;
 use std::path::Path;
+use std::sync::{Arc, RwLock};
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 
-mod context;
+pub(crate) mod context;
 mod render;
+mod store;
 
 pub use context::{PromptContext, UntrustedText};
+pub use store::{MemoryStore, PromptOverride, PromptStore, StoreError, ValidationError};
 
 /// Gömülü katalog. Derleme zamanında ikiliye giriyor.
 const VISION_TEMPLATE: &str = include_str!("../templates/vision.toml");
@@ -151,9 +154,30 @@ impl RenderedPrompt {
     }
 }
 
-/// Katalog + (ileride) override deposu.
+/// Katalog + override deposu.
+///
+/// Override'lar **bellekte** tutuluyor: `render` eşzamanlı ve hatasız kalmak
+/// zorunda. Depo açılışta ve her yazmadan sonra okunuyor; render depoya hiç
+/// dokunmuyor. Veritabanı analiz sırasında ölse bile son bilinen metinle
+/// çalışılmaya devam ediliyor (tasarım §K2).
 pub struct PromptRegistry {
     catalogs: BTreeMap<String, Catalog>,
+    store: Option<Arc<dyn store::PromptStore>>,
+    /// (ajan, parça) -> geçerli override.
+    overrides: RwLock<BTreeMap<(String, String), store::PromptOverride>>,
+}
+
+/// Override kaydetme/silme hataları.
+#[derive(Debug, thiserror::Error)]
+pub enum OverrideError {
+    #[error(transparent)]
+    Validation(#[from] store::ValidationError),
+    #[error(transparent)]
+    Store(#[from] store::StoreError),
+    #[error("bu düzenleme çıktı sözleşmesini bozuyor: üretilen istem summary/events/risk/actions tarif etmiyor")]
+    ContractBroken,
+    #[error("override deposu bağlı değil")]
+    NoStore,
 }
 
 impl PromptRegistry {
@@ -172,7 +196,11 @@ impl PromptRegistry {
             })?;
         catalogs.insert(katalog.meta.agent.clone(), katalog);
 
-        let registry = Self { catalogs };
+        let registry = Self {
+            catalogs,
+            store: None,
+            overrides: RwLock::new(BTreeMap::new()),
+        };
         registry.dogrula()?;
         Ok(registry)
     }
@@ -213,7 +241,11 @@ impl PromptRegistry {
             });
         }
 
-        let registry = Self { catalogs };
+        let registry = Self {
+            catalogs,
+            store: None,
+            overrides: RwLock::new(BTreeMap::new()),
+        };
         registry.dogrula()?;
         Ok(registry)
     }
@@ -265,6 +297,99 @@ text = \"\"\"
         cikti
     }
 
+    /// Override deposunu bağlar ve ilk yüklemeyi yapar.
+    ///
+    /// Depo okunamazsa **hata döndürmez**: uyarı loglanır ve sistem gömülü
+    /// katalogla çalışır. Veritabanının yokluğu servisi düşürmemeli.
+    pub async fn with_store(mut self, store: Arc<dyn store::PromptStore>) -> Self {
+        self.store = Some(store);
+        self.refresh().await;
+        self
+    }
+
+    /// Override'ları depodan belleğe alır.
+    ///
+    /// Geçersiz kayıtlar sessizce **atlanıyor** — elle veritabanına yazılmış
+    /// bozuk bir metin sisteme sızmasın. Bu ikinci kapı; birincisi kaydetme
+    /// anındaki doğrulama.
+    pub async fn refresh(&self) {
+        let Some(store) = self.store.as_ref() else {
+            return;
+        };
+
+        let kayitlar = match store.list().await {
+            Ok(k) => k,
+            Err(e) => {
+                tracing::warn!(hata = %e, "override deposu okunamadı, gömülü katalog kullanılıyor");
+                return;
+            }
+        };
+
+        let mut yeni = BTreeMap::new();
+        for o in kayitlar {
+            match store::dogrula(&o.fragment, &o.text, self.duzenlenebilir_mi(&o.agent, &o.fragment)) {
+                Ok(()) => {
+                    yeni.insert((o.agent.clone(), o.fragment.clone()), o);
+                }
+                Err(e) => tracing::warn!(
+                    agent = %o.agent, parca = %o.fragment, hata = %e,
+                    "override geçersiz, gömülüye düşülüyor"
+                ),
+            }
+        }
+
+        let sayi = yeni.len();
+        *self.overrides.write().unwrap() = yeni;
+        tracing::info!(sayi, "override'lar yüklendi");
+    }
+
+    fn duzenlenebilir_mi(&self, agent: &str, fragment: &str) -> Option<bool> {
+        self.catalogs
+            .get(agent)
+            .and_then(|k| k.fragment.get(fragment))
+            .map(|f| f.editable)
+    }
+
+    /// Bir parçayı kaydeder: doğrular, depoya yazar, belleği tazeler.
+    pub async fn override_kaydet(&self, o: store::PromptOverride) -> Result<(), OverrideError> {
+        store::dogrula(&o.fragment, &o.text, self.duzenlenebilir_mi(&o.agent, &o.fragment))?;
+
+        // Parça bazlı doğrulama yetmiyor: `sozlesme` korunur ama `rol` şemayı
+        // bozacak biçimde değiştirilebilir. Üretilen metin hâlâ çıktı
+        // sözleşmesini tarif ediyor mu, ona bakılıyor.
+        let deneme = self.render_denemesi(&o);
+        if !store::sozlesme_duruyor_mu(&deneme) {
+            return Err(OverrideError::ContractBroken);
+        }
+
+        let store = self.store.as_ref().ok_or(OverrideError::NoStore)?;
+        store.put(o).await?;
+        self.refresh().await;
+        Ok(())
+    }
+
+    /// Bir override'ı siler; parça gömülü hâline döner.
+    pub async fn override_sil(&self, agent: &str, fragment: &str) -> Result<(), OverrideError> {
+        let store = self.store.as_ref().ok_or(OverrideError::NoStore)?;
+        store.delete(agent, fragment).await?;
+        self.refresh().await;
+        Ok(())
+    }
+
+    /// Etkin override'lar.
+    pub fn overrides(&self) -> Vec<store::PromptOverride> {
+        self.overrides.read().unwrap().values().cloned().collect()
+    }
+
+    /// Aday override'ı geçici olarak uygulayıp prompt'u üretir.
+    ///
+    /// Kaydetmeden önce sözleşme denetimi için; kalıcı duruma dokunmuyor.
+    fn render_denemesi(&self, aday: &store::PromptOverride) -> String {
+        let ctx = PromptContext::new(30_000);
+        let p = self.render_ic(PromptKind::VisionIlkBakis, &ctx, Some(aday));
+        p.joined()
+    }
+
     /// Her parçanın yer tutucularının tanınır olduğunu açılışta doğrular.
     fn dogrula(&self) -> Result<(), PromptError> {
         for katalog in self.catalogs.values() {
@@ -295,6 +420,15 @@ text = \"\"\"
     /// Hata döndürmez: eksik parça ya da render sorunu loglanır ve o parça
     /// atlanır. Prompt üretimi analizi düşüremez.
     pub fn render(&self, kind: PromptKind, ctx: &PromptContext) -> RenderedPrompt {
+        self.render_ic(kind, ctx, None)
+    }
+
+    fn render_ic(
+        &self,
+        kind: PromptKind,
+        ctx: &PromptContext,
+        aday: Option<&store::PromptOverride>,
+    ) -> RenderedPrompt {
         let agent = kind.agent();
 
         // Hangi parça, hangi sırada, hangi tarafta. Koşullar burada —
@@ -343,8 +477,8 @@ text = \"\"\"
             son_ek.push("onceki_bulgu");
         }
 
-        let prefix = self.birlestir(agent, &on_ek, ctx, kind);
-        let suffix = self.birlestir(agent, &son_ek, ctx, kind);
+        let prefix = self.birlestir(agent, &on_ek, ctx, kind, aday);
+        let suffix = self.birlestir(agent, &son_ek, ctx, kind, aday);
 
         let version = PromptVersion {
             agent: agent.to_string(),
@@ -372,22 +506,37 @@ text = \"\"\"
         adlar: &[&str],
         ctx: &PromptContext,
         kind: PromptKind,
+        aday: Option<&store::PromptOverride>,
     ) -> String {
         let mut parcalar: Vec<String> = Vec::new();
+        let etkin = self.overrides.read().unwrap();
 
         for &ad in adlar {
-            let parca = match self.parca(agent, ad) {
-                Ok(p) => p,
-                Err(_) => {
-                    // Sıralama, olabilecek tüm parçaları sayıyor; bir katalog
-                    // bunların alt kümesini taşıyabilir. Eksik parça hata
-                    // değil, o katalogda o kuralın olmaması demek.
-                    tracing::debug!(parca = ad, "katalogda yok, atlandı");
-                    continue;
-                }
+            // Metin önceliği: aday (kaydedilmeden denenen) -> etkin override
+            // -> gömülü katalog. Hiçbiri yoksa parça atlanıyor.
+            let aday_metin = aday
+                .filter(|o| o.agent == agent && o.fragment == ad)
+                .map(|o| o.text.as_str());
+            let etkin_metin = etkin
+                .get(&(agent.to_string(), ad.to_string()))
+                .map(|o| o.text.as_str());
+
+            let metin = match aday_metin.or(etkin_metin) {
+                Some(m) => m,
+                None => match self.parca(agent, ad) {
+                    Ok(p) => p.text.as_str(),
+                    Err(_) => {
+                        // Sıralama olabilecek tüm parçaları sayıyor; bir
+                        // katalog alt kümesini taşıyabilir. Eksik parça hata
+                        // değil, o kuralın o katalogda olmaması demek.
+                        tracing::debug!(parca = ad, "katalogda yok, atlandı");
+                        continue;
+                    }
+                },
             };
-            match render::doldur(ad, &parca.text, ctx) {
-                Ok(metin) => parcalar.push(metin),
+
+            match render::doldur(ad, metin, ctx) {
+                Ok(m) => parcalar.push(m),
                 Err(e) => tracing::error!(hata = %e, "prompt parçası render edilemedi"),
             }
         }
@@ -540,6 +689,147 @@ mod tests {
             service_frames: 47,
             effective_fps: 2.0 * scale as f64,
         }
+    }
+
+    /// Depo düşükken sistem gömülü katalogla çalışmaya devam etmeli.
+    ///
+    /// Faz 6'nın kabul ölçütü bu: prompt'un çalışma anı bağımlılığı olması
+    /// yeni bir düşme yolu demek olurdu (§K2).
+    #[tokio::test]
+    async fn depo_dustugunde_gomuluye_dusulur() {
+        struct DusukDepo;
+        #[async_trait::async_trait]
+        impl PromptStore for DusukDepo {
+            async fn list(&self) -> Result<Vec<PromptOverride>, StoreError> {
+                Err(StoreError::Backend("bağlantı yok".into()))
+            }
+            async fn put(&self, _: PromptOverride) -> Result<(), StoreError> {
+                Err(StoreError::Backend("bağlantı yok".into()))
+            }
+            async fn delete(&self, _: &str, _: &str) -> Result<(), StoreError> {
+                Err(StoreError::Backend("bağlantı yok".into()))
+            }
+        }
+
+        let gomulu = PromptRegistry::embedded().unwrap();
+        let beklenen = gomulu.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+
+        let r = PromptRegistry::embedded()
+            .unwrap()
+            .with_store(Arc::new(DusukDepo))
+            .await;
+        let uretilen = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+
+        assert_eq!(uretilen.prefix, beklenen.prefix, "depo düşükken metin bozuldu");
+        assert!(r.overrides().is_empty());
+    }
+
+    /// Geçerli bir override gömülünün üstüne biniyor mu?
+    #[tokio::test]
+    async fn override_gomulunun_ustune_biner() {
+        let r = PromptRegistry::embedded()
+            .unwrap()
+            .with_store(Arc::new(MemoryStore::default()))
+            .await;
+
+        let gomulu = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert!(gomulu.prefix.contains("iş sağlığı ve güvenliği analistisin"));
+
+        r.override_kaydet(PromptOverride {
+            id: "1".into(),
+            agent: "vision".into(),
+            fragment: "rol".into(),
+            text: "Sen bir video kanıt çözümleyicisisin.".into(),
+            author: "fatih".into(),
+            updated_at: "2026-08-27T00:00:00Z".into(),
+        })
+        .await
+        .unwrap();
+
+        let yeni = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert!(yeni.prefix.contains("video kanıt çözümleyicisisin"));
+        assert!(!yeni.prefix.contains("iş sağlığı ve güvenliği analistisin"));
+        // Sözleşme yerinde kalmalı.
+        assert!(yeni.prefix.contains("Yalnızca JSON"));
+
+        // Silince gömülüye dönmeli.
+        r.override_sil("vision", "rol").await.unwrap();
+        let geri = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert_eq!(geri.prefix, gomulu.prefix);
+    }
+
+    /// Düzenlenemez parça override edilemez (§K3).
+    #[tokio::test]
+    async fn sozlesme_override_edilemez() {
+        let r = PromptRegistry::embedded()
+            .unwrap()
+            .with_store(Arc::new(MemoryStore::default()))
+            .await;
+
+        let hata = r
+            .override_kaydet(PromptOverride {
+                id: "1".into(),
+                agent: "vision".into(),
+                fragment: "sozlesme".into(),
+                text: "Sadece özet ver.".into(),
+                author: "fatih".into(),
+                updated_at: "2026-08-27T00:00:00Z".into(),
+            })
+            .await
+            .unwrap_err();
+        assert!(matches!(
+            hata,
+            OverrideError::Validation(ValidationError::NotEditable(_))
+        ));
+    }
+
+    /// Sözleşmeyi bozan bir düzenleme reddedilmeli.
+    ///
+    /// `sozlesme` korunsa bile başka bir parça şemayı bozabilir; ikinci kapı
+    /// üretilen metne bakıyor.
+    #[tokio::test]
+    async fn sozlesmeyi_bozan_override_reddedilir() {
+        // Sözleşme parçasını taşımayan bir katalog kur: rol tek başına
+        // şemayı tarif etmiyor.
+        let dir = std::env::temp_dir().join("motif-prompt-sozlesmesiz");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(
+            dir.join("vision.toml"),
+            "[meta]
+agent = \"vision\"
+version = 1
+
+             [fragment.rol]
+editable = true
+text = \"Sen bir analistsin.\"
+
+             [fragment.kayit_bilgisi]
+editable = true
+text = \"Uzunluk {sure}.\"
+",
+        )
+        .unwrap();
+
+        let r = PromptRegistry::from_dir(&dir)
+            .unwrap()
+            .with_store(Arc::new(MemoryStore::default()))
+            .await;
+
+        let hata = r
+            .override_kaydet(PromptOverride {
+                id: "1".into(),
+                agent: "vision".into(),
+                fragment: "rol".into(),
+                text: "Sen bir analistsin, kısa yaz.".into(),
+                author: "fatih".into(),
+                updated_at: "2026-08-27T00:00:00Z".into(),
+            })
+            .await
+            .unwrap_err();
+        assert!(matches!(hata, OverrideError::ContractBroken));
+
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// Güvenilmez metin ön eke **asla** girmemeli.

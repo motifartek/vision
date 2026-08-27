@@ -9,7 +9,8 @@ use std::sync::Arc;
 use axum::extract::State;
 use axum::http::StatusCode;
 use axum::response::{IntoResponse, Response};
-use axum::routing::{get, post};
+use axum::extract::Path;
+use axum::routing::{delete, get, post, put};
 use axum::{Json, Router};
 use serde::Deserialize;
 use serde_json::json;
@@ -32,6 +33,9 @@ pub fn router(agent: Arc<VisionAgent>) -> Router {
         .route("/v1/analyze", post(analyze))
         .route("/v1/analyze/sartname", post(analyze_sartname))
         .route("/v1/prompts/preview", post(preview_prompt))
+        .route("/v1/prompts", get(list_prompts))
+        .route("/v1/prompts/{agent}/{fragment}", put(put_override))
+        .route("/v1/prompts/{agent}/{fragment}", delete(delete_override))
         .layer(CorsLayer::permissive())
         .layer(TraceLayer::new_for_http())
         .with_state(agent)
@@ -115,6 +119,99 @@ async fn preview_prompt(
         // Türkçe metinde kabaca bir token'a dört karakter düşüyor.
         "text_tokens": metin.chars().count() / 4,
     }))
+}
+
+/// Katalog ve etkin override'lar.
+///
+/// Arayüz her parçanın gömülü metnini, varsa üstüne binen düzenlemeyi ve
+/// düzenlenebilir olup olmadığını birlikte gösteriyor — fark görünümü buna
+/// dayanıyor.
+async fn list_prompts(State(agent): State<Arc<VisionAgent>>) -> Json<serde_json::Value> {
+    let r = agent.prompts();
+    let overrides = r.overrides();
+    let parcalar: Vec<serde_json::Value> = r
+        .fragments("vision")
+        .map(|f| {
+            f.iter()
+                .map(|(ad, parca)| {
+                    let ov = overrides
+                        .iter()
+                        .find(|o| o.agent == "vision" && &o.fragment == ad);
+                    json!({
+                        "fragment": ad,
+                        "editable": parca.editable,
+                        "embedded": parca.text,
+                        "override": ov.map(|o| json!({
+                            "text": o.text,
+                            "author": o.author,
+                            "updated_at": o.updated_at,
+                        })),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+
+    Json(json!({ "agent": "vision", "fragments": parcalar }))
+}
+
+#[derive(Debug, Deserialize)]
+pub struct OverrideBody {
+    pub text: String,
+    #[serde(default = "bilinmeyen_yazar")]
+    pub author: String,
+}
+
+fn bilinmeyen_yazar() -> String {
+    "bilinmiyor".to_string()
+}
+
+/// Bir parçayı override eder.
+///
+/// Doğrulamadan geçmezse **400** döner ve kayıt yapılmaz: bozuk bir prompt'un
+/// depoya girmesine izin verilmiyor.
+async fn put_override(
+    State(agent): State<Arc<VisionAgent>>,
+    Path((ajan, parca)): Path<(String, String)>,
+    Json(body): Json<OverrideBody>,
+) -> Response {
+    let o = motif_prompt::PromptOverride {
+        id: format!("{ajan}/{parca}"),
+        agent: ajan,
+        fragment: parca,
+        text: body.text,
+        author: body.author,
+        updated_at: String::new(),
+    };
+
+    match agent.prompts().override_kaydet(o).await {
+        Ok(()) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => {
+            let kod = match e {
+                motif_prompt::OverrideError::Store(_) | motif_prompt::OverrideError::NoStore => {
+                    StatusCode::SERVICE_UNAVAILABLE
+                }
+                _ => StatusCode::BAD_REQUEST,
+            };
+            tracing::warn!(hata = %e, "override reddedildi");
+            (kod, Json(json!({"error": e.to_string()}))).into_response()
+        }
+    }
+}
+
+/// Override'ı siler; parça gömülü hâline döner.
+async fn delete_override(
+    State(agent): State<Arc<VisionAgent>>,
+    Path((ajan, parca)): Path<(String, String)>,
+) -> Response {
+    match agent.prompts().override_sil(&ajan, &parca).await {
+        Ok(()) => (StatusCode::NO_CONTENT).into_response(),
+        Err(e) => (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(json!({"error": e.to_string()})),
+        )
+            .into_response(),
+    }
 }
 
 pub struct ApiError(AgentError);

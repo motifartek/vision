@@ -12,5 +12,9 @@ motif-event-sdk.workspace = true
 serde.workspace = true
 toml = "0.8"
 sha2 = "0.10"
+async-trait = "0.1"
 thiserror.workspace = true
 tracing.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["macros", "rt"] }

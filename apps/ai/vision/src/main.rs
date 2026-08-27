@@ -40,7 +40,30 @@ async fn main() -> Result<()> {
 
     // Katalog açılışta yükleniyor: bozuk bir prompt açılışta patlamalı,
     // analiz sırasında değil.
-    let prompts = Arc::new(PromptRegistry::from_env_or_embedded().context("prompt kataloğu")?);
+    let katalog = PromptRegistry::from_env_or_embedded().context("prompt kataloğu")?;
+
+    // Override deposu **isteğe bağlı**. DATABASE_URL yoksa ya da veritabanına
+    // ulaşılamıyorsa uyarı loglanıp gömülü katalogla devam ediliyor: prompt'un
+    // çalışma anı bağımlılığı olması yeni bir düşme yolu demek olurdu.
+    let katalog = match std::env::var("DATABASE_URL") {
+        Ok(url) => match motif_database::connect(&url).await {
+            Ok(pool) => {
+                let store = Arc::new(motif_database::PostgresPromptStore::new(pool));
+                tracing::info!("prompt override deposu bağlandı");
+                katalog.with_store(store).await
+            }
+            Err(e) => {
+                tracing::warn!(hata = %e, "veritabanına bağlanılamadı; override'lar devre dışı");
+                katalog
+            }
+        },
+        Err(_) => {
+            tracing::info!("DATABASE_URL yok; yalnızca gömülü katalog");
+            katalog
+        }
+    };
+
+    let prompts = Arc::new(katalog);
     tracing::info!("prompt kataloğu yüklendi");
 
     let agent = Arc::new(VisionAgent::new(

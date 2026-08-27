@@ -488,9 +488,25 @@ hem model kaynaklı metni sabit talimatların arasına karıştırır hem önbel
 Ses bağlamı yokken üretilen metin **bayt bayt aynı** kaldı: içerik özeti
 `78114813a383775d` değişmedi, yalnız katalog sürümü 2'den 3'e çıktı.
 
-**Faz 6 — Override katmanı** *(yarım gün)*
-`PromptStore` trait + SurrealDB uygulaması, HTTP uçları, doğrulama.
-*Kabul:* veritabanı kapalıyken analiz çalışmaya devam ediyor.
+**Faz 6 — Override katmanı** *(bitti)*
+`PromptStore` trait + Postgres uygulaması, HTTP uçları, doğrulama.
+*Kabul:* karşılandı ve canlı doğrulandı — `DATABASE_URL` yokken, bağlantı
+kurulamazken ve **veritabanı analiz sırasında öldürüldüğünde** analiz
+çalışmaya devam etti.
+
+Tasarımdan bir sapma var ve bilinçli: override'lar **bellekte** tutuluyor.
+`render` eşzamanlı ve hatasız kalmak zorunda olduğu için depo açılışta ve her
+yazmadan sonra okunuyor; render depoya hiç dokunmuyor. Böylece veritabanı
+sonradan ölse bile son bilinen metinle devam ediliyor — bu, saf "her render'da
+sorgula" tasarımından daha dayanıklı.
+
+Doğrulama iki kapılı: kaydetme anında (400 döner, kayıt olmaz) ve yükleme
+anında (geçersiz kayıt atlanır, gömülüye düşülür). İkincisi elle veritabanına
+yazılmış bozuk bir metnin sızmasını engelliyor.
+
+Üçüncü bir kapı sonradan eklendi: parça bazlı doğrulama `sozlesme`'yi korur
+ama başka bir parça şemayı bozabilir. Kaydetmeden önce prompt render edilip
+`summary/events/risk/actions` tarif ettiği kontrol ediliyor.
 
 **Faz 7 — Arayüz** *(yarım gün)*
 Yönetici sayfası, fark görünümü, önizleme, varsayılana dön.
@@ -508,7 +524,16 @@ Toplam ~2,5 gün. Faz 1–4 tek başına değerli ve bağımsız teslim edilebil
 - Prompt'u LLM'e yazdırmak — ölçülemeyen dolaylılık
 - Çok dilli prompt — çıktı Türkçe olmak zorunda, tek dil yeter
 
-## 19. Kararlaştırıldı
+## 19. Etiketleme sözleşmesi kararı
+
+**Bizim sözleşmemiz kalıyor.** Ground truth olayın evrelerini ayrı kayıt olarak
+etiketliyor ve prompt buna göre yazılmış durumda. Arkadaşın tasarımındaki tek
+kayıt kuralı (§1.1) ve "müdahale ≠ kaza" (§1.7) bizim kümemizde ölçüldüğünde
+%92'den %76'ya düşürüyordu — kurallar yanlış değil, farklı bir sözleşmeyi
+hedefliyorlar. Ayrıntı:
+[`../measurements/arkadas-promptlari-inceleme.md`](../measurements/arkadas-promptlari-inceleme.md)
+
+## 20. Kararlaştırıldı
 
 **Postgres.** SurrealDB ve Qdrant `packages/database`'den çıkarılıyor;
 `b856e89` commit'indeki Postgres uygulaması kurtarılacak. Hiçbir servis o
