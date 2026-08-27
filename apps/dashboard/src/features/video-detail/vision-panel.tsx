@@ -395,7 +395,6 @@ function Row({ k, v, vurgu }: { k: string; v: string; vurgu?: boolean }) {
   )
 }
 
-
 export function RawResponseSection({ outcome }: { outcome: Outcome | null }) {
   const [open, setOpen] = useState(false)
   return (
@@ -406,7 +405,7 @@ export function RawResponseSection({ outcome }: { outcome: Outcome | null }) {
         className="flex items-center justify-between gap-2 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset"
         aria-expanded={open}
       >
-        <span className="text-xs font-medium">Modelden Dönen Ham Cevap</span>
+        <span className="text-xs font-medium">Modelden DÃ¶nen Ham Cevap</span>
         <ChevronDown
           className={`size-3.5 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`}
         />
@@ -415,7 +414,7 @@ export function RawResponseSection({ outcome }: { outcome: Outcome | null }) {
       {open && (
         <div className="flex flex-col gap-3 border-t px-4 py-3">
           {!outcome ? (
-            <p className="text-[11px] text-muted-foreground">Henüz analiz sonucu yok.</p>
+            <p className="text-[11px] text-muted-foreground">HenÃ¼z analiz sonucu yok.</p>
           ) : (
             <pre className="max-h-64 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-[10px] leading-snug">
               {JSON.stringify(outcome, null, 2)}
