@@ -12,7 +12,12 @@ resolver = "2"
 # (compose.yaml + helm + config).
 members = [
     "apps/gateway",
+<<<<<<< HEAD
     "apps/ai/sonic",
+=======
+    "apps/ai/inference",
+    "apps/ai/vision",
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
     "apps/stream",
     "packages/core",
     "packages/observer",

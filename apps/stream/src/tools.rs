@@ -19,9 +19,10 @@ use std::sync::Arc;
 
 use motif_core::{Error, VideoId};
 use motif_event_sdk::tools::{
-    CropRegionRequest, FrameResponse, FramesResponse, GetFrameRequest, MotionBucket,
-    MotionProfileRequest, MotionProfileResponse, SampleOverviewRequest, ToolError, ToolErrorCode,
-    VideoInfoRequest, VideoInfoResponse, ZoomRangeRequest,
+    ClipRangeRequest, ClipRef, ClipResponse, CropRegionRequest, FrameResponse, FramesResponse,
+    GetFrameRequest, MotionBucket, MotionProfileRequest, MotionProfileResponse,
+    SampleOverviewRequest, ToolError, ToolErrorCode, VideoInfoRequest, VideoInfoResponse,
+    ZoomRangeRequest,
 };
 use motif_event_sdk::FrameRef;
 use motif_optics::{extract_jpegs, CropBox, ExtractOptions};
@@ -155,8 +156,12 @@ pub async fn sample_overview(
 /// Ajanın işaret ettiği aralığa yakınlaşır.
 ///
 /// Boru hattının değil **ajanın** çağırdığı yer burası: kaba bakışta bir şey
-/// dikkatini çektiğinde o aralığın yoğun karelerini ister.
-pub async fn zoom_range(state: &Arc<AppState>, req: ZoomRangeRequest) -> ToolResult<FramesResponse> {
+/// dikkatini çektiğinde o aralığı daha ayrıntılı ister.
+///
+/// Çıkarım servisi kare kümesi kabul etmediği için çıktı bir **klip**. Servis
+/// sabit 2 fps örneklediğinden, istenen kare sayısı aralığın gerçek zamanda
+/// vereceğinden fazlaysa klip ağır çekime alınır.
+pub async fn zoom_range(state: &Arc<AppState>, req: ZoomRangeRequest) -> ToolResult<ClipResponse> {
     let record = require_video(state, &req.video_id)?;
 
     if req.budget == 0 {
@@ -183,17 +188,59 @@ pub async fn zoom_range(state: &Arc<AppState>, req: ZoomRangeRequest) -> ToolRes
         });
     }
 
-    let frames = pipeline::zoom(
+    let (clip, key) = pipeline::zoom_clip(
         state,
         &req.video_id,
         req.t0_ms,
         req.t1_ms.min(record.info.duration_ms),
-        Some(req.budget),
+        req.budget,
     )
     .await
     .map_err(to_tool_error)?;
 
-    Ok(FramesResponse { frames })
+    Ok(ClipResponse { clip: to_clip_ref(clip, key) })
+}
+
+// --- clip_range ---
+
+/// Bir aralığı gerçek zamanda klip olarak üretir.
+///
+/// `zoom_range`'den farkı ağır çekim uygulamaması: videonun tamamını ya da
+/// geniş bir bölümünü göndermek için.
+pub async fn clip_range(state: &Arc<AppState>, req: ClipRangeRequest) -> ToolResult<ClipResponse> {
+    let record = require_video(state, &req.video_id)?;
+
+    if req.t1_ms <= req.t0_ms {
+        return Err(invalid(format!(
+            "geçersiz aralık: t1 ({}) t0'dan ({}) büyük olmalı",
+            req.t1_ms, req.t0_ms
+        )));
+    }
+    require_in_range(&record, req.t0_ms)?;
+
+    let (clip, key) = pipeline::range_clip(
+        state,
+        &req.video_id,
+        req.t0_ms,
+        req.t1_ms.min(record.info.duration_ms),
+        req.max_dim,
+    )
+    .await
+    .map_err(to_tool_error)?;
+
+    Ok(ClipResponse { clip: to_clip_ref(clip, key) })
+}
+
+pub(crate) fn to_clip_ref(clip: motif_optics::Clip, object_key: String) -> ClipRef {
+    ClipRef {
+        t0_ms: clip.t0_ms,
+        t1_ms: clip.t1_ms,
+        object_key,
+        duration_ms: clip.duration_ms,
+        time_scale: clip.time_scale,
+        service_frames: clip.service_frames,
+        effective_fps: clip.effective_fps,
+    }
 }
 
 // --- get_frame ---

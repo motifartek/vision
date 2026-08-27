@@ -1,15 +1,21 @@
 "use client"
 
 import Link from "next/link"
+<<<<<<< HEAD
 import React, { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Captions, Check, ChevronDown, ChevronLeft, ChevronRight, CirclePlay, Download, Ellipsis, Film, ImageIcon, Music2, Pause, Play, Redo2, Scissors, Send, Sparkles, Undo2, Upload, Volume2, WandSparkles, ShieldAlert, X } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
+=======
+import { useEffect, useRef, useState } from "react"
+import { ArrowLeft, Eye, EyeOff, Pause, Play } from "lucide-react"
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs"
 import { Slider } from "@/components/ui/slider"
+<<<<<<< HEAD
 
 import {
   VideoPlayer,
@@ -26,8 +32,57 @@ import { MorphSurface } from "@/components/ui/morph-input"
 import { useAudioAnalysis } from "./audio-analysis"
 import { useMediaFile } from "./media-file"
 import { EditorTimeline } from "./editor-timeline"
+=======
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { useAudioAnalysis } from "./audio-analysis"
+import { useMediaFile } from "./media-file"
+import { EditorTimeline } from "./editor-timeline"
+import { MotionOverlay } from "./motion-overlay"
+import { MotionStrip } from "./motion-strip"
+import { NowPlayingPanel } from "./now-playing-panel"
+import { SafetyPanel } from "./safety-panel"
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
 import { usePlayback } from "./use-playback"
+import { VisionPanel } from "./vision-panel"
+import { playbackSrc, useHeatmap, useStreamVideo, useVisionAnalysis } from "./vision-analysis"
 
+<<<<<<< HEAD
+=======
+function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: boolean; onToggle: () => void }) {
+  return (
+    <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3 md:px-5">
+      <div className="flex min-w-0 items-center gap-3">
+        <Button variant="ghost" size="icon" nativeButton={false} render={<Link href="/videos" />} aria-label="Videolara dön">
+          <ArrowLeft />
+        </Button>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-medium">{videoId}</p>
+          <p className="hidden text-[11px] text-muted-foreground sm:block">Görsel ve işitsel analiz</p>
+        </div>
+      </div>
+      {/* "Geri al / İleri al / Dışa aktar" düğmeleri buradaydı ve hiçbiri bir
+          şey yapmıyordu: ortada bir düzenleme modeli yok, dolayısıyla geri
+          alınacak bir işlem de yok. Çalışmayan düğme, olmayandan kötü. */}
+      <div className="flex items-center gap-2">
+        <Button variant="outline" onClick={onToggle}>
+          {playing ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
+          {playing ? "Duraklat" : "Oynat"}
+        </Button>
+      </div>
+    </header>
+  )
+}
+
+/**
+ * Sunucudaki profillerle birebir aynı adlar (config.rs::PROFILES).
+ *
+ * Maliyet farkı büyük ve doğrusal değil: pencere kısaldıkça model çağrısı sayısı
+ * artıyor ve her çağrının sabit maliyeti baskın hâle geliyor. 1 saat 40 dakikalık
+ * bir kayıtta hassas ~24.000 pencere, geniş ~1.200 pencere demek (ölçüldü:
+ * hassas 324 sn). İpucu metinleri bunu söylüyor ki kullanıcı sürprizle
+ * karşılaşmasın.
+ */
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
 const PROFILES = [
   { id: "hizli", label: "Hızlı", hint: "±0,1 sn — tekil alarmlar ve patlamalar" },
   { id: "dengeli", label: "Dengeli", hint: "±0,5 sn — çoğu video için doğru seçim" },
@@ -206,6 +261,14 @@ function EnhancePanel() {
 export function VideoDetailView({ videoId }: { videoId: string }) {
   const { filename, error: mediaError } = useMediaFile(videoId)
 
+  // Görüntü tarafı ayrı bir serviste; iki depo orijinal dosya adı üzerinden
+  // eşleşiyor. Ayrıntısı `vision-analysis.ts` içinde.
+  const { video: streamVideo, error: streamError } = useStreamVideo(videoId, filename)
+  const streamId = streamVideo?.id ?? null
+  const { heatmap, loading: heatmapLoading, error: heatmapError } = useHeatmap(streamId)
+  const vision = useVisionAnalysis(streamId)
+  const [overlay, setOverlay] = useState(true)
+
   const videoRef = useRef<HTMLVideoElement>(null)
   const { currentTime, duration, playing, seek, toggle, subscribe } = usePlayback(videoRef)
   const [profile, setProfile] = useState("dengeli")
@@ -241,6 +304,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   }, [toggle, seek, currentTime])
 
   return (
+<<<<<<< HEAD
     <div className="relative flex h-dvh min-w-[680px] flex-col overflow-hidden bg-background">
       <EditorNav videoId={videoId} />
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_260px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -275,6 +339,64 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           </Card>
           
           {/* Timeline - Cizelge (Kullanicinin istedigi eski ControlPanel yerine) */}
+=======
+    <div className="flex h-dvh min-w-[720px] flex-col overflow-hidden bg-background">
+      <EditorNav videoId={videoId} playing={playing} onToggle={toggle} />
+
+      <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_330px]">
+        {/* sol: video üstte, zaman çizelgesi altta */}
+        {/* Şeride rahat ama abartısız bir yükseklik: `auto` dibe yapıştırıyor,
+            250px ise tek şeritle boş kalıyordu. */}
+        <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto_175px] gap-3">
+          <div className="relative flex min-h-0 items-center justify-center rounded-xl border bg-card p-3">
+            {/* Isı haritası videoyla aynı kutuya hizalanmalı; sarmalayıcı
+                `<video>` ile birebir aynı boyutta olsun diye `inline-flex`. */}
+            <div className="relative inline-flex max-h-full max-w-full">
+              <video
+                ref={videoRef}
+                src={playbackSrc(filename, streamId)}
+                className="max-h-full max-w-full rounded-lg bg-muted"
+                onClick={toggle}
+                controls
+                playsInline
+              />
+              {overlay && <MotionOverlay heatmap={heatmap} subscribe={subscribe} />}
+            </div>
+
+            {heatmap && (
+              <Button
+                variant="outline"
+                size="xs"
+                className="absolute right-4 top-4 bg-card/90 backdrop-blur"
+                onClick={() => setOverlay((o) => !o)}
+                aria-pressed={overlay}
+                title="Hareket yoğunluğunu video üzerinde gösterir"
+              >
+                {overlay ? <EyeOff data-icon="inline-start" /> : <Eye data-icon="inline-start" />}
+                Isı haritası
+              </Button>
+            )}
+          </div>
+
+          <MotionStrip
+            heatmap={heatmap}
+            duration={duration}
+            events={vision.outcome?.report.events ?? []}
+            analysedRange={
+              vision.outcome?.steps.at(-1)
+                ? {
+                    t0_ms: vision.outcome.steps.at(-1)!.t0_ms,
+                    t1_ms: vision.outcome.steps.at(-1)!.t1_ms,
+                  }
+                : null
+            }
+            onSeek={seek}
+            subscribe={subscribe}
+            loading={heatmapLoading}
+            error={heatmapError ?? streamError}
+          />
+
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
           <EditorTimeline
             analysis={analysis}
             source={source}
@@ -288,8 +410,111 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             subscribe={subscribe}
           />
         </section>
+<<<<<<< HEAD
         
         <EnhancePanel />
+=======
+
+        {/* sağ: görsel analiz ve ses, sekmeli */}
+        <Tabs defaultValue="gorsel" className="flex min-h-0 flex-col gap-3">
+          <TabsList className="shrink-0">
+            <TabsTrigger value="gorsel">Görsel</TabsTrigger>
+            <TabsTrigger value="ses">Ses</TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="gorsel" className="flex min-h-0 flex-1 flex-col">
+            <VisionPanel
+              outcome={vision.outcome}
+              payload={vision.payload}
+              running={vision.running}
+              error={vision.error}
+              onAnalyze={vision.analyze}
+              onLoadPayload={() => vision.loadPayload()}
+              onSeek={seek}
+              ready={Boolean(streamId)}
+            />
+          </TabsContent>
+
+          <TabsContent value="ses" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <NowPlayingPanel
+            analysis={analysis}
+            source={source}
+            currentTime={currentTime}
+            threshold={threshold / 100}
+            nameOf={nameOf}
+          />
+          <SafetyPanel analysis={analysis} onSeek={seek} />
+
+          <div className="flex shrink-0 flex-col gap-3 rounded-xl border bg-card px-4 py-3">
+            {/* Profil zaman çözünürlüğünü belirler: küçük adım = daha kesin
+                zamanlama ama daha çok pencere, dolayısıyla daha uzun analiz.
+                Değişince analiz yeniden çalışır. */}
+            <div className="flex flex-col gap-1.5">
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted-foreground">Zaman çözünürlüğü</span>
+                <span className="font-mono text-[10px] text-muted-foreground">
+                  {analysis ? `${analysis.model.window_sec}s / ${analysis.model.hop_sec}s` : "—"}
+                </span>
+              </div>
+              <div className="flex gap-1">
+                {PROFILES.map((p) => (
+                  <Button
+                    key={p.id}
+                    variant={profile === p.id ? "secondary" : "ghost"}
+                    size="xs"
+                    className="flex-1"
+                    onClick={() => setProfile(p.id)}
+                    title={p.hint}
+                    aria-pressed={profile === p.id}
+                  >
+                    {p.label}
+                  </Button>
+                ))}
+              </div>
+              <span className="text-[10px] text-muted-foreground">
+                {PROFILES.find((p) => p.id === profile)?.hint}
+              </span>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t pt-3">
+              <div className="flex items-center gap-3">
+                <span className="shrink-0 text-xs text-muted-foreground">Eşik</span>
+                <Slider
+                  value={[threshold]}
+                  onValueChange={(v) => setThreshold(Array.isArray(v) ? v[0] : v)}
+                  min={5}
+                  max={95}
+                  aria-label="En düşük güven eşiği"
+                />
+                <span className="w-9 shrink-0 text-right font-mono text-xs tabular-nums">%{threshold}</span>
+              </div>
+
+              {/* Kaydırıcı şeridi anında süzüyor; olaylar ve bulgular ise analiz
+                  anındaki eşiğe ait. Fark varsa bunu saklamak yerine söylüyoruz
+                  ve düzeltmeyi kullanıcının kararına bırakıyoruz — yeniden
+                  çözümleme uzun kayıtlarda dakikalar sürebiliyor. */}
+              {thresholdDirty && analysis && (
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-[10px] leading-snug text-muted-foreground">
+                    Şerit %{threshold} ile süzülüyor; olaylar ve güvenlik bulguları %
+                    {appliedThreshold} ile üretildi.
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    onClick={() => setAppliedThreshold(threshold)}
+                    disabled={refreshing}
+                    title="Tüm panelleri bu eşiğe göre yeniden hesaplar; uzun kayıtlarda dakikalar sürebilir."
+                  >
+                    {refreshing ? "Çözümleniyor…" : `%${threshold} ile yeniden çözümle`}
+                  </Button>
+                </div>
+              )}
+            </div>
+          </div>
+          </TabsContent>
+        </Tabs>
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
       </main>
     </div>
   )

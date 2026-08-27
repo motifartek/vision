@@ -12,8 +12,15 @@ serve:
 
 selfservice:
   # Dashboard Next.js dev sunucusu 3001'de çalışır (3000 Kratos'a ayrıldı)
-  default_browser_return_url: http://127.0.0.1:3001/
+  #
+  # Kanonik host `localhost`; `127.0.0.1` yalnızca hoşgörü için listede.
+  # İkisi tarayıcı için AYRI köken sayılıyor ve karıştırmak giriş akışını
+  # sessizce kırıyordu: akış `localhost:3001` üzerinden başlayınca CSRF çerezi
+  # o hosta yazılıyor, dönüş adresi `127.0.0.1:3001` olduğu için çerez geri
+  # gönderilmiyor ve kayıt CSRF hatasıyla düşüyordu.
+  default_browser_return_url: http://localhost:3001/
   allowed_return_urls:
+    - http://localhost:3001
     - http://127.0.0.1:3001
 
   methods:
@@ -25,36 +32,36 @@ selfservice:
 
   flows:
     error:
-      ui_url: http://127.0.0.1:3001/auth/error
+      ui_url: http://localhost:3001/auth/error
 
     settings:
-      ui_url: http://127.0.0.1:3001/settings
+      ui_url: http://localhost:3001/settings
       privileged_session_max_age: 15m
       required_aal: highest_available
 
     recovery:
       enabled: true
-      ui_url: http://127.0.0.1:3001/auth/recovery
+      ui_url: http://localhost:3001/auth/recovery
       use: code
 
     verification:
       enabled: true
-      ui_url: http://127.0.0.1:3001/auth/verify
+      ui_url: http://localhost:3001/auth/verify
       use: code
       after:
-        default_browser_return_url: http://127.0.0.1:3001/
+        default_browser_return_url: http://localhost:3001/
 
     logout:
       after:
-        default_browser_return_url: http://127.0.0.1:3001/auth/login
+        default_browser_return_url: http://localhost:3001/auth/login
 
     login:
-      ui_url: http://127.0.0.1:3001/auth/login
+      ui_url: http://localhost:3001/auth/login
       lifespan: 10m
 
     registration:
       lifespan: 10m
-      ui_url: http://127.0.0.1:3001/auth/register
+      ui_url: http://localhost:3001/auth/register
       after:
         password:
           hooks:

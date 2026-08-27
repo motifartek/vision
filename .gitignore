@@ -69,3 +69,9 @@ datasets/**/*.mp4
 
 # Servis calisma verisi
 data/
+
+# Golden dataset videolari (fetch_golden.py ile yeniden indirilir)
+Utilities/golden-dataset/videos/
+
+# bench girdisi (to_bench.py ile yeniden uretilir)
+Utilities/golden-dataset/videos/*.json

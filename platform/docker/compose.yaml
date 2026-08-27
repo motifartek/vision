@@ -7,6 +7,10 @@
 # include ile eklenen dosyalar kendi bind-mount path'lerini korur.
 
 include:
+  # Ürün servisleri
+  - path: ../../apps/stream/compose.yaml
+  - path: ../../apps/ai/vision/compose.yaml
+  # Kimlik ve ağ geçidi
   - path: ../../apps/identity/compose.yaml
   - path: ../../apps/gateway/compose.yaml
   - path: ../../apps/stream/compose.yaml

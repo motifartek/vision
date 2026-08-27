@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="tr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Golden Dataset · Olay Zaman Çizelgesi</title>
+<style>
+  :root{--bg:#070707;--card:#0d0d0d;--card2:#121212;--border:#292929;--fg:#f5f5f5;
+        --muted:#8a8a8a;--primary:#2ea7ff;--ok:#22c55e;--warn:#f59e0b;--err:#ef4444;
+        color-scheme:dark}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);font:14px/1.5 system-ui,sans-serif}
+  header{display:flex;align-items:center;gap:14px;padding:11px 18px;
+         border-bottom:1px solid var(--border);position:sticky;top:0;background:var(--bg);z-index:20}
+  header h1{font-size:14px;margin:0;font-weight:600}
+  header .sub{color:var(--muted);font-size:12px}
+  main{display:grid;grid-template-columns:220px minmax(0,1fr) 330px;gap:14px;
+       max-width:1700px;margin:0 auto;padding:14px 18px 60px}
+  .panel{border:1px solid var(--border);border-radius:9px;background:var(--card)}
+  .list{overflow:auto;max-height:80vh}
+  .vid{padding:8px 10px;border-bottom:1px solid var(--border);cursor:pointer;font-size:12px}
+  .vid:hover{background:#131313}
+  .vid.active{background:#0f1a22;border-left:2px solid var(--primary)}
+  .vid b{display:block;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vid small{color:var(--muted)}
+  .vid .n{color:var(--ok);font-weight:700}
+  .vid.missing b{color:var(--muted)}
+  .vid.missing::after{content:'⬇';float:right;color:var(--warn)}
+  .stage{padding:12px}
+  video{width:100%;max-height:52vh;background:#000;border-radius:7px;display:block}
+  .tl{position:relative;height:38px;margin-top:10px;background:var(--card2);
+      border:1px solid var(--border);border-radius:6px;cursor:crosshair;overflow:hidden}
+  .tl .cur{position:absolute;top:0;bottom:0;width:2px;background:var(--ok);pointer-events:none}
+  .tl .ev{position:absolute;top:0;bottom:0;width:3px;background:var(--warn);pointer-events:none}
+  .tl .ev::after{content:attr(data-i);position:absolute;top:2px;left:5px;font-size:10px;
+                 font-weight:700;color:var(--warn)}
+  .ctl{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:11px}
+  button{background:var(--primary);color:#06131c;border:0;border-radius:6px;padding:7px 13px;
+         font:inherit;font-weight:600;cursor:pointer}
+  button.ghost{background:transparent;color:var(--fg);border:1px solid var(--border)}
+  button.sm{padding:3px 8px;font-size:12px}
+  button.del{background:transparent;color:var(--err);border:1px solid var(--border)}
+  input,textarea,select{background:var(--card2);color:var(--fg);border:1px solid var(--border);
+                        border-radius:6px;padding:6px 9px;font:inherit;width:100%}
+  textarea{resize:vertical;min-height:62px}
+  .side{padding:12px;overflow:auto;max-height:80vh}
+  .side h3{font-size:12px;margin:0 0 7px;color:var(--muted);text-transform:uppercase;
+           letter-spacing:.05em;font-weight:600}
+  .side section{margin-bottom:16px}
+  .ev-row{display:flex;gap:7px;align-items:flex-start;padding:6px 0;
+          border-bottom:1px solid var(--border)}
+  .ev-row .t{color:var(--warn);font-weight:700;font-variant-numeric:tabular-nums;
+             cursor:pointer;white-space:nowrap;font-size:13px}
+  .ev-row .x{flex:1;font-size:13px}
+  .act-row{display:flex;gap:6px;margin-bottom:5px}
+  kbd{background:#1b1b1b;border:1px solid var(--border);border-radius:4px;padding:1px 5px;
+      font:11px ui-monospace,monospace;color:var(--muted)}
+  .help{color:var(--muted);font-size:11.5px;margin-top:11px;line-height:1.9}
+  .load{padding:50px 20px;text-align:center;color:var(--muted);grid-column:1/-1}
+  .empty{color:var(--muted);font-size:12px;padding:8px 0}
+  .risk{display:flex;gap:6px}
+  .risk button{flex:1;background:transparent;border:1px solid var(--border);color:var(--fg)}
+  .risk button.on{background:var(--warn);color:#1c1206;border-color:var(--warn)}
+  .risk button.on[data-r="Düşük"]{background:var(--ok);color:#06180d;border-color:var(--ok)}
+  .risk button.on[data-r="Yüksek"]{background:var(--err);color:#1d0606;border-color:var(--err)}
+  @media (max-width:1250px){main{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Olay Zaman Çizelgesi</h1>
+  <span class="sub" id="stat"></span>
+  <button class="ghost" id="export" style="margin-left:auto">catalog.json indir</button>
+</header>
+
+<main id="app"><div class="load">catalog.json yükleniyor…</div></main>
+
+<script>
+const $ = id => document.getElementById(id);
+const KEY = 'motifai-golden-gt';
+const RISKS = ['Düşük', 'Orta', 'Yüksek'];
+
+let catalog = null, videos = [], idx = 0;
+let gt = JSON.parse(localStorage.getItem(KEY) || '{}');   // id -> ground_truth
+
+const fmt = ms => {
+  const t = Math.max(0, Math.round(ms / 1000));
+  return `${String(Math.floor(t / 60)).padStart(2, '0')}:${String(t % 60).padStart(2, '0')}`;
+};
+const cur = () => videos[idx];
+const data = id => (gt[id] ||= { summary: '', events: [], risk: null, actions: [] });
+
+async function boot() {
+  try {
+    catalog = await (await fetch('catalog.json')).json();
+  } catch {
+    $('app').innerHTML = `<div class="load">
+      <b>catalog.json okunamadı.</b><br><br>
+      Sayfa sunucu üzerinden açılmalı. Bu klasörde:<br><br>
+      <code style="color:var(--primary)">python -m http.server 8200</code><br><br>
+      Katalog boşsa önce video ekleyin:<br>
+      <code style="color:var(--primary)">python add_video.py &lt;dosya&gt;</code>
+    </div>`;
+    return;
+  }
+
+  videos = catalog.videos || [];
+  if (!videos.length) {
+    $('app').innerHTML = `<div class="load">Katalog boş.<br><br>
+      <code style="color:var(--primary)">python add_video.py &lt;video&gt; --kaynak &lt;url&gt;</code>
+      <br><br>Kabul ölçütleri için README.md</div>`;
+    return;
+  }
+
+  $('app').innerHTML = `
+    <div class="panel list" id="list"></div>
+
+    <div class="panel stage">
+      <video id="v" controls preload="metadata"></video>
+      <div id="novid" style="display:none;padding:34px 18px;text-align:center;color:var(--muted);
+           background:var(--card2);border:1px solid var(--border);border-radius:7px;line-height:1.9"></div>
+      <div class="tl" id="tl"><div class="cur" id="cur"></div></div>
+      <div id="oneri" style="margin-top:9px"></div>
+      <div class="ctl">
+        <input id="desc" placeholder="Olay açıklaması — ör. Forklift devrildi" style="flex:1;min-width:220px">
+        <button id="add">Olayı ekle</button>
+        <span id="at" style="color:var(--warn);font-weight:700;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div class="help">
+        <kbd>boşluk</kbd> oynat/duraklat &nbsp; <kbd>←</kbd><kbd>→</kbd> kare kare &nbsp;
+        <kbd>Shift</kbd>+<kbd>←→</kbd> 1 sn &nbsp; <kbd>E</kbd> açıklama kutusuna geç &nbsp;
+        <kbd>Enter</kbd> olayı ekle<br>
+        Şartnamedeki gibi bir <b>zaman çizelgesi</b> kuruyoruz: kaza anı, sonucu,
+        müdahale. Olayı gördüğün <b>ilk</b> karede işaretle.
+      </div>
+    </div>
+
+    <div class="panel side">
+      <section>
+        <h3>Olaylar</h3>
+        <div id="events"></div>
+      </section>
+      <section>
+        <h3>Genel risk</h3>
+        <div class="risk" id="risk"></div>
+      </section>
+      <section>
+        <h3>Aksiyon önerileri</h3>
+        <div id="actions"></div>
+        <div class="act-row" style="margin-top:6px">
+          <input id="newAct" placeholder="ör. Sağlık ekibini çağır">
+          <button class="sm" id="addAct">+</button>
+        </div>
+      </section>
+      <section>
+        <h3>Türkçe özet</h3>
+        <textarea id="summary" placeholder="Videoda ne olduğunun kısa özeti"></textarea>
+      </section>
+    </div>`;
+
+  bind();
+  show(0);
+}
+
+function show(i) {
+  idx = Math.max(0, Math.min(i, videos.length - 1));
+  const v = cur();
+
+  // Katalogda kaydı olan ama henüz indirilmemiş videolar var: aday listesinden
+  // onaylanıp eklendiler, dosyaları sonra geliyor. İşaretleme yapılamaz ama
+  // kayıt ve öneriler görünür.
+  const yok = !v.local_path;
+  $('novid').style.display = yok ? 'block' : 'none';
+  $('v').style.display = yok ? 'none' : 'block';
+  if (yok) {
+    $('novid').innerHTML = `<b>Video henüz indirilmedi.</b><br><br>
+      <a href="${v.source_url}" target="_blank" style="color:var(--primary)">${v.source_url}</a>
+      <br><br>İndirdikten sonra:<br>
+      <code style="color:var(--primary)">python add_video.py &lt;dosya&gt; --id ${v.id} --kaynak ${v.source_url}</code>`;
+  } else {
+    const src = new URL(v.local_path, location.href).href;
+    if ($('v').src !== src) $('v').src = v.local_path;
+  }
+  renderAll();
+}
+
+function renderAll() { renderList(); renderEvents(); renderRisk(); renderActions(); renderTimeline();
+  renderOneri(); $('summary').value = data(cur().id).summary || ''; }
+
+/// Kaynak etiketlerinden türetilmiş olay önerileri.
+///
+/// Doğrulanmış değiller — hangi anda olduğunu yalnızca izleyen kişi bilir.
+/// Amaçları metni baştan yazma zahmetini kaldırmak: tıkla, kutuya düşsün,
+/// gerekirse düzelt.
+function renderOneri() {
+  const box = $('oneri');
+  const v = cur();
+  const oneriler = v.suggested_events || [];
+  box.innerHTML = '';
+  if (!oneriler.length) return;
+
+  const et = document.createElement('span');
+  et.textContent = 'öneri:';
+  et.style.cssText = 'color:var(--muted);font-size:11.5px;margin-right:6px';
+  box.appendChild(et);
+
+  for (const o of oneriler) {
+    const c = document.createElement('button');
+    c.className = 'sm ghost';
+    c.textContent = o;
+    c.style.cssText = 'margin:0 5px 5px 0;font-weight:400';
+    c.onclick = () => { $('desc').value = o; $('desc').focus(); };
+    box.appendChild(c);
+  }
+}
+
+function renderList() {
+  const list = $('list');
+  list.innerHTML = '';
+  videos.forEach((v, i) => {
+    const n = data(v.id).events.length;
+    const el = document.createElement('div');
+    const yok = !v.local_path;
+    el.className = 'vid' + (i === idx ? ' active' : '') + (yok ? ' missing' : '');
+    el.innerHTML = `<b>${v.id}</b>
+      <small>${yok ? 'video indirilmedi' : fmt(v.duration_ms) + ' · ' + v.width + 'x' + v.height}</small>
+      <small class="n">${n ? n + ' olay' : ''}</small>`;
+    el.onclick = () => show(i);
+    list.appendChild(el);
+  });
+
+  const toplam = videos.length;
+  const hazir = videos.filter(v => data(v.id).events.length >= 2).length;
+  $('stat').textContent = `${hazir}/${toplam} video işaretlendi (en az 2 olay)`;
+}
+
+function renderEvents() {
+  const box = $('events');
+  const d = data(cur().id);
+  box.innerHTML = '';
+
+  if (!d.events.length) {
+    box.innerHTML = '<div class="empty">Henüz olay yok. Videoda kritik anı bul, açıklama yaz, ekle.</div>';
+    return;
+  }
+
+  d.events.sort((a, b) => a.t_ms - b.t_ms);
+  d.events.forEach((e, i) => {
+    const row = document.createElement('div');
+    row.className = 'ev-row';
+    row.innerHTML = `<span class="t">${e.time}</span><span class="x">${e.event}</span>`;
+
+    const del = document.createElement('button');
+    del.className = 'del sm'; del.textContent = '×';
+    del.onclick = () => { d.events.splice(i, 1); save(); renderAll(); };
+
+    row.querySelector('.t').onclick = () => { $('v').currentTime = e.t_ms / 1000; };
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
+function renderRisk() {
+  const box = $('risk');
+  const d = data(cur().id);
+  box.innerHTML = '';
+  for (const r of RISKS) {
+    const b = document.createElement('button');
+    b.textContent = r; b.dataset.r = r;
+    if (d.risk === r) b.classList.add('on');
+    b.onclick = () => { d.risk = d.risk === r ? null : r; save(); renderRisk(); };
+    box.appendChild(b);
+  }
+}
+
+function renderActions() {
+  const box = $('actions');
+  const d = data(cur().id);
+  box.innerHTML = '';
+  if (!d.actions.length) { box.innerHTML = '<div class="empty">Aksiyon önerisi yok.</div>'; return; }
+  d.actions.forEach((a, i) => {
+    const row = document.createElement('div');
+    row.className = 'act-row';
+    row.innerHTML = `<span style="flex:1;font-size:13px">${a}</span>`;
+    const del = document.createElement('button');
+    del.className = 'del sm'; del.textContent = '×';
+    del.onclick = () => { d.actions.splice(i, 1); save(); renderActions(); };
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+}
+
+function renderTimeline() {
+  const tl = $('tl'), v = cur(), d = data(v.id);
+  tl.querySelectorAll('.ev').forEach(e => e.remove());
+  d.events.forEach((e, i) => {
+    const m = document.createElement('div');
+    m.className = 'ev';
+    m.style.left = `${e.t_ms / v.duration_ms * 100}%`;
+    m.dataset.i = i + 1;
+    tl.appendChild(m);
+  });
+}
+
+function save() { localStorage.setItem(KEY, JSON.stringify(gt)); }
+
+function addEvent() {
+  const text = $('desc').value.trim();
+  if (!text) { $('desc').focus(); return; }
+
+  const t = Math.round($('v').currentTime * 1000);
+  const d = data(cur().id);
+  // Aynı ana ikinci bir olay yazmak neredeyse her zaman yanlışlıkla iki kez
+  // eklemek demek; 250 ms içindeki tekrar sessizce yutuluyor.
+  if (d.events.some(e => Math.abs(e.t_ms - t) < 250 && e.event === text)) return;
+
+  d.events.push({ t_ms: t, time: fmt(t), event: text, severity: d.risk || 'Orta' });
+  $('desc').value = '';
+  save();
+  renderAll();
+}
+
+function bind() {
+  $('add').onclick = addEvent;
+  $('addAct').onclick = () => {
+    const t = $('newAct').value.trim();
+    if (!t) return;
+    data(cur().id).actions.push(t);
+    $('newAct').value = '';
+    save(); renderActions();
+  };
+  $('newAct').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); $('addAct').click(); } };
+  $('desc').onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); addEvent(); } };
+  $('summary').oninput = () => { data(cur().id).summary = $('summary').value; save(); };
+  $('export').onclick = exportCatalog;
+
+  const v = $('v');
+  v.ontimeupdate = () => {
+    const pct = v.currentTime / (cur().duration_ms / 1000) * 100;
+    $('cur').style.left = `${pct}%`;
+    $('at').textContent = fmt(v.currentTime * 1000);
+  };
+
+  $('tl').onclick = e => {
+    const r = e.currentTarget.getBoundingClientRect();
+    v.currentTime = (e.clientX - r.left) / r.width * (cur().duration_ms / 1000);
+  };
+
+  document.onkeydown = e => {
+    const yaziyor = ['INPUT', 'TEXTAREA'].includes(e.target.tagName);
+    if (e.key.toLowerCase() === 'e' && !yaziyor) { e.preventDefault(); $('desc').focus(); return; }
+    if (yaziyor) return;
+
+    const step = e.shiftKey ? 1 : 1 / (cur().fps || 25);
+    if (e.code === 'Space') { e.preventDefault(); v.paused ? v.play() : v.pause(); }
+    else if (e.code === 'ArrowLeft') { e.preventDefault(); v.currentTime -= step; }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); v.currentTime += step; }
+  };
+}
+
+function exportCatalog() {
+  const out = structuredClone(catalog);
+  for (const v of out.videos) {
+    const d = gt[v.id];
+    if (!d) continue;
+    d.events.sort((a, b) => a.t_ms - b.t_ms);
+    v.ground_truth = {
+      summary: d.summary || null,
+      events: d.events,
+      risk: d.risk,
+      actions: d.actions,
+    };
+  }
+  out.annotated = out.videos.filter(v => (v.ground_truth?.events || []).length >= 2).length;
+  out.annotated_at = new Date().toISOString();
+
+  const blob = new Blob([JSON.stringify(out, null, 2) + '\n'], { type: 'application/json' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'catalog.json';
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+boot();
+</script>
+</body>
+</html>

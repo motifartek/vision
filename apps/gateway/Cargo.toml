@@ -33,6 +33,12 @@ http = "1.1"
 
 [build-dependencies]
 tonic-build = "0.12"
+<<<<<<< HEAD
 protoc-bin-vendored = "3.0.0"
+=======
+# protoc'u sisteme kurdurmamak icin ikili paketle geliyor: depoyu klonlayan
+# herkes `cargo build` diyebilsin.
+protoc-bin-vendored = "3"
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
 
 

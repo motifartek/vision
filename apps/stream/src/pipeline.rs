@@ -10,8 +10,8 @@ use chrono::Utc;
 use motif_core::{Error, Result, VideoId};
 use motif_event_sdk::{FrameExtracted, FrameRef, SamplingPass, VideoIngested, SCHEMA_VERSION};
 use motif_optics::{
-    build_profile, extract_jpegs, probe, select_frames, ExtractOptions, MotionProfile,
-    SamplingConfig, Selection,
+    build_profile, extract_clip, extract_jpegs, probe, scale_for_frames, select_frames, Clip,
+    ClipOptions, ExtractOptions, MotionProfile, SamplingConfig, Selection,
 };
 use uuid::Uuid;
 
@@ -37,9 +37,52 @@ pub async fn ingest(
 
     // Metadata çıkarımı ffmpeg'e gider; bloke edici.
     let video_path = state.store.local_path(&object_key)?;
-    let info = tokio::task::spawn_blocking(move || probe(&video_path))
-        .await
-        .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))??;
+    let info = tokio::task::spawn_blocking({
+        let p = video_path.clone();
+        move || probe(&p)
+    })
+    .await
+    .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))?
+    // ffprobe'un okuyamadığı dosya bozuk ya da video değil demektir; bu
+    // istemcinin hatası, sunucunun değil. Yüklenen dosya diskte kalmasın.
+    .map_err(|e| {
+        let _ = state.store.delete(&object_key);
+        Error::InvalidVideo(format!(
+            "dosya video olarak okunamadı ({original_name}): {e}"
+        ))
+    })?;
+
+    // --- H.264 normalizasyonu ---
+    //
+    // Çıkarım servisinin çözücüsü AV1'i açamıyor: ölçüldü, tek kare bile
+    // çıkaramayıp HTTP 400 döndürdü. Aynı video H.264'e çevrilince çalıştı.
+    // Final test videolarının kodlaması bilinmediği için bu adım zorunlu ve
+    // alımda yapılıyor — sonraki her aşama güvenli codec'le çalışsın.
+    let info = if info.codec != "h264" {
+        tracing::info!(%id, codec = %info.codec, "codec servis tarafından açılamıyor, H.264'e çevriliyor");
+
+        let gecici = std::env::temp_dir().join(format!("motif-norm-{}.mp4", Uuid::new_v4()));
+        let (kaynak, hedef) = (video_path.clone(), gecici.clone());
+        let opts = ClipOptions::default();
+
+        tokio::task::spawn_blocking(move || motif_optics::normalize(&kaynak, &hedef, &opts))
+            .await
+            .map_err(|e| Error::Config(format!("normalizasyon görevi düştü: {e}")))??;
+
+        let cevrilmis = std::fs::read(&gecici)?;
+        state.store.put(&object_key, &cevrilmis)?;
+        let _ = std::fs::remove_file(&gecici);
+
+        let yeni_yol = state.store.local_path(&object_key)?;
+        let yeni = tokio::task::spawn_blocking(move || probe(&yeni_yol))
+            .await
+            .map_err(|e| Error::Config(format!("probe görevi düştü: {e}")))??;
+
+        tracing::info!(%id, "normalize edildi: {} -> h264", info.codec);
+        yeni
+    } else {
+        info
+    };
 
     // Durağan görüntüyü video sanmayı engelle.
     //
@@ -320,4 +363,106 @@ pub async fn single_frame(
         motion_score: nearest.map(|s| s.score).unwrap_or(0.0),
         is_scene_cut: nearest.map(|s| s.is_scene_cut).unwrap_or(false),
     })
+}
+
+// --- Klip üretimi ---
+//
+// Çıkarım servisi kare kümesi kabul etmiyor: `vlm` görüntüyü tamamen
+// reddediyor, diğer modeller en fazla iki tane alıyor. Zamansal içeriğin tek
+// teslim biçimi klip. Hareket profili burada "hangi kareleri seçeyim" değil,
+// "hangi aralığı keseyim" sorusunu cevaplıyor.
+
+/// Kaynak videodan bir aralığı klip olarak üretir ve depoya yazar.
+async fn produce_clip(
+    state: &Arc<AppState>,
+    id: &VideoId,
+    t0_ms: u64,
+    t1_ms: u64,
+    opts: ClipOptions,
+) -> Result<(Clip, String)> {
+    let record = VideoRecord::load(state.store.as_ref(), id)?;
+    let video_path = state.store.local_path(&record.object_key)?;
+
+    // ffmpeg depo soyutlamasının arkasına yazamaz; önce geçici dosyaya.
+    let scratch = std::env::temp_dir().join(format!("motif-clip-{}.mp4", Uuid::new_v4()));
+    let scratch_for_task = scratch.clone();
+
+    let clip = tokio::task::spawn_blocking(move || {
+        extract_clip(&video_path, t0_ms, t1_ms, &scratch_for_task, &opts)
+    })
+    .await
+    .map_err(|e| Error::Config(format!("klip görevi düştü: {e}")))??;
+
+    let bytes = std::fs::read(&clip.path)?;
+    let key = format!(
+        "clips/{id}/{:09}-{:09}-x{:.0}.mp4",
+        t0_ms,
+        t1_ms,
+        clip.time_scale * 10.0
+    );
+    state.store.put(&key, &bytes)?;
+    let _ = std::fs::remove_file(&clip.path);
+
+    tracing::info!(
+        %id, t0_ms, t1_ms,
+        sure_ms = clip.duration_ms,
+        olcek = clip.time_scale,
+        servis_kare = clip.service_frames,
+        etkin_fps = clip.effective_fps,
+        boyut_mb = clip.size_bytes as f64 / 1e6,
+        "klip üretildi"
+    );
+
+    Ok((clip, key))
+}
+
+/// Ajanın işaret ettiği aralığı, istenen detay düzeyinde klip olarak üretir.
+///
+/// Servis sabit 2 fps örneklediği için dar bir pencere göndermek tek başına
+/// çözünürlüğü artırmıyor: 2 saniyelik klipten yine 4 kare çıkar. İstenen kare
+/// sayısı bundan fazlaysa klip ağır çekime alınıyor — 2 saniyelik aralık 20
+/// saniyeye yayılırsa servis 40 kare örnekler, bu da orijinalde 20 fps eder.
+pub async fn zoom_clip(
+    state: &Arc<AppState>,
+    id: &VideoId,
+    t0_ms: u64,
+    t1_ms: u64,
+    budget: usize,
+) -> Result<(Clip, String)> {
+    let time_scale = scale_for_frames(t1_ms.saturating_sub(t0_ms), budget as u32);
+
+    produce_clip(
+        state,
+        id,
+        t0_ms,
+        t1_ms,
+        ClipOptions {
+            time_scale,
+            max_dim: Some(state.config.frame_max_dim),
+            ..Default::default()
+        },
+    )
+    .await
+}
+
+/// Bir aralığı gerçek zamanda klip olarak üretir (ağır çekim yok).
+pub async fn range_clip(
+    state: &Arc<AppState>,
+    id: &VideoId,
+    t0_ms: u64,
+    t1_ms: u64,
+    max_dim: Option<u32>,
+) -> Result<(Clip, String)> {
+    produce_clip(
+        state,
+        id,
+        t0_ms,
+        t1_ms,
+        ClipOptions {
+            time_scale: 1.0,
+            max_dim: max_dim.or(Some(state.config.frame_max_dim)),
+            ..Default::default()
+        },
+    )
+    .await
 }

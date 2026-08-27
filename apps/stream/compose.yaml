@@ -3,11 +3,15 @@ services:
     build:
       context: ../../
       dockerfile: apps/stream/Dockerfile
+<<<<<<< HEAD
     image: docker-stream
+=======
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
     ports:
       - "8100:8100"
     environment:
       - STREAM_BIND=0.0.0.0:8100
+<<<<<<< HEAD
       - STREAM_STORAGE_ROOT=/data/stream
       # NATS bagli degilse olay yayini sessizce kapanir, servis yine calisiyor
       - NATS_URL=nats://nats:4222
@@ -17,10 +21,21 @@ services:
     # NATS ve observability stack hazir olduktan sonra baslat
     depends_on:
       - nats
+=======
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+      - OTEL_SERVICE_NAME=stream
+    volumes:
+      # Yüklenen videolar ve üretilen klipler konteyner ömrünü aşmalı.
+      - stream-data:/var/lib/motif-stream
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50
     restart: unless-stopped
     networks:
       - default
       - observability
 
 volumes:
+<<<<<<< HEAD
   stream-data:
+=======
+  stream-data:
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50

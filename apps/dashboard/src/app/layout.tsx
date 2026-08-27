@@ -11,8 +11,8 @@ import "./globals.css"
 // eski `subsets: ["latin"]` ayarı bunları kapsamıyordu.
 
 export const metadata: Metadata = {
-  title: "Framecut — Video İşleme Stüdyosu",
-  description: "Video seçimi, geliştirme ve dışa aktarma için profesyonel çalışma alanı.",
+  title: "MotifAI — Video Analiz ve Karar Destek",
+  description: "Güvenlik kamerası kayıtlarında olay tespiti, risk değerlendirmesi ve aksiyon önerileri.",
 }
 
 export const viewport: Viewport = {

@@ -18,15 +18,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
 
     let cfg = Config::from_env();
-    tracing::info!(?cfg, "yapÄ±landÄ±rma yÃ¼klendi");
+    tracing::info!(?cfg, "yapılandırma yüklendi");
 
     let labels_path = cfg.models_dir.join(&cfg.model).join("class_labels_indices.csv");
     let labels = model::labels::load(&labels_path)?;
 
     let mut loaded = model::ced::load(&cfg)?;
 
-    // Profillerin pencere boyutlarÄ± iÃ§in oturumu Ä±sÄ±t (GPU'da ÅŸekil baÅŸÄ±na
-    // Ã§ekirdek derlemesi ilk isteÄŸi yavaÅŸlatÄ±yordu).
+    // Profillerin pencere boyutları için oturumu ısıt (GPU'da şekil başına
+    // çekirdek derlemesi ilk isteği yavaşlatıyordu).
     let window_frames: Vec<usize> = PROFILES
         .iter()
         .map(|p| (p.window_sec * 100.0).round() as usize)
@@ -36,7 +36,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing::info!(
         ms = warmup_started.elapsed().as_millis(),
         sekil = window_frames.len(),
-        "model Ä±sÄ±tÄ±ldÄ±"
+        "model ısıtıldı"
     );
 
     let state = Arc::new(AppState::new(
@@ -50,15 +50,19 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     if cfg.media_root.is_none() {
         tracing::warn!(
+<<<<<<< HEAD:apps/ai/sonic/src/main.rs
             "SONIC_MEDIA_ROOT ayarlÄ± deÄŸil; analyze uÃ§ noktasÄ± yerel dosya \
+=======
+            "INFERENCE_MEDIA_ROOT ayarlı değil; analyze uç noktası yerel dosya \
+>>>>>>> f491502c5faca5ab535093d137310c684fca7a50:apps/ai/inference/src/main.rs
              sistemindeki herhangi bir yolu okuyabilir"
         );
     }
 
-    // KÃ¶ken yerel arayÃ¼zle sÄ±nÄ±rlÄ±: servis zaten yalnÄ±z 127.0.0.1 dinliyor, yani
-    // `permissive` yerel aÄŸa eriÅŸim kazandÄ±rmÄ±yordu â€” yalnÄ±zca herhangi bir web
-    // sayfasÄ±nÄ±n tarayÄ±cÄ± Ã¼zerinden buraya istek atmasÄ±na (silme dahil) izin
-    // veriyordu. Port serbest, Ã§Ã¼nkÃ¼ dashboard 3000 dÄ±ÅŸÄ±nda da Ã§alÄ±ÅŸabiliyor.
+    // Köken yerel arayüzle sınırlı: servis zaten yalnız 127.0.0.1 dinliyor, yani
+    // `permissive` yerel ağa erişim kazandırmıyordu — yalnızca herhangi bir web
+    // sayfasının tarayıcı üzerinden buraya istek atmasına (silme dahil) izin
+    // veriyordu. Port serbest, çünkü dashboard 3000 dışında da çalışabiliyor.
     let cors = CorsLayer::new()
         .allow_origin(AllowOrigin::predicate(|origin, _| {
             origin.to_str().map(api::is_local_origin).unwrap_or(false)
@@ -66,7 +70,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    // Video yÃ¼klemeleri iÃ§in boyut limitini tamamen kaldÄ±rÄ±yoruz (3GB, 10GB vs. sÄ±nÄ±rsÄ±z)
+    // Video yüklemeleri için boyut limitini tamamen kaldırıyoruz (3GB, 10GB vs. sınırsız)
     let app = api::router(state)
         .layer(axum::extract::DefaultBodyLimit::disable())
         .layer(cors);
