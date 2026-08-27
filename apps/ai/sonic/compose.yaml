@@ -16,14 +16,8 @@ services:
       - SONIC_MEDIA_ROOT=/media
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     volumes:
-      # Model agirliklari (~410 MB). Depoda tutulmuyor; once host'a indiriliyor:
-      #   sh apps/ai/sonic/scripts/fetch-models.sh ced-base
-      #
-      # Isimli volume degil bind mount: script zaten bu dizine indiriyor ve
-      # isimli volume'u dolduran bir adim yoktu, o yuzden sonic bos /app/models
-      # ile acilip yeniden baslatma dongusune giriyordu. Bind mount ayrica
-      # `docker compose down -v` sonrasi 410 MB'i tekrar indirtmiyor.
-      - ./models:/app/models:ro
+      # Modellerin saklandigi yer (minio de kullanilabilirdi ama simdilik local baglayalim)
+      - sonic-models:/app/models
       # `stream`in yazdigi ham videolar. Salt okunur: sonic yalnizca okur.
       - ../../../data/stream:/media:ro
     restart: unless-stopped
@@ -31,3 +25,5 @@ services:
       - default
       - observability
 
+volumes:
+  sonic-models:
