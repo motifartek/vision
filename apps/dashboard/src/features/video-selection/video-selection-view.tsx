@@ -12,6 +12,7 @@ import { formatTime } from "@/features/video-detail/time"
 import { VideoUploadDialog } from "./video-upload-dialog"
 
 const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 type VideoEntry = {
   id: string
@@ -104,18 +105,39 @@ export function VideoSelectionView() {
   const [confirmId, setConfirmId] = useState<string | null>(null)
   const [busyId, setBusyId] = useState<string | null>(null)
 
+  /**
+   * Listeyi görüntü servisinden kurar.
+   *
+   * Kaynak `stream`, çünkü görsel analiz ürünün kendisi ve videoların
+   * yüklendiği yer orası. Ses servisi ayrıca sorgulanıyor ama **isteğe bağlı**:
+   * ayakta değilken liste boş kalıyordu ve panelden video eklemek de,
+   * eklenmiş videoyu görmek de imkânsız hâle geliyordu.
+   */
   const loadVideos = () => {
     setLoading(true)
-    fetch(`${API}/v1/videos`)
+
+    const stream = fetch(`${STREAM}/v1/videos`)
       .then((r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`)
-        return r.json() as Promise<VideoEntry[]>
+        return r.json() as Promise<{
+          videos: { id: string; original_name: string; info: { size_bytes: number; duration_ms: number } }[]
+        }>
       })
+      .then(({ videos }) =>
+        videos.map<VideoEntry>((v) => ({
+          id: v.id,
+          filename: v.original_name,
+          size: v.info.size_bytes,
+          duration_sec: v.info.duration_ms ? v.info.duration_ms / 1000 : null,
+        })),
+      )
+
+    stream
       .then((data) => {
         setVideos(data)
         setError(null)
       })
-      .catch((err) => {
+      .catch((err: Error) => {
         setError(err.message)
         setVideos([])
       })
@@ -129,8 +151,18 @@ export function VideoSelectionView() {
   const removeVideo = async (id: string) => {
     setBusyId(id)
     try {
-      const r = await fetch(`${API}/v1/videos/${encodeURIComponent(id)}`, { method: "DELETE" })
+      const r = await fetch(`${STREAM}/v1/videos/${encodeURIComponent(id)}`, { method: "DELETE" })
       if (!r.ok && r.status !== 404) throw new Error(`HTTP ${r.status}`)
+
+      // Ses tarafındaki kopya kendi kimliğiyle duruyor ve ad üzerinden
+      // eşleşiyor; servis kapalıysa silme başarısız sayılmıyor.
+      const ad = videos.find((v) => v.id === id)?.filename
+      if (ad) {
+        await fetch(`${API}/v1/videos/${encodeURIComponent(ad)}`, { method: "DELETE" }).catch(
+          () => undefined,
+        )
+      }
+
       setVideos((list) => list.filter((v) => v.id !== id))
     } catch (err) {
       setError(err instanceof Error ? err.message : "silinemedi")

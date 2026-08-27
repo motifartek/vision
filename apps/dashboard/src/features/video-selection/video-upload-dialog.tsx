@@ -28,8 +28,8 @@ export function VideoUploadDialog({ open, onClose }: Props) {
   const router = useRouter()
   const inputRef = useRef<HTMLInputElement>(null)
   const [state, setState] = useState<UploadState>("idle")
-  /** Görüntü servisine gönderim; ses yüklemesinden bağımsız başarısız olabilir. */
-  const [streamState, setStreamState] = useState<"idle" | "uploading" | "done" | "failed">("idle")
+  /** Ses servisine gönderim; görüntü yüklemesinden bağımsız başarısız olabilir. */
+  const [audioState, setAudioState] = useState<"idle" | "uploading" | "done" | "failed">("idle")
   const [progress, setProgress] = useState(0)
   const [fileName, setFileName] = useState("")
   const [errorMsg, setErrorMsg] = useState("")
@@ -56,7 +56,7 @@ export function VideoUploadDialog({ open, onClose }: Props) {
 
   const upload = useCallback(
     async (file: File) => {
-      setStreamState("idle")
+      setAudioState("idle")
       // Sunucu da reddediyor (415), ama kullanıcıyı 2 GB göndermeden uyarmak gerek.
       if (!isVideoFile(file.name)) {
         setFileName(file.name)
@@ -70,12 +70,15 @@ export function VideoUploadDialog({ open, onClose }: Props) {
       setProgress(0)
       setErrorMsg("")
 
-      const formData = new FormData()
-      formData.append("file", file)
-
       try {
-        // XMLHttpRequest ile ilerleme takibi
-        const result = await new Promise<{ id: string; filename: string }>((resolve, reject) => {
+        // --- birincil: görüntü servisi ---
+        //
+        // Görsel analiz ürünün kendisi, dolayısıyla yönlendirmede kullanılan
+        // kimlik `stream`'den geliyor. Önceden yükleme ses servisine yapılıyor
+        // ve kimlik oradan alınıyordu; ses servisi ayakta değilken video
+        // eklemek tümüyle imkânsız hâle geliyordu, oysa görsel taraf onsuz da
+        // çalışıyor.
+        const result = await new Promise<{ id: string }>((resolve, reject) => {
           const xhr = new XMLHttpRequest()
 
           xhr.upload.addEventListener("progress", (e) => {
@@ -85,7 +88,8 @@ export function VideoUploadDialog({ open, onClose }: Props) {
           })
 
           xhr.addEventListener("load", () => {
-            if (xhr.status === 201) {
+            // stream 201 döndürüyor; başka 2xx de kabul.
+            if (xhr.status >= 200 && xhr.status < 300) {
               resolve(JSON.parse(xhr.responseText))
             } else {
               let msg = "Yükleme başarısız"
@@ -102,28 +106,29 @@ export function VideoUploadDialog({ open, onClose }: Props) {
           xhr.addEventListener("error", () => reject(new Error("Ağ hatası")))
           xhr.addEventListener("abort", () => reject(new Error("İptal edildi")))
 
-          xhr.open("POST", `${API}/v1/upload`)
-          xhr.send(formData)
-        })
-
-        // --- görüntü servisine ikinci kopya ---
-        //
-        // İki servis ayrı depo tutuyor: ses tarafı dosya adıyla, `stream` kendi
-        // UUID'siyle. Aynı dosyayı ikisine de göndermek, tarayıcı baytları
-        // zaten elinde tuttuğu için ek indirme gerektirmiyor ve iki tarafı
-        // orijinal ad üzerinden eşleştirilebilir kılıyor.
-        //
-        // Başarısız olursa yükleme başarısız sayılmıyor: ses analizi çalışmaya
-        // devam ediyor, yalnız görsel analiz o video için kapalı kalıyor ve
-        // detay sayfası bunu söylüyor.
-        setStreamState("uploading")
-        try {
           const sf = new FormData()
           sf.append("file", file)
-          const r = await fetch(`${STREAM}/v1/videos`, { method: "POST", body: sf })
-          setStreamState(r.ok ? "done" : "failed")
+          xhr.open("POST", `${STREAM}/v1/videos`)
+          xhr.send(sf)
+        })
+
+        // --- ikincil: ses servisi ---
+        //
+        // İki servis ayrı depo tutuyor ve ortak olan tek şey dosya adı;
+        // detay sayfası ikisini o ad üzerinden eşleştiriyor. Tarayıcı baytları
+        // zaten elinde tuttuğu için ikinci gönderim ek indirme gerektirmiyor.
+        //
+        // Başarısız olursa yükleme başarısız sayılmıyor: görsel analiz
+        // çalışmaya devam ediyor, yalnız ses analizi o video için kapalı
+        // kalıyor.
+        setAudioState("uploading")
+        try {
+          const af = new FormData()
+          af.append("file", file)
+          const r = await fetch(`${API}/v1/upload`, { method: "POST", body: af })
+          setAudioState(r.ok ? "done" : "failed")
         } catch {
-          setStreamState("failed")
+          setAudioState("failed")
         }
 
         setState("done")
@@ -186,10 +191,10 @@ export function VideoUploadDialog({ open, onClose }: Props) {
             <CheckCircle2 className="size-12 text-success" />
             <p className="text-sm font-medium">Yükleme tamamlandı!</p>
             <DialogDescription>{fileName} → analiz sayfasına yönlendiriliyorsunuz…</DialogDescription>
-            {streamState === "failed" && (
+            {audioState === "failed" && (
               <p className="max-w-xs text-center text-[11px] leading-snug text-muted-foreground">
-                Görüntü servisine ulaşılamadı; bu video için ses analizi çalışır ama görsel
-                analiz kapalı kalır.
+                Ses servisine ulaşılamadı; görsel analiz çalışır, ses analizi bu video için
+                kapalı kalır.
               </p>
             )}
           </div>

@@ -17,6 +17,7 @@ import { formatTime } from "@/features/video-detail/time"
  * adresine gidiyordu, yani demoda ilk tıklama kırık bir analiz sayfası açıyordu.
  */
 const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 type VideoEntry = {
   id: string
@@ -48,15 +49,36 @@ export function DashboardView() {
   useEffect(() => {
     let cancelled = false
 
-    Promise.all([
-      fetch(`${API}/v1/videos`).then((r) => (r.ok ? (r.json() as Promise<VideoEntry[]>) : Promise.reject())),
-      fetch(`${API}/healthz`).then((r) => (r.ok ? (r.json() as Promise<Health>) : Promise.reject())),
-    ])
-      .then(([list, status]) => {
+    // Video listesi görüntü servisinden; ses servisinin model kartı **isteğe
+    // bağlı**. Önceden ikisi de aynı `Promise.all` içindeydi ve ses servisi
+    // kapalıyken ana sayfa tümüyle "çevrimdışı" görünüyordu, oysa görsel taraf
+    // çalışıyor.
+    Promise.resolve(
+      fetch(`${STREAM}/v1/videos`).then((r) =>
+        r.ok
+          ? (r.json() as Promise<{
+              videos: { id: string; original_name: string; info: { size_bytes: number; duration_ms: number } }[]
+            }>)
+          : Promise.reject(),
+      ),
+    )
+      .then(({ videos }) => {
         if (cancelled) return
-        setVideos(list)
-        setHealth(status)
+        setVideos(
+          videos.map((v) => ({
+            id: v.id,
+            filename: v.original_name,
+            size: v.info.size_bytes,
+            duration_sec: v.info.duration_ms ? v.info.duration_ms / 1000 : null,
+          })),
+        )
         setOffline(false)
+
+        // Ses servisi ayrı ve gecikmeli; ulaşılamazsa model kartı gizleniyor.
+        fetch(`${API}/healthz`)
+          .then((r) => (r.ok ? (r.json() as Promise<Health>) : Promise.reject()))
+          .then((status) => !cancelled && setHealth(status))
+          .catch(() => undefined)
       })
       .catch(() => {
         if (!cancelled) setOffline(true)
