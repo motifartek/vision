@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Eye, EyeOff, Pause, Play } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
+import { Switch } from "@/components/ui/switch"
+import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { useAudioAnalysis } from "./audio-analysis"
 import { useMediaFile } from "./media-file"
@@ -17,7 +19,7 @@ import { usePlayback } from "./use-playback"
 import { VisionPanel, PayloadSection, RawResponseSection } from "./vision-panel"
 import { playbackSrc, useHeatmap, useStreamVideo, useVisionAnalysis } from "./vision-analysis"
 
-function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: boolean; onToggle: () => void }) {
+function EditorNav({ videoId, playing, onToggle, autoApprove, setAutoApprove }: { videoId: string; playing: boolean; onToggle: () => void; autoApprove: boolean; setAutoApprove: (v: boolean) => void }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
@@ -29,10 +31,11 @@ function EditorNav({ videoId, playing, onToggle }: { videoId: string; playing: b
           <p className="hidden text-[11px] text-muted-foreground sm:block">Görsel ve işitsel analiz</p>
         </div>
       </div>
-      {/* "Geri al / İleri al / Dışa aktar" düğmeleri buradaydı ve hiçbiri bir
-          şey yapmıyordu: ortada bir düzenleme modeli yok, dolayısıyla geri
-          alınacak bir işlem de yok. Çalışmayan düğme, olmayandan kötü. */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2">
+          <Switch id="auto-approve" checked={autoApprove} onCheckedChange={setAutoApprove} />
+          <Label htmlFor="auto-approve" className="text-xs font-medium">Otomatik Onayla</Label>
+        </div>
         <Button variant="outline" onClick={onToggle}>
           {playing ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
           {playing ? "Duraklat" : "Oynat"}
@@ -77,6 +80,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
 
   // Mock Toolbox Alert state'i
   const [toolAlerts, setToolAlerts] = useState<{id: number; title: string; message: string}[]>([])
+  const [autoApprove, setAutoApprove] = useState(false)
 
   useEffect(() => {
     // Gateway üzerinden ToolAlerts'leri (ve diğer olayları) SSE ile dinleyelim
@@ -185,7 +189,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           </div>
         ))}
       </div>
-      <EditorNav videoId={videoId} playing={playing} onToggle={toggle} />
+      <EditorNav videoId={videoId} playing={playing} onToggle={toggle} autoApprove={autoApprove} setAutoApprove={setAutoApprove} />
 
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_330px]">
         {/* sol: video üstte, zaman çizelgesi altta */}
@@ -274,6 +278,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
               onLoadPayload={() => vision.loadPayload()}
               onSeek={seek}
               ready={Boolean(streamId)}
+              autoApprove={autoApprove}
             />
           </TabsContent>
 

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ChevronDown, Loader2, Play, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -31,6 +31,7 @@ export function VisionPanel({
   onLoadPayload,
   onSeek,
   ready,
+  autoApprove,
 }: {
   videoId: string
   outcome: Outcome | null
@@ -42,6 +43,7 @@ export function VisionPanel({
   onLoadPayload: () => void
   onSeek: (seconds: number) => void
   ready: boolean
+  autoApprove?: boolean
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
@@ -78,7 +80,7 @@ export function VisionPanel({
         {error && <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive">{error}</p>}
       </div>
 
-      {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} />}
+      {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} autoApprove={autoApprove} />}
     </div>
   )
 }
@@ -89,7 +91,7 @@ const RISK_RENK: Record<string, string> = {
   Düşük: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
 }
 
-function ActionCard({ videoId, action }: { videoId: string, action: string }) {
+function ActionCard({ videoId, action, autoApprove }: { videoId: string, action: string, autoApprove?: boolean }) {
   const [status, setStatus] = useState<"idle" | "running" | "success" | "error">("idle")
 
   const handleExecute = async () => {
@@ -111,6 +113,12 @@ function ActionCard({ videoId, action }: { videoId: string, action: string }) {
       setTimeout(() => setStatus("idle"), 2000)
     }
   }
+
+  useEffect(() => {
+    if (autoApprove && status === "idle") {
+      handleExecute()
+    }
+  }, [autoApprove])
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
@@ -141,7 +149,7 @@ function ActionCard({ videoId, action }: { videoId: string, action: string }) {
   )
 }
 
-function Report({ videoId, outcome, onSeek }: { videoId: string; outcome: Outcome; onSeek: (s: number) => void }) {
+function Report({ videoId, outcome, onSeek, autoApprove }: { videoId: string; outcome: Outcome; onSeek: (s: number) => void; autoApprove?: boolean }) {
   const { report, steps } = outcome
 
   return (
@@ -195,7 +203,7 @@ function Report({ videoId, outcome, onSeek }: { videoId: string; outcome: Outcom
         <span className="text-xs font-medium">Aksiyon Önerileri</span>
         <div className="flex flex-col gap-2">
           {report.actions.map((a, i) => (
-            <ActionCard key={i} videoId={videoId} action={a} />
+            <ActionCard key={i} videoId={videoId} action={a} autoApprove={autoApprove} />
           ))}
         </div>
       </div>
