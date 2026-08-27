@@ -304,7 +304,15 @@ text = \"\"\"
         // ancak birebir aynı kalırsa isabet ediyor. Kayda özgü her şey son eke.
         let (on_ek, mut son_ek): (Vec<&str>, Vec<&str>) = match kind {
             PromptKind::VisionIlkBakis => (
-                vec!["rol", "zaman_kurali", "sozlesme"],
+                vec![
+                    "rol",
+                    // İsteğe bağlı: gömülü katalogda yok, varyantlar
+                    // ekleyebiliyor. Olmayan parça sessizce atlanıyor.
+                    "olay_olmayan",
+                    "cozunurluk",
+                    "zaman_kurali",
+                    "sozlesme",
+                ],
                 vec!["kayit_bilgisi"],
             ),
             PromptKind::VisionYakinlastirma => {
@@ -314,6 +322,8 @@ text = \"\"\"
                 }
                 (
                     vec![
+                        "olay_olmayan",
+                        "cozunurluk",
                         "yakinlastirma_talimati",
                         "yakinlastirma_zaman_kurali",
                         "sozlesme",
@@ -368,8 +378,11 @@ text = \"\"\"
         for &ad in adlar {
             let parca = match self.parca(agent, ad) {
                 Ok(p) => p,
-                Err(e) => {
-                    tracing::error!(hata = %e, "prompt parçası atlandı");
+                Err(_) => {
+                    // Sıralama, olabilecek tüm parçaları sayıyor; bir katalog
+                    // bunların alt kümesini taşıyabilir. Eksik parça hata
+                    // değil, o katalogda o kuralın olmaması demek.
+                    tracing::debug!(parca = ad, "katalogda yok, atlandı");
                     continue;
                 }
             };

@@ -243,9 +243,20 @@ fn rapora_cevir(
 /// Şema `enum` ile kısıtlı ama model yine de "yüksek", "HIGH" gibi varyantlar
 /// üretebiliyor; eşleşmeyen her şey `Orta` sayılıyor — sessizce `Düşük`e
 /// düşürmek riski gizlerdi.
+///
+/// **"Kritik" ayrıca ele alınıyor.** Önceden hiçbir kalıba uymadığı için
+/// `Orta`ya düşüyordu: model en tehlikeli durumu bildirdiğinde sistem onu
+/// iki seviye birden **aşağı** çekiyordu. Şartnamenin teslim biçimi üç seviyeli
+/// olduğu için `Kritik` ayrı bir değer olarak taşınamıyor, ama en azından
+/// `Yüksek` olarak geçmeli — tehlikeyi gizlememek gerekiyor.
 fn risk_cevir(s: &str) -> RiskLevel {
     let d = s.trim().to_lowercase();
-    if d.starts_with("yüks") || d.starts_with("yuks") || d.starts_with("high") {
+    if d.starts_with("yüks")
+        || d.starts_with("yuks")
+        || d.starts_with("high")
+        || d.starts_with("krit")
+        || d.starts_with("critical")
+    {
         RiskLevel::Yuksek
     } else if d.starts_with("düş") || d.starts_with("dus") || d.starts_with("low") {
         RiskLevel::Dusuk
@@ -611,10 +622,23 @@ mod tests {
         assert_eq!(r.events[1].event, "sonra");
     }
 
+    /// "Kritik" sessizce iki seviye aşağı düşüyordu; en tehlikeli durum
+    /// `Orta` olarak raporlanıyordu. Artık `Yüksek`e çıkıyor.
+    #[test]
+    fn kritik_risk_asagi_cekilmiyor() {
+        for metin in ["Kritik", "kritik", "critical", "CRITICAL"] {
+            assert_eq!(
+                risk_cevir(metin),
+                RiskLevel::Yuksek,
+                "{metin:?} tehlikeyi gizleyecek şekilde düşürüldü"
+            );
+        }
+    }
+
     #[test]
     fn taninmayan_risk_metni_ortaya_dusurulur() {
         // Sessizce "Düşük" saymak riski gizlerdi.
-        assert_eq!(risk_cevir("kritik"), RiskLevel::Orta);
+        assert_eq!(risk_cevir("belirsiz bir şey"), RiskLevel::Orta);
         assert_eq!(risk_cevir("HIGH"), RiskLevel::Yuksek);
         assert_eq!(risk_cevir("düşük"), RiskLevel::Dusuk);
         assert_eq!(risk_cevir("Yuksek"), RiskLevel::Yuksek);
