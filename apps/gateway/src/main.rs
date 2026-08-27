@@ -34,6 +34,8 @@ pub struct AppState {
     pub sonic: InferenceState,
     /// `stream` servisinin adresi. Videolar buradan geçiyor.
     pub stream_url: String,
+    /// Toolbox API servisinin adresi.
+    pub toolbox_url: String,
     /// Ayrı istemci: video gövdeleri büyük, zaman aşımı Kratos'unkinden uzun.
     pub stream_client: Client,
     pub db_pool: sqlx::PgPool,
@@ -215,6 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         authz: authz_state,
         sonic: sonic_state,
         stream_url: env_or("GATEWAY_STREAM_URL", "http://127.0.0.1:8100"),
+        toolbox_url: env_or("TOOLBOX_URL", "http://127.0.0.1:8115"),
         // Klip üretimi ffmpeg çalıştırıyor; uzun videoda dakikaları bulabiliyor.
         stream_client: Client::builder()
             .timeout(Duration::from_secs(1800))
@@ -236,6 +239,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/auth", any(kratos_proxy_handler))
         .route("/api/stream/*path", any(stream_proxy_handler))
         .route("/api/stream", any(stream_proxy_handler))
+        .route("/api/tools/*path", any(proxy::toolbox_proxy_handler))
+        .route("/api/tools", any(proxy::toolbox_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
         .route("/api/videos/:video_id/events", get(get_video_events))

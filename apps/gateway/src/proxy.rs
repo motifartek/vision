@@ -175,6 +175,60 @@ pub async fn stream_proxy_handler(
         .map_err(|_| GatewayError::InternalError)
 }
 
+pub async fn toolbox_proxy_handler(
+    State(state): State<AppState>,
+    req: Request,
+) -> Result<Response, GatewayError> {
+    let path = req.uri().path();
+    let path_query = req
+        .uri()
+        .path_and_query()
+        .map(|v| v.as_str())
+        .unwrap_or(path);
+
+    let target_uri = format!(
+        "{}{}",
+        state.toolbox_url,
+        path_query.replace("/api/tools", "/v1/tools")
+    );
+
+    let method = req.method().clone();
+    tracing::info!("Toolbox Proxy: iletiliyor -> {} {}", method, target_uri);
+
+    let mut headers = req.headers().clone();
+    headers.remove(http::header::HOST);
+
+    let body_bytes = axum::body::to_bytes(req.into_body(), usize::MAX)
+        .await
+        .map_err(|_| GatewayError::InternalError)?;
+
+    let res = reqwest::Client::new()
+        .request(method, target_uri)
+        .headers(headers)
+        .body(body_bytes)
+        .send()
+        .await
+        .map_err(|e| {
+            tracing::error!("Toolbox proxy error: {}", e);
+            GatewayError::InternalError
+        })?;
+
+    let durum = res.status();
+    let basliklar = iletilecek_basliklar(res.headers());
+    let res_body_bytes = res.bytes().await.map_err(|_| GatewayError::InternalError)?;
+
+    let mut response_builder = Response::builder().status(durum);
+    if let Some(headers_mut) = response_builder.headers_mut() {
+        *headers_mut = basliklar;
+    }
+
+    let response = response_builder
+        .body(Body::from(res_body_bytes))
+        .map_err(|_| GatewayError::InternalError)?;
+
+    Ok(response)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
