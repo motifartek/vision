@@ -132,17 +132,81 @@ tartışmalı kısım.
 
 ---
 
-### Faz 0 — Ölçüm zeminini sağlamlaştır *(yarım gün)*
+### Faz 0 — Ölçüm zeminini sağlamlaştır *(bitti)*
 
 Karşılaştırma yapacaksak önce terazi düzgün olmalı.
 
-- Harness başarısız analizi **kaydeder**, sessizce düşürmez (bugün `422`/`502`
-  satırı tabloya hiç girmiyor).
-- Senaryo başına 3 koşu, ortalama ve dağılım raporlanır.
-- Çıktı `documents/measurements/` altına commit'lenebilir bir dosya.
+**Bir varsayım yanlış çıktı.** Plan "harness başarısız analizi sessizce
+düşürüyor" diyordu; kod öyle yapmıyor — `bos_sonuc` hatayı kaydediyor, paydayı
+koruyor, sıfır eşleşme sayıyor. Düşüren geçici ölçüm scriptiydi. Harness bu
+konuda baştan doğruymuş.
 
-*Kabul:* aynı kod iki kez ölçüldüğünde raporlanan recall farkı, faz kabullerinde
-kullanılacak eşikten küçük. Yani terazinin kendi gürültüsünü biliyoruz.
+**Terazi gerçekten eğriydi, ama başka yerden.** Harness videoyu koşular
+arasında yeniden kullanıyordu. Yakınlaştırma bütçesi (`max_zooms_per_video`)
+video başına tutulduğu için birikiyordu: birinci koşu 8 hakla başlıyor, üçüncü
+koşu `429 zoom_limit_exceeded` alıyor.
+
+Bu iki yönden bozuyordu: sonraki koşum sistematik olarak dezavantajlı başlıyor,
+ve iki varyant sırayla ölçüldüğünde **ikincisi haksız yere kötü görünüyor**.
+Faz 3'te profil varyantını bu terazide ölçseydik sonuç kendiliğinden aleyhine
+çıkardı. Düzeltildi: tekrarlı koşumda her koşu taze video yükleyip ölçüm
+sonrası siliyor.
+
+Eklenenler: `--tekrar N`, yayılım/hata/şema sütunları, gürültü bandı hesabı
+(fark bandı aşmıyorsa çıktı `ANLAMLI DEĞİL` yazıyor), video kararlılık ayrımı,
+`--rapor` ile commit'lenebilir markdown.
+
+#### Ölçülen taban
+
+`documents/measurements/stream-taban-olcumu.md` — 10 video, 3 bağımsız koşu:
+
+| | |
+|---|---|
+| olay eşleşmesi | 7,7/24 → **%32** (koşular 6–11) |
+| **rapor üretemeyen** | **10/30** koşum-video |
+| şema geçerli | 20/30 |
+| gürültü bandı | **5 olay** |
+
+*Kabul karşılandı:* terazinin kendi gürültüsünü biliyoruz — ve sandığımızdan
+büyük.
+
+#### Gürültü bandı tek bir videodan geliyor
+
+Koşu kırılımı bakılmadan "gürültü 5" demek yanıltıcı olurdu:
+
+| video | koşu 1 | koşu 2 | koşu 3 | durum |
+|---|---|---|---|---|
+| `coklu-olay` | 1/6 | 1/6 | **6/6** | savruluyor |
+| `hareketsiz-kisi` | 1/2 | 1/2 | 1/2 | kararlı |
+| `kucuk-nesne-orta` | 2/2 | 2/2 | 2/2 | kararlı |
+| `uzun-tek-olay` | 2/2 | 2/2 | 2/2 | kararlı |
+| `normal-operasyon` | 0/0 | 0/0 | 0/0 | kararlı |
+| `net-olay` | 0/2 | 0/2 | hata | — |
+| `agir-gurultu` | hata | 0/2 | 0/2 | — |
+| `uzun-iki-olay` | 0/4 | hata | hata | — |
+| `cok-kisa-an` | hata | hata | hata | hep düşüyor |
+| `kucuk-nesne-zor` | hata | hata | hata | hep düşüyor |
+
+Beş olayın **tamamı** `coklu-olay`'ın 1↔6 savrulmasından. Geri kalan küme ya
+taş gibi kararlı ya da hata veriyor.
+
+#### Bunun plana etkisi
+
+**Toplam recall üzerinden A/B yapmak bu kümede işe yaramaz.** 24 olaylık kümede
+5 olayın altındaki fark iddia edilemez; bu 21 puanlık bir eşik demek ve Faz 3'ün
+makul bir kazancı bunun çok altında kalır.
+
+Üç sonuç:
+
+1. **Faz 1 zaten ölçülebilir** — 10/30 hatayı 0/30'a indirmek bir sayım, recall
+   farkı değil. Gürültüden etkilenmiyor.
+2. **Faz 3 için karşılaştırma yöntemi değişmeli.** Toplam yerine **video bazlı
+   eşleştirilmiş** karşılaştırma gerekiyor: aynı video, iki varyant, kim daha
+   iyi. Kararlı 4 video zaten sağlam taban.
+3. **`coklu-olay` ayrı ele alınmalı**, ortalamaya karışmamalı.
+
+Faz 1'den önce yapılacak ek iş yok; Faz 3'e gelindiğinde eşleştirilmiş
+karşılaştırma harness'a eklenecek.
 
 ---
 
