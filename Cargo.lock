@@ -3964,6 +3964,7 @@ name = "toolbox"
 version = "0.1.0"
 dependencies = [
  "async-nats",
+ "axum 0.8.9",
  "futures",
  "motif-core",
  "motif-event-sdk",
@@ -3972,6 +3973,7 @@ dependencies = [
  "serde_json",
  "sqlx",
  "tokio",
+ "tower-http 0.7.0",
  "tracing",
 ]
 

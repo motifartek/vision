@@ -54,6 +54,11 @@ const nextConfig = {
           source: '/api/vision/:path*',
           destination: `${visionUrl}/:path*`,
         },
+        // Dış araç yönetimi (Toolbox servisi)
+        {
+          source: '/api/toolbox/:path*',
+          destination: `${process.env.TOOLBOX_URL ?? "http://127.0.0.1:8115"}/:path*`,
+        },
       ]
     }
   },
