@@ -288,7 +288,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
 
         let vision_req = http_client
-            .post(format!("{vision_url}/v1/analyze/sartname"))
+            .post(format!("{vision_url}/v1/analyze"))
             .json(&istek)
             .send()
             .await;
@@ -321,10 +321,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         notify_trace(&pool, &video_id, "[Vision -> Orchestrator] Görsel analiz başarıyla alındı ve birleştirildi.").await;
 
         // ADIM 3: kaydet ve SSE tetikle.
-        let summary = report["summary"].as_str().unwrap_or("");
-        let risk = report["risk"].as_str().unwrap_or("Düşük");
-        let events_json = report["events"].clone();
-        let actions_json = report["actions"].clone();
+        let report_obj = &report["report"];
+        let summary = report_obj["summary"].as_str().unwrap_or("");
+        let risk = report_obj["risk"].as_str().unwrap_or(report["risk"].as_str().unwrap_or(""));
+        let events_json = report_obj["events"].clone();
+        let actions_json = report_obj["actions"].clone();
 
         let query = "
             INSERT INTO ai_events (video_id, summary, events, risk, actions)
