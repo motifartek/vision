@@ -46,7 +46,13 @@ coverage/
 **/target/
 **/*.rs.bk
 
-# AI model ağırlıkları — apps/ai/inference/scripts/fetch-models ile indirilir
+# AI model ağırlıkları — apps/ai/sonic/scripts/fetch-models ile indirilir.
+# ced-base tek başına ~430 MB; depo herkese açık.
+#
+# `inference` yolu servis `sonic` olarak yeniden adlandırıldığında güncellenmedi
+# ve ağırlıklar bir süre takipsiz kaldı. İkisi de listede: eski yol hâlâ duran
+# yerel kopyaları yakalasın.
+apps/ai/sonic/models/
 apps/ai/inference/models/
 
 # Yerel demo medyası ve ondan üretilen kareler. Depoya girmez: lisansı bize ait

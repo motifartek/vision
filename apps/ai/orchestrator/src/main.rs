@@ -261,7 +261,18 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         )
         .await;
 
-        let tools_rows = sqlx::query("SELECT name, title, description FROM external_tools")
+        // `ORDER BY id` zorunlu, süs değil. İki sebep:
+        //
+        // Araç listesi prompt'un **ön ekine** giriyor ve ön ek önbelleği ancak
+        // metin birebir aynı kalırsa isabet ediyor. Sırasız `SELECT` Postgres'te
+        // sıra garantisi vermiyor; bir `UPDATE` satırı yerinden oynatınca ön ek
+        // sessizce değişir ve önbellek ıskalar.
+        //
+        // Ayrıca panel önizlemeyi `toolbox`tan alıyor ve orası `ORDER BY id ASC`
+        // kullanıyor. Sıralar ayrışırsa panelin gösterdiği metin modele
+        // gidenden farklı olur — Faz 2'de kapattığımız hatanın aynısı.
+        let tools_rows =
+            sqlx::query("SELECT name, title, description FROM external_tools ORDER BY id ASC")
             .fetch_all(&pool)
             .await;
 
