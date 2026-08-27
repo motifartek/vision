@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { ChevronDown, Loader2, Play, Sparkles } from "lucide-react"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -93,8 +93,11 @@ const RISK_RENK: Record<string, string> = {
 
 function ActionCard({ videoId, action, autoApprove }: { videoId: string, action: string, autoApprove?: boolean }) {
   const [status, setStatus] = useState<"idle" | "running" | "success" | "error">("idle")
+  const executedRef = useRef(false)
 
   const handleExecute = async () => {
+    if (executedRef.current) return
+    executedRef.current = true
     setStatus("running")
     try {
       const r = await fetch("/api/tools/execute", {
@@ -110,15 +113,18 @@ function ActionCard({ videoId, action, autoApprove }: { videoId: string, action:
       setStatus("success")
     } catch (e) {
       setStatus("error")
-      setTimeout(() => setStatus("idle"), 2000)
+      setTimeout(() => {
+        setStatus("idle")
+        executedRef.current = false
+      }, 2000)
     }
   }
 
   useEffect(() => {
-    if (autoApprove && status === "idle") {
+    if (autoApprove && status === "idle" && !executedRef.current) {
       handleExecute()
     }
-  }, [autoApprove])
+  }, [autoApprove, status])
 
   return (
     <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
