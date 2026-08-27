@@ -14,18 +14,15 @@
 //!      -d '{"video_id":"..."}'
 //! ```
 
-mod agent;
-mod api;
-mod stream_client;
-mod vlm;
-
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use crate::agent::VisionAgent;
-use crate::stream_client::StreamClient;
-use crate::vlm::EvrenProvider;
+use motif_prompt::PromptRegistry;
+use vision::agent::VisionAgent;
+use vision::api;
+use vision::stream_client::StreamClient;
+use vision::vlm::EvrenProvider;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,7 +38,39 @@ async fn main() -> Result<()> {
 
     tracing::info!(%stream_url, "stream servisi hedefi");
 
-    let agent = Arc::new(VisionAgent::new(Arc::new(stream), Arc::new(vlm)));
+    // Katalog açılışta yükleniyor: bozuk bir prompt açılışta patlamalı,
+    // analiz sırasında değil.
+    let katalog = PromptRegistry::from_env_or_embedded().context("prompt kataloğu")?;
+
+    // Override deposu **isteğe bağlı**. DATABASE_URL yoksa ya da veritabanına
+    // ulaşılamıyorsa uyarı loglanıp gömülü katalogla devam ediliyor: prompt'un
+    // çalışma anı bağımlılığı olması yeni bir düşme yolu demek olurdu.
+    let katalog = match std::env::var("DATABASE_URL") {
+        Ok(url) => match motif_database::connect(&url).await {
+            Ok(pool) => {
+                let store = Arc::new(motif_database::PostgresPromptStore::new(pool));
+                tracing::info!("prompt override deposu bağlandı");
+                katalog.with_store(store).await
+            }
+            Err(e) => {
+                tracing::warn!(hata = %e, "veritabanına bağlanılamadı; override'lar devre dışı");
+                katalog
+            }
+        },
+        Err(_) => {
+            tracing::info!("DATABASE_URL yok; yalnızca gömülü katalog");
+            katalog
+        }
+    };
+
+    let prompts = Arc::new(katalog);
+    tracing::info!("prompt kataloğu yüklendi");
+
+    let agent = Arc::new(VisionAgent::new(
+        Arc::new(stream),
+        Arc::new(vlm),
+        prompts,
+    ));
 
     let listener = tokio::net::TcpListener::bind(&bind)
         .await

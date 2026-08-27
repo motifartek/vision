@@ -5,8 +5,7 @@ resolver = "2"
 # manifest tüm workspace'in yüklenmesini engelliyor. Bir crate oluşturulduğunda
 # buraya eklenmeli.
 #
-# Henüz oluşturulmamış: apps/ai/orchestrator, apps/ai/memory (#7),
-# packages/database (#2).
+# Henüz oluşturulmamış: apps/ai/memory (#7).
 #
 # apps/identity bir Rust crate'i değil: Ory Kratos/Keto dağıtımı
 # (compose.yaml + helm + config).
@@ -18,6 +17,7 @@ members = [
     "apps/stream",
     "packages/core",
     "packages/observer",
+    "packages/prompt",
     "packages/database",
     "packages/event-sdk",
     "packages/optics",
@@ -46,6 +46,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Dahili crate'ler
 motif-core = { path = "packages/core" }
 motif-observer = { path = "packages/observer" }
+motif-prompt = { path = "packages/prompt" }
 motif-database = { path = "packages/database" }
 motif-event-sdk = { path = "packages/event-sdk" }
 motif-optics = { path = "packages/optics" }
@@ -56,5 +57,15 @@ axum = { version = "0.8", features = ["multipart"] }
 tower-http = { version = "0.7", features = ["trace", "cors", "limit", "fs"] }
 tower = "0.5"
 async-nats = "0.50"
+
+# Tek sürüm zorunlu: sqlx'in sqlite arka ucu `links = "sqlite3"` taşıyor ve
+# bağımlılık grafiğinde o değerden yalnızca bir kopya bulunabiliyor. İki farklı
+# sqlx ana sürümü workspace'i hiç derletmiyor.
+#
+# `default-features = false` sqlite'ı grafikten tamamen çıkarıyor; hiçbir
+# serviste sqlite kullanmıyoruz.
+sqlx = { version = "0.8", default-features = false, features = [
+    "postgres", "runtime-tokio-rustls", "json", "chrono", "uuid", "macros",
+] }
 futures = "0.3"
 mime_guess = "2.0"

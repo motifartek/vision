@@ -16,6 +16,7 @@
 use std::sync::Arc;
 
 use motif_event_sdk::{AnalysisReport, ClipRef, DetectedEvent, RiskLevel, SCHEMA_VERSION};
+use motif_prompt::{PromptContext, PromptKind, PromptRegistry, RenderedPrompt};
 
 use crate::stream_client::ClipSource;
 use crate::vlm::{Decision, RawReport, VlmProvider};
@@ -67,11 +68,39 @@ pub struct AgentOutcome {
 pub struct VisionAgent {
     stream: Arc<dyn ClipSource>,
     vlm: Arc<dyn VlmProvider>,
+    /// Prompt kataloğu. Metinler artık burada, `packages/prompt` içinde.
+    prompts: Arc<PromptRegistry>,
 }
 
 impl VisionAgent {
-    pub fn new(stream: Arc<dyn ClipSource>, vlm: Arc<dyn VlmProvider>) -> Self {
-        Self { stream, vlm }
+    pub fn new(
+        stream: Arc<dyn ClipSource>,
+        vlm: Arc<dyn VlmProvider>,
+        prompts: Arc<PromptRegistry>,
+    ) -> Self {
+        Self {
+            stream,
+            vlm,
+            prompts,
+        }
+    }
+
+    /// Prompt kataloğu — arayüz uçları için.
+    pub fn prompts(&self) -> &Arc<PromptRegistry> {
+        &self.prompts
+    }
+
+    /// Bir prompt'u **göndermeden** üretir.
+    ///
+    /// Panelin "Modele giden yük" bölümü bunu çağırıyor — ve `analyze` de
+    /// aynı fonksiyondan geçiyor. Ayrım iddia değil, yapısal: tek kod yolu
+    /// olduğu için gösterilen metin modele gidenden farklı olamaz.
+    ///
+    /// Önceden böyle değildi: `apps/stream/src/payload.rs` kendi prompt'unu
+    /// üretiyor, panel onu gösteriyordu. İkisi ayrışmıştı ve panelin
+    /// gösterdiği metin modele servisin desteklemediği araçları tanıtıyordu.
+    pub fn preview(&self, kind: PromptKind, ctx: &PromptContext) -> RenderedPrompt {
+        self.prompts.render(kind, ctx)
     }
 
     pub async fn analyze(&self, video_id: &str) -> Result<AgentOutcome, AgentError> {
@@ -83,7 +112,10 @@ impl VisionAgent {
             .stream
             .full_clip(video_id, info.duration_ms, Some(MAX_DIM))
             .await?;
-        let mut prompt = ilk_istem(info.duration_ms);
+        let mut prompt = self.preview(
+            PromptKind::VisionIlkBakis,
+            &PromptContext::new(info.duration_ms),
+        );
 
         for tur in 0..=MAX_ZOOM {
             let adim_basladi = std::time::Instant::now();
@@ -99,7 +131,10 @@ impl VisionAgent {
                 "klip modele gönderiliyor"
             );
 
-            let karar = self.vlm.analyze(&prompt, &baytlar).await?;
+            let karar = self
+                .vlm
+                .analyze(&prompt.prefix, &prompt.suffix, &baytlar)
+                .await?;
 
             match karar {
                 Decision::Report(ham) => {
@@ -141,7 +176,10 @@ impl VisionAgent {
                     let t1 = t1_ms.min(info.duration_ms).max(t0 + 500);
 
                     clip = self.stream.zoom_clip(video_id, t0, t1, ZOOM_BUDGET).await?;
-                    prompt = yakinlastirma_istemi(&clip);
+                    prompt = self.preview(
+                        PromptKind::VisionYakinlastirma,
+                        &PromptContext::new(info.duration_ms).with_clip(clip.clone()),
+                    );
                 }
             }
         }
@@ -210,9 +248,20 @@ fn rapora_cevir(
 /// Şema `enum` ile kısıtlı ama model yine de "yüksek", "HIGH" gibi varyantlar
 /// üretebiliyor; eşleşmeyen her şey `Orta` sayılıyor — sessizce `Düşük`e
 /// düşürmek riski gizlerdi.
+///
+/// **"Kritik" ayrıca ele alınıyor.** Önceden hiçbir kalıba uymadığı için
+/// `Orta`ya düşüyordu: model en tehlikeli durumu bildirdiğinde sistem onu
+/// iki seviye birden **aşağı** çekiyordu. Şartnamenin teslim biçimi üç seviyeli
+/// olduğu için `Kritik` ayrı bir değer olarak taşınamıyor, ama en azından
+/// `Yüksek` olarak geçmeli — tehlikeyi gizlememek gerekiyor.
 fn risk_cevir(s: &str) -> RiskLevel {
     let d = s.trim().to_lowercase();
-    if d.starts_with("yüks") || d.starts_with("yuks") || d.starts_with("high") {
+    if d.starts_with("yüks")
+        || d.starts_with("yuks")
+        || d.starts_with("high")
+        || d.starts_with("krit")
+        || d.starts_with("critical")
+    {
         RiskLevel::Yuksek
     } else if d.starts_with("düş") || d.starts_with("dus") || d.starts_with("low") {
         RiskLevel::Dusuk
@@ -221,67 +270,98 @@ fn risk_cevir(s: &str) -> RiskLevel {
     }
 }
 
-/// Modelden istenen çıktı sözleşmesi.
-///
-/// Şema araç tanımı yerine isteme yazılıyor: servis araç çağrısını
-/// desteklemiyor, gerekçesi [`crate::vlm`] modülünde.
-const SOZLESME: &str = r#"
-
-Yalnızca JSON döndür, başka hiçbir şey yazma.
-
-Emin değilsen ve bir aralığa yakından bakman gerekiyorsa:
-{"zoom": {"t0_ms": <başlangıç>, "t1_ms": <bitiş>}}
-
-Emin olduğunda raporu ver:
-{"summary": "kısa Türkçe özet",
- "events": [{"time": "MM:SS", "event": "olay açıklaması", "severity": "Düşük|Orta|Yüksek"}],
- "risk": "Düşük|Orta|Yüksek",
- "actions": ["operatörün hemen uygulayabileceği somut öneri"]}
-
-actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne dayanmalı."#;
-
-fn ilk_istem(duration_ms: u64) -> String {
-    format!(
-        "Sen bir iş sağlığı ve güvenliği analistisin. Sana {} uzunluğunda bir \
-         güvenlik kamerası kaydı verildi.\n\n\
-         Sahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup \
-         bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç \
-         aşamalarını ayrı olaylar olarak işaretle.\n\n\
-         Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS \
-         biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma.{SOZLESME}",
-        motif_event_sdk::format_timestamp(duration_ms)
-    )
-}
-
-fn yakinlastirma_istemi(clip: &ClipRef) -> String {
-    let baslik = format!(
-        "İstediğin {} – {} aralığının klibi.",
-        motif_event_sdk::format_timestamp(clip.t0_ms),
-        motif_event_sdk::format_timestamp(clip.t1_ms)
-    );
-
-    let hiz = if clip.time_scale > 1.01 {
-        format!(
-            " Klip {:.0} kat ağır çekimde: olaylar gerçekte burada göründüğünden \
-             {:.0} kat hızlı gelişiyor.",
-            clip.time_scale, clip.time_scale
-        )
-    } else {
-        String::new()
-    };
-
-    format!(
-        "{baslik}{hiz}\n\n\
-         Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık \
-         yakınlaştırma isteme.\n\n\
-         Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak \
-         kayda çevirmeye çalışma, o hesabı biz yapıyoruz.{SOZLESME}"
-    )
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Faz 1'de burada eski prompt fonksiyonları referans olarak duruyordu ve
+    // katalog çıktısının onlarla birebir aynı olduğu sınanıyordu. Faz 3 metni
+    // **kasten** değiştirdi: süre ön ekten çıkıp son eke taşındı, çünkü ön ek
+    // önbelleği ancak ön ek her çağrıda aynı kalırsa isabet ediyor.
+    //
+    // Referans bu yüzden kaldırıldı; doğrulama artık golden dataset ölçümü.
+    // Yapısal güvenceler `packages/prompt` testlerinde: ön ek videodan
+    // bağımsız, ön ekte yer tutucu yok, kayda özgü değerler son ekte.
+
+    fn katalog() -> PromptRegistry {
+        PromptRegistry::embedded().expect("gömülü katalog")
+    }
+
+    /// Panelin gösterdiği metin ile modele gidenin aynı olduğu yapısal;
+    /// bu test o yapının bozulmadığını kontrol ediyor.
+    #[tokio::test]
+    async fn onizleme_ile_gonderilen_ayni() {
+        let kaynak = Arc::new(SahteKaynak {
+            istekler: Mutex::new(Vec::new()),
+        });
+        let model = Arc::new(YakalayanModel {
+            gorulen: Mutex::new(Vec::new()),
+        });
+        let ajan = VisionAgent::new(kaynak, model.clone(), Arc::new(katalog()));
+
+        let _ = ajan.analyze("v1").await;
+
+        let gonderilen = model.gorulen.lock().unwrap().first().cloned().unwrap();
+        let o = ajan.preview(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert_eq!(gonderilen, format!("{}\u{1e}{}", o.prefix, o.suffix));
+    }
+
+    /// Servis araç çağrısını desteklemiyor; istemde araç tanıtılmamalı.
+    ///
+    /// Eski `stream` istemi `zoom_range(t0_ms, t1_ms)` ve `crop_region(...)`
+    /// diye araçlar tanıtıyordu ve o cümleler boşa gidiyordu.
+    #[test]
+    fn olu_arac_cumleleri_yok() {
+        let k = katalog();
+        for kind in [PromptKind::VisionIlkBakis, PromptKind::VisionYakinlastirma] {
+            let metin = k
+                .render(kind, &PromptContext::new(35_000).with_clip(test_clip()))
+                .joined();
+            assert!(!metin.contains("crop_region"), "{kind:?}: crop_region tanıtılmış");
+            assert!(
+                !metin.contains("zoom_range(t0_ms"),
+                "{kind:?}: zoom_range aracı tanıtılmış"
+            );
+        }
+    }
+
+    fn test_clip() -> ClipRef {
+        ClipRef {
+            t0_ms: 12_000,
+            t1_ms: 15_000,
+            object_key: "clips/x.mp4".into(),
+            duration_ms: 24_000,
+            time_scale: 8.0,
+            service_frames: 47,
+            effective_fps: 16.0,
+        }
+    }
+
+    /// Modele giden istemleri kaydeden sahte model.
+    struct YakalayanModel {
+        gorulen: Mutex<Vec<String>>,
+    }
+
+    #[async_trait::async_trait]
+    impl VlmProvider for YakalayanModel {
+        async fn analyze(
+            &self,
+            prefix: &str,
+            suffix: &str,
+            _c: &[u8],
+        ) -> Result<Decision, VlmError> {
+            // Modelin gördüğü metin: ön ek + son ek, gönderilme sırasıyla.
+            // Ayraç görünmez bir kayıt ayırıcısı, metinde geçmesi imkânsız.
+            self.gorulen
+                .lock()
+                .unwrap()
+                .push(format!("{prefix}\u{1e}{suffix}"));
+            Ok(rapor("00:12"))
+        }
+    }
+
+
+
+
     use crate::stream_client::StreamError;
     use crate::vlm::{Decision, RawEvent, VlmError};
     use motif_event_sdk::VideoInfoResponse;
@@ -355,7 +435,12 @@ mod tests {
 
     #[async_trait::async_trait]
     impl VlmProvider for SahteModel {
-        async fn analyze(&self, _p: &str, _c: &[u8]) -> Result<Decision, VlmError> {
+        async fn analyze(
+            &self,
+            _prefix: &str,
+            _suffix: &str,
+            _c: &[u8],
+        ) -> Result<Decision, VlmError> {
             let mut k = self.kararlar.lock().unwrap();
             if k.is_empty() {
                 return Err(VlmError::NoDecision("senaryo bitti".into()));
@@ -399,7 +484,7 @@ mod tests {
             ]),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         let sonuc = ajan.analyze("v1").await.unwrap();
 
         let istekler = kaynak.istekler.lock().unwrap().clone();
@@ -430,7 +515,7 @@ mod tests {
             ),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         let hata = ajan.analyze("v1").await.unwrap_err();
         assert!(matches!(hata, AgentError::NoReport));
         // MAX_ZOOM + 1 tur; kaynak isteği bir tam + MAX_ZOOM yakınlaştırma.
@@ -453,7 +538,7 @@ mod tests {
             ]),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         ajan.analyze("v1").await.unwrap();
 
         let istekler = kaynak.istekler.lock().unwrap().clone();
@@ -542,10 +627,23 @@ mod tests {
         assert_eq!(r.events[1].event, "sonra");
     }
 
+    /// "Kritik" sessizce iki seviye aşağı düşüyordu; en tehlikeli durum
+    /// `Orta` olarak raporlanıyordu. Artık `Yüksek`e çıkıyor.
+    #[test]
+    fn kritik_risk_asagi_cekilmiyor() {
+        for metin in ["Kritik", "kritik", "critical", "CRITICAL"] {
+            assert_eq!(
+                risk_cevir(metin),
+                RiskLevel::Yuksek,
+                "{metin:?} tehlikeyi gizleyecek şekilde düşürüldü"
+            );
+        }
+    }
+
     #[test]
     fn taninmayan_risk_metni_ortaya_dusurulur() {
         // Sessizce "Düşük" saymak riski gizlerdi.
-        assert_eq!(risk_cevir("kritik"), RiskLevel::Orta);
+        assert_eq!(risk_cevir("belirsiz bir şey"), RiskLevel::Orta);
         assert_eq!(risk_cevir("HIGH"), RiskLevel::Yuksek);
         assert_eq!(risk_cevir("düşük"), RiskLevel::Dusuk);
         assert_eq!(risk_cevir("Yuksek"), RiskLevel::Yuksek);

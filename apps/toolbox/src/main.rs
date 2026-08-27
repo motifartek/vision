@@ -10,7 +10,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Toolbox servisi baslatiliyor...");
 
     let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://root:root@localhost:5432/motif".into());
+        .unwrap_or_else(|_| "postgres://motif:motif@127.0.0.1:5433/motif".into());
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&db_url)

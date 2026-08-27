@@ -1,6 +1,6 @@
 SHELL := /bin/sh
 
-.PHONY: help run\:dev dashboard gateway identity stream infra\:up infra\:down infra\:logs
+.PHONY: help run\:dev dashboard gateway identity stream infra\:up infra\:down infra\:logs admin
 
 .DEFAULT_GOAL := help
 
@@ -24,6 +24,17 @@ help:
 	@echo "  make infra:up                    Start all Docker infrastructure services (Kratos, Keto, ...)."
 	@echo "  make infra:down                  Stop all Docker infrastructure services."
 	@echo "  make infra:logs                  Tail logs from all infrastructure services."
+	@echo ""
+	@echo "  make admin EMAIL=a@b.com         Grant the admin role to a registered user."
+
+# İlk admini yetkilendirir.
+#
+# /roles sayfasından yetki verilebiliyor, ama o sayfa da admin kapısının
+# arkasında. Keto boşken hiç kimse giremediği için ilk üyelik dışarıdan
+# yazılmak zorunda; sonrakiler arayüzden yapılabilir.
+admin:
+	@test -n "$(EMAIL)" || { echo "kullanım: make admin EMAIL=eposta@ornek.com" >&2; exit 1; }
+	@./scripts/admin-yetkilendir.sh "$(EMAIL)"
 
 # Docker altyapısı — platform/docker/compose.yaml üzerinden yönetilir.
 COMPOSE_FILE := platform/docker/compose.yaml

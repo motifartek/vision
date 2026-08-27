@@ -1,3 +1,9 @@
+-- Yalnızca veri dizini boşken çalışır (docker-entrypoint-initdb.d kuralı).
+-- Şema değişirse konteyneri `docker compose down -v` ile sıfırlamak gerekiyor.
+--
+-- Not: prompt_override tablosu burada değil; `motif-database` açılışta kendisi
+-- kuruyor, çünkü vision veritabanısız da ayağa kalkabilmeli.
+
 CREATE TABLE IF NOT EXISTS ai_events (
     video_id VARCHAR(255) PRIMARY KEY,
     summary TEXT,
@@ -14,7 +20,7 @@ CREATE TABLE IF NOT EXISTS external_tools (
 );
 
 INSERT INTO external_tools (name, title, description) VALUES
-('call_ambulance', 'Ambulans �a��r', 'Acil bir t�bbi durum alg�land���nda ambulans y�nlendirmesi yapar.'),
-('notify_police', 'Polise Haber Ver', 'G�venlik ihlali veya �iddet durumunda kolluk kuvvetlerine otomatik bildirim yapar.'),
-('lock_doors', 'Kap�lar� Kilitle', 'Tehlike an�nda t�m elektronik kap�lar� otomatik olarak kilitler.')
+('call_ambulance', 'Ambulans Çağır', 'Acil bir tıbbi durum algılandığında ambulans yönlendirmesi yapar.'),
+('notify_police', 'Polise Haber Ver', 'Güvenlik ihlali veya şiddet durumunda kolluk kuvvetlerine otomatik bildirim yapar.'),
+('lock_doors', 'Kapıları Kilitle', 'Tehlike anında tüm elektronik kapıları otomatik olarak kilitler.')
 ON CONFLICT (name) DO NOTHING;

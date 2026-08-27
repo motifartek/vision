@@ -1,0 +1,57 @@
+# Bu dosya `bench prompts --export` ile üretildi.
+# Ölçüm sonuçlarının hangi metinle çıktığını sabitler.
+
+# --- vision (v2) ---
+
+[vision.agir_cekim]
+editable = true
+text = """
+ Klip {olcek} kat ağır çekimde: olaylar gerçekte burada göründüğünden {olcek} kat hızlı gelişiyor."""
+
+[vision.kayit_bilgisi]
+editable = true
+text = """
+Bu kaydın uzunluğu {sure}."""
+
+[vision.pencere_bilgisi]
+editable = true
+text = """
+İstediğin {t0} – {t1} aralığının klibi."""
+
+[vision.rol]
+editable = true
+text = """
+Sen bir iş sağlığı ve güvenliği analistisin. Sana bir güvenlik kamerası kaydı verildi.
+
+Sahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç aşamalarını ayrı olaylar olarak işaretle."""
+
+[vision.sozlesme]
+editable = false
+text = """
+Yalnızca JSON döndür, başka hiçbir şey yazma.
+
+Emin değilsen ve bir aralığa yakından bakman gerekiyorsa:
+{"zoom": {"t0_ms": <başlangıç>, "t1_ms": <bitiş>}}
+
+Emin olduğunda raporu ver:
+{"summary": "kısa Türkçe özet",
+ "events": [{"time": "MM:SS", "event": "olay açıklaması", "severity": "Düşük|Orta|Yüksek"}],
+ "risk": "Düşük|Orta|Yüksek",
+ "actions": ["operatörün hemen uygulayabileceği somut öneri"]}
+
+actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne dayanmalı."""
+
+[vision.yakinlastirma_talimati]
+editable = true
+text = """
+Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık yakınlaştırma isteme."""
+
+[vision.yakinlastirma_zaman_kurali]
+editable = true
+text = """
+Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak kayda çevirmeye çalışma, o hesabı biz yapıyoruz."""
+
+[vision.zaman_kurali]
+editable = true
+text = """
+Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma."""

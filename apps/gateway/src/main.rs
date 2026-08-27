@@ -202,7 +202,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client: keto_client,
     };
 
-    let db_url = env_or("DATABASE_URL", "postgres://root:root@127.0.0.1:5432/motif");
+    let db_url = env_or("DATABASE_URL", "postgres://motif:motif@127.0.0.1:5433/motif");
     tracing::info!("Veritabanina (Postgres) baglaniliyor...");
     let db_pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(5)

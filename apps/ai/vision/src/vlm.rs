@@ -20,6 +20,36 @@
 //! alanına çevirmiyor. Bu yüzden karar **istemle istenen JSON** olarak alınıyor
 //! ve burada ayrıştırılıyor. Modelin kendiliğinden ürettiği `<tool_call>`
 //! sarmalı ve ``` çitleri de destekleniyor.
+//!
+//! # Şema zorlaması
+//!
+//! Araç çağrısı desteklenmese de **yapılandırılmış çıktı destekleniyor**.
+//! Ölçüldü:
+//!
+//! ```text
+//! response_format json_object  -> geçerli JSON
+//! response_format json_schema  -> geçerli JSON, şema GERÇEKTEN zorlanıyor
+//! guided_json (üst düzey)      -> sessizce yok sayılıyor, düz metin döner
+//! extra_body.guided_json       -> sessizce yok sayılıyor
+//! ```
+//!
+//! Zorlama şöyle doğrulandı: `risk` alanına `["kirmizi","mavi"]` enum'u verildi
+//! ve modele bir kaza anlatıldı. Doğal cevabı "Yüksek" olmasına rağmen
+//! `"kirmizi"` yazmak zorunda kaldı. `$defs` + `$ref` + `anyOf` da çalışıyor.
+//!
+//! **Yine de kullanılmıyor.** İki dallı `anyOf` (rapor **veya** yakınlaştırma)
+//! ile denendiğinde model her turda yakınlaştırma dalını seçti ve hiç rapor
+//! vermedi: kısıtlı kod çözme dalı ilk token'da seçmek zorunda ve kısa `zoom`
+//! nesnesi cazip hâle geliyor. Ölçüm 37/39'dan **0/39'a** düştü.
+//!
+//! Yalnız rapor dalı zorlandığında çalışıyor — ama o zaman yakınlaştırma
+//! şemaca imkânsız hâle geliyor ve şartnamenin puanladığı dinamik araç seçimi
+//! kayboluyor. İstemle istenen JSON zaten 10/10 geçerli çıktığı için şema
+//! zorlaması bugün az şey kazandırıp çok şey götürüyor.
+//!
+//! Yeniden değerlendirilecekse karar bir ayırt edici alanla tek şemaya
+//! indirilmeli (`{"karar": "rapor"|"zoom", ...}`); `anyOf` bu modelde
+//! güvenilir dal seçimi vermiyor.
 
 use base64::Engine as _;
 use serde::{Deserialize, Serialize};
@@ -118,7 +148,17 @@ pub enum VlmError {
 #[async_trait::async_trait]
 pub trait VlmProvider: Send + Sync {
     /// Bir klibi modele verip kararını döndürür.
-    async fn analyze(&self, prompt: &str, clip: &[u8]) -> Result<Decision, VlmError>;
+    ///
+    /// Metin **ikiye ayrılmış** geliyor: `prefix` videodan önce, `suffix`
+    /// videodan sonra. Ayrım ön ek önbelleği için — servis üzerinde ölçüldü,
+    /// `[metin, video, metin]` sıralaması destekleniyor ve sabit ön ek
+    /// önbelleğe isabet ediyor.
+    async fn analyze(
+        &self,
+        prefix: &str,
+        suffix: &str,
+        clip: &[u8],
+    ) -> Result<Decision, VlmError>;
 }
 
 /// EVREN çıkarım servisi istemcisi.
@@ -159,22 +199,37 @@ impl EvrenProvider {
 
 #[async_trait::async_trait]
 impl VlmProvider for EvrenProvider {
-    async fn analyze(&self, prompt: &str, clip: &[u8]) -> Result<Decision, VlmError> {
+    async fn analyze(
+        &self,
+        prefix: &str,
+        suffix: &str,
+        clip: &[u8],
+    ) -> Result<Decision, VlmError> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(clip);
+
+        // Sıra bilinçli: sabit metin → video → değişken metin.
+        //
+        // Ön ek önbelleği ancak baştaki token dizisi birebir aynı kaldığında
+        // isabet ediyor. Kayda özgü değerler videodan önce dursaydı ön ek her
+        // videoda değişir ve önbellek hiç tutmazdı.
+        let mut icerik = vec![
+            json!({"type": "text", "text": prefix}),
+            json!({
+                "type": "video_url",
+                "video_url": {"url": format!("data:video/mp4;base64,{b64}")}
+            }),
+        ];
+        if !suffix.trim().is_empty() {
+            icerik.push(json!({"type": "text", "text": suffix}));
+        }
 
         let body = json!({
             "model": self.model,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "video_url",
-                     "video_url": {"url": format!("data:video/mp4;base64,{b64}")}}
-                ]
-            }],
+            "messages": [{ "role": "user", "content": icerik }],
             // Akıl yürütme açıkken dar bütçe boş cevap üretiyor; servis
-            // dokümantasyonunun ilk uyarısı bu.
-            "max_tokens": 2048,
+            // dokümantasyonunun ilk uyarısı bu. Şema zorlaması çıktıyı
+            // uzattığı için 2048 dar kalabiliyor.
+            "max_tokens": 3072,
             "temperature": 0.2
         });
 

@@ -10,7 +10,7 @@ services:
       - GATEWAY_KETO_URL=http://keto:4466
       - GATEWAY_INFERENCE_URL=http://sonic:8081
       - GATEWAY_STREAM_URL=http://stream:8100
-      - DATABASE_URL=postgres://root:root@postgres:5432/motif
+      - DATABASE_URL=postgres://motif:motif@postgres:5432/motif
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
       - OTEL_SERVICE_NAME=gateway
     depends_on:

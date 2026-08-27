@@ -11,6 +11,7 @@
 //! ```
 
 mod dataset;
+mod prompts;
 mod metrics;
 
 use std::path::PathBuf;
@@ -91,6 +92,28 @@ enum Command {
         args: SamplingArgs,
     },
 
+    /// Prompt varyantlarını golden dataset'e karşı ölçer.
+    ///
+    /// Ajanın tamamını koşuyor: klip `stream`'den geliyor, istek gerçekten
+    /// çıkarım servisine gidiyor. Yani ölçülen şey prompt'un uçtan uca etkisi.
+    /// `EVREN_KEY` gerekli ve `stream` ayakta olmalı.
+    Prompts {
+        #[arg(long, default_value = "Utilities/golden-dataset/videos")]
+        dataset: PathBuf,
+        /// `ad=dizin,ad=dizin`. Verilmezse yalnız gömülü katalog ölçülür.
+        /// `gomulu` özel ad: ikiliye gömülü katalog.
+        #[arg(long)]
+        variants: Option<String>,
+        /// İlk N videoyla sınırla. Her video bir çıkarım isteği demek.
+        #[arg(long)]
+        videos: Option<usize>,
+        /// Etkin katalogu buraya yaz; ölçümün hangi metinle çıktığını sabitler.
+        #[arg(long)]
+        export: Option<PathBuf>,
+        #[arg(long, default_value = "http://127.0.0.1:8100")]
+        stream_url: String,
+    },
+
     /// Bir parametreyi süpürüp etkisini ölçer.
     Sweep {
         #[arg(long, default_value = "data/fixtures/events")]
@@ -139,6 +162,20 @@ fn main() -> Result<()> {
                 println!("\nJSON yazıldı: {}", path.display());
             }
         }
+
+        Command::Prompts {
+            dataset,
+            variants,
+            videos,
+            export,
+            stream_url,
+        } => prompts::calistir(
+            &dataset,
+            variants.as_deref(),
+            videos,
+            export.as_deref(),
+            &stream_url,
+        )?,
 
         Command::Sweep {
             dataset,

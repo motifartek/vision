@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
-import { Bell, CircleHelp, Gauge, House, Search, Settings2, Video, Wrench, LogOut, User, Sparkles, Shield } from "lucide-react"
+import { Bell, CircleHelp, Gauge, House, Search, Settings2, Video, Wrench, LogOut, User, Sparkles, Shield, MessageSquareText } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Button } from "@/components/ui/button"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
@@ -34,6 +34,7 @@ const nav = [
   { href: "/tools", label: "Araçlar", description: "İşleme araçlarını ve modülleri yönet", icon: Wrench },
   { href: "/users", label: "Kullanıcılar", description: "Sistemdeki tüm kullanıcıları yönetin", icon: User },
   { href: "/roles", label: "Roller ve Yetkiler", description: "Erişim hakları ve grupları belirleyin", icon: Shield },
+  { href: "/prompts", label: "Prompt'lar", description: "Modele giden metni düzenleyin", icon: MessageSquareText },
 ]
 
 function SidebarItem({ item, active }: { item: (typeof nav)[number]; active: boolean }) {
