@@ -508,10 +508,24 @@ yazılmış bozuk bir metnin sızmasını engelliyor.
 ama başka bir parça şemayı bozabilir. Kaydetmeden önce prompt render edilip
 `summary/events/risk/actions` tarif ettiği kontrol ediliyor.
 
-**Faz 7 — Arayüz** *(yarım gün)*
-Yönetici sayfası, fark görünümü, önizleme, varsayılana dön.
-*Kabul:* düzenle → önizle → analiz et → sonucun değiştiğini gör akışı
-demo videosunda çekilebiliyor.
+**Faz 7 — Arayüz** *(bitti)*
+Yönetici sayfası (`/prompts`, Keto korumalı `(admin)` grubu), parça listesi,
+düzenleyici, gömülüye karşı fark, önizleme, varsayılana dön.
+*Kabul:* karşılandı ve canlı ölçüldü. `-NF8DZCdcUQ` kaydında aynı akış
+panelin kullandığı uçlar üzerinden yürütüldü:
+
+| adım | `rol` parçası | sonuç |
+|---|---|---|
+| varsayılan | gömülü metin | **4 olay** — 00:00, 00:12, 00:13, 00:33 |
+| düzenlendi | "yalnızca en kritik tek olayı raporla" | **1 olay** — 00:13 |
+
+Düzenleme modelin çıktısını gerçekten değiştiriyor; şema iki koşuda da
+bozulmadı. Ölçümden sonra `DELETE` ile varsayılana dönüldü.
+
+Arayüzde iki kural görünür durumda: `editable: false` parçalar kilit
+simgesiyle salt okunur, ve önizleme başlığı `v{sürüm} · {özet} · {token}`
+yazarak panelde görülen metnin modele giden metin olduğunu doğrulatıyor.
+Kaydetme reddedilirse servisin gerekçesi kullanıcıya birebir gösteriliyor.
 
 Toplam ~2,5 gün. Faz 1–4 tek başına değerli ve bağımsız teslim edilebilir;
 5–7 override ve arayüz işi.
