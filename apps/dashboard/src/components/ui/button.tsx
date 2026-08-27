@@ -47,7 +47,9 @@ function Button({
   ...props
 }: ButtonPrimitive.Props & VariantProps<typeof buttonVariants>) {
   return (
-    <ButtonPrimitive nativeButton={props.render ? false : undefined}
+    <ButtonPrimitive 
+      suppressHydrationWarning
+      nativeButton={props.render ? false : undefined}
       data-slot="button"
       className={cn(buttonVariants({ variant, size, className }))}
       {...props}
