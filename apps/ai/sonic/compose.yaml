@@ -9,15 +9,17 @@ services:
     environment:
       - SONIC_PORT=8081
       - SONIC_MODELS_DIR=/app/models
-      # Gateway test3.mp4 dediginde minio'dan veya ortak volume'dan cozebilmeli.
-      # Simdilik ortak media dizinini /media olarak mount ediyoruz:
+      # Kok, `stream`in depo koku olmali: orchestrator sonic'e nesne
+      # anahtarini (`raw/<id>.mp4`) veriyor ve bu anahtar oraya gore cozuluyor.
+      # Onceden panelin public/media dizinine bakiyordu; stream'e yuklenen
+      # videolarin hicbirini goremiyordu.
       - SONIC_MEDIA_ROOT=/media
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     volumes:
       # Modellerin saklandigi yer (minio de kullanilabilirdi ama simdilik local baglayalim)
       - sonic-models:/app/models
-      # Dashboard'in public/media dizinini okumak icin
-      - ../../../apps/dashboard/public/media:/media:ro
+      # `stream`in yazdigi ham videolar. Salt okunur: sonic yalnizca okur.
+      - ../../../data/stream:/media:ro
     restart: unless-stopped
     networks:
       - default

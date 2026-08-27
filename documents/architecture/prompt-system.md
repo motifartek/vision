@@ -138,10 +138,17 @@ alanları dolduran kablolama prompt sisteminin işi değil:
   güvenilmez bölgeden geçiyor ve **her tura** taşınıyor. Alan verilmediğinde
   üretilen metin bayt bayt eskisiyle aynı kalıyor, bir test bunu kilitliyor.
 
-  Kalan iş orchestrator'da: bugün `sonic`'in cevabı `let _` ile atılıyor,
-  üstelik istek yanlış uca gidiyor (`/v1/analyze`, doğrusu
-  `/v1/audio/analyze`) ve gövde uyuşmuyor (`video_id` gönderiliyor, `path`
-  bekleniyor).
+  *Daha sonra:* orchestrator da bağlandı. Zincir uçtan uca kapandı —
+  `sonic` → özet → `vision`'ın güvenilmez bölgesi → rapor. Yol boyunca beş
+  ayrı uyuşmazlık düzeltildi: yanlış uç (`/v1/analyze` → `/v1/audio/analyze`),
+  yanlış gövde (`video_id` → `path`), atılan cevap, yanlış varsayılan port
+  (8120 → 8081) ve `sonic`'in stream deposunu hiç görmeyen medya kökü.
+
+  Ses **isteğe bağlı** kaldı: `sonic` düşerse, medyayı bulamazsa ya da hata
+  dönerse görüntü analizi sesin olmadığı yoldan devam ediyor. Ama sessizce
+  değil — her başarısızlık panele iz olarak düşüyor. Önceden tam tersiydi:
+  `let _` ile atılan cevabın ardından koşulsuz "İşitsel analiz tamamlandı"
+  yazılıyordu.
 - `motion` alanını doldurmak = `stream`'in profil özetini ajana vermesi →
   küçük iş, Faz 4 ölçümü olumlu çıkarsa yapılır
 

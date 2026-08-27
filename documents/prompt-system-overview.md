@@ -281,11 +281,11 @@ Dürüstlük için: bunlar bilinçli olarak yapılmadı.
 - **Prompt sürüm geçmişi ve geri alma.** Yalnızca "varsayılana dön" var;
   önceki override'lara dönülemiyor.
 - **`orchestrator` ve `sonic` katalogları.** Yalnızca `vision` katalogu var.
-- **İşitsel bağlamın gerçekten dolması.** `vision` tarafı tamamlandı: analiz
-  uçları `isitsel_baglam` alanını kabul ediyor ve metin güvenilmez bölgeden
-  geçerek modele ulaşıyor. Kalan iş orchestrator'da — bugün `sonic`'in cevabı
-  atılıyor ve istek yanlış uca gidiyor. Puanlanan "çok kipli" maddesi o
-  bağlantı kurulana kadar açık.
+- **İşitsel bağlamın canlı ölçümü.** Zincir kodda uçtan uca kapandı:
+  `sonic` → olay özeti → `vision`'ın güvenilmez bölgesi → rapor. Ama `sonic`
+  bu makinede derlenmiyor (ONNX bağlama hatası), dolayısıyla ses hattı henüz
+  **canlı** koşturulmadı; birim testlerle doğrulandı. Golden dataset üzerinde
+  sesli/sessiz karşılaştırması yapılmadı.
 - **A/B testi altyapısı.** `bench prompts --export` varyant karşılaştırıyor,
   ama canlı trafikte bölme yok.
 
@@ -564,10 +564,10 @@ For honesty: these were deliberately not built.
 - **Prompt version history and rollback.** Only "revert to default" exists;
   earlier overrides cannot be restored.
 - **`orchestrator` and `sonic` catalogs.** Only the `vision` catalog exists.
-- **Audio context actually being populated.** The `vision` side is done: the
-  analysis endpoints accept an `isitsel_baglam` field and the text reaches the
-  model through the untrusted region. What remains is on the orchestrator —
-  today it discards `sonic`'s response and calls the wrong endpoint. The
-  scored "multimodal" requirement stays open until that link is made.
+- **A live measurement of the audio path.** The chain is closed end to end in
+  code: `sonic` → event summary → `vision`'s untrusted region → report. But
+  `sonic` does not build on this machine (ONNX linker failure), so the audio
+  path has not been exercised **live** — only through unit tests. No
+  with-audio vs. without-audio comparison on the golden dataset yet.
 - **A/B testing infrastructure.** `bench prompts --export` compares variants,
   but there is no live traffic split.
