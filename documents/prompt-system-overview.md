@@ -281,9 +281,11 @@ Dürüstlük için: bunlar bilinçli olarak yapılmadı.
 - **Prompt sürüm geçmişi ve geri alma.** Yalnızca "varsayılana dön" var;
   önceki override'lara dönülemiyor.
 - **`orchestrator` ve `sonic` katalogları.** Yalnızca `vision` katalogu var.
-- **İşitsel bağlamın gerçekten dolması.** Altyapı hazır ve testli, ama
-  `sonic` → `vision` NATS bağlantısı henüz yok — bu Deniz'in işi. Puanlanan
-  "çok kipli" maddesinde açık kalıyor.
+- **İşitsel bağlamın gerçekten dolması.** `vision` tarafı tamamlandı: analiz
+  uçları `isitsel_baglam` alanını kabul ediyor ve metin güvenilmez bölgeden
+  geçerek modele ulaşıyor. Kalan iş orchestrator'da — bugün `sonic`'in cevabı
+  atılıyor ve istek yanlış uca gidiyor. Puanlanan "çok kipli" maddesi o
+  bağlantı kurulana kadar açık.
 - **A/B testi altyapısı.** `bench prompts --export` varyant karşılaştırıyor,
   ama canlı trafikte bölme yok.
 
@@ -562,8 +564,10 @@ For honesty: these were deliberately not built.
 - **Prompt version history and rollback.** Only "revert to default" exists;
   earlier overrides cannot be restored.
 - **`orchestrator` and `sonic` catalogs.** Only the `vision` catalog exists.
-- **Audio context actually being populated.** The infrastructure is ready and
-  tested, but the `sonic` → `vision` NATS link does not exist yet — that is
-  Deniz's work. It remains a gap in the scored "multimodal" requirement.
+- **Audio context actually being populated.** The `vision` side is done: the
+  analysis endpoints accept an `isitsel_baglam` field and the text reaches the
+  model through the untrusted region. What remains is on the orchestrator —
+  today it discards `sonic`'s response and calls the wrong endpoint. The
+  scored "multimodal" requirement stays open until that link is made.
 - **A/B testing infrastructure.** `bench prompts --export` compares variants,
   but there is no live traffic split.

@@ -101,7 +101,8 @@ pub struct PromptContext {
     pub duration_ms: u64,
     /// Yakınlaştırma klibi; genel bakışta yok.
     pub clip: Option<ClipRef>,
-    /// `sonic` çıktısı. Kablolaması NATS işi; tip ve bölge hazır.
+    /// `sonic` çıktısı. `vision`'ın analiz uçları bu alanı kabul ediyor;
+    /// orchestrator'ın doldurması kaldı.
     pub audio: Option<UntrustedText>,
     /// Önceki turun bulgusu. Orchestrator bağlam enjeksiyonuna başlayınca dolar.
     pub prior: Option<UntrustedText>,

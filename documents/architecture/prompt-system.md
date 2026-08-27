@@ -106,7 +106,7 @@ bilgiler modele besleniyor mu? Bugünkü durum:
 | `stream` — pencere (`t0`/`t1`) | **Evet** | Yakınlaştırma isteminde |
 | `stream` — ağır çekim oranı | **Evet** | Yakınlaştırma isteminde |
 | `stream` — **hareket profili** | **Hayır** | Yalnız pencereyi *seçmek* için kullanılıyor, modele söylenmiyor |
-| `sonic` — ses olayları | **Hayır** | `vision` sonic'i hiç tanımıyor; kodda tek referans yok |
+| `sonic` — ses olayları | **Kapı açık, kaynak bağlı değil** | Analiz uçları `isitsel_baglam` kabul ediyor; dolduran yok |
 
 İki boşluk var ve ikisi de bilinçli olarak bu dokümanın kapsamında **hazırlık**
 düzeyinde ele alınıyor, uygulaması ayrı iş:
@@ -115,6 +115,10 @@ düzeyinde ele alınıyor, uygulaması ayrı iş:
 istiyor; sistem şu an yalnızca görüntüden okuyor. `sonic` ayrı çalışıyor ve
 çıktısı jüriye giden rapora hiç karışmıyor. Bu, puanlanan bir maddede açık
 bir eksik.
+
+> *Sonradan:* `vision` tarafındaki kapı açıldı (aşağıya bakın); ses metni
+> verilirse modele ulaşıyor. Veren henüz yok, dolayısıyla eksik duruyor —
+> ama artık eksik olan tek şey kablolama.
 
 **Hareket profili modele söylenmiyor.** `stream` kaydın neresinde hareket
 olduğunu biliyor ama modele *"en hareketli anlar 00:12 ve 00:31"* demiyor.
@@ -127,6 +131,17 @@ alanları dolduran kablolama prompt sisteminin işi değil:
 
 - `audio` alanını doldurmak = `vision`'ın `sonic`'i çağırması ya da
   orchestrator'ın ikisini birleştirmesi → **NATS işi, Deniz'de**
+
+  *Sonradan:* `vision` tarafı tamamlandı. `POST /v1/analyze`,
+  `POST /v1/analyze/sartname` ve `POST /v1/prompts/preview` isteğe bağlı bir
+  `isitsel_baglam` alanı kabul ediyor; metin `UntrustedText`'e sarılıp
+  güvenilmez bölgeden geçiyor ve **her tura** taşınıyor. Alan verilmediğinde
+  üretilen metin bayt bayt eskisiyle aynı kalıyor, bir test bunu kilitliyor.
+
+  Kalan iş orchestrator'da: bugün `sonic`'in cevabı `let _` ile atılıyor,
+  üstelik istek yanlış uca gidiyor (`/v1/analyze`, doğrusu
+  `/v1/audio/analyze`) ve gövde uyuşmuyor (`video_id` gönderiliyor, `path`
+  bekleniyor).
 - `motion` alanını doldurmak = `stream`'in profil özetini ajana vermesi →
   küçük iş, Faz 4 ölçümü olumlu çıkarsa yapılır
 
