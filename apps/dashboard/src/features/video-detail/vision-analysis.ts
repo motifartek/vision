@@ -87,7 +87,16 @@ async function iste<T>(url: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(mesaj)
   }
-  return (await r.json()) as T
+
+  // 204 No Content veya 202 Accepted durumlarında genelde body boştur
+  if (r.status === 204 || r.status === 202) {
+    return null as T
+  }
+
+  const text = await r.text()
+  if (!text) return null as T
+  
+  return JSON.parse(text) as T
 }
 
 /**
