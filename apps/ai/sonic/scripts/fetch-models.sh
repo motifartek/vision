@@ -10,7 +10,11 @@ case "$MODEL" in
 esac
 
 BASE="https://huggingface.co/k2-fsa/sherpa-onnx-${MODEL}-audio-tagging-2024-04-19/resolve/main"
-DIR="$(dirname "$0")/../models/$MODEL"
+# Kok, servisin okudugu kokle ayni degiskenden geliyor: konteynerde bu
+# `/app/models` (compose'daki `sonic-models` birimi), ana makinede depo icindeki
+# `models/`. Boylece ayni script iki yerde de dogru dizine yaziyor.
+ROOT="${SONIC_MODELS_DIR:-$(dirname "$0")/../models}"
+DIR="$ROOT/$MODEL"
 mkdir -p "$DIR/test_wavs"
 
 fetch() {

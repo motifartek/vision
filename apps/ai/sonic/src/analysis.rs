@@ -33,7 +33,10 @@ impl Default for AnalyzeParams {
     fn default() -> Self {
         Self {
             profile: crate::config::PROFILES[1], // dengeli
-            threshold: 0.35,
+            // 0.35 fazla geçirgendi: bazı kayıtlarda zayıf skorlu sınıflar
+            // olay listesine sızıyordu. Panelin kaydırıcısı ve `threshold`
+            // alanı hâlâ istediği değeri geçebiliyor; bu yalnız varsayılan.
+            threshold: 0.50,
             top_k: 5,
             min_duration_sec: 0.0,
             gap_sec: 0.5,
@@ -54,12 +57,12 @@ pub async fn decode_media(path: &Path) -> Result<decode::Decoded, InferenceError
 pub fn analyze_decoded(
     decoded: &decode::Decoded,
     extractor: &MelExtractor,
-    session: &mut ort::session::Session,
+    backend: &mut ced::Backend,
     labels: &[ClassLabel],
     params: &AnalyzeParams,
     model_name: &str,
     weights: &str,
-    providers: &[&'static str],
+    providers: &[String],
     decode_ms: u128,
 ) -> Result<Analysis, InferenceError> {
     let started = Instant::now();
@@ -74,7 +77,7 @@ pub fn analyze_decoded(
     let n_windows = window_count(log_mel.n_frames, window_frames, hop_frames);
 
     let infer_start = Instant::now();
-    let scores = run_windows(session, &log_mel, window_frames, hop_frames, n_windows, params)?;
+    let scores = run_windows(backend, &log_mel, window_frames, hop_frames, n_windows, params)?;
     let inference_ms = infer_start.elapsed().as_millis();
 
     let segment_start = Instant::now();
@@ -174,7 +177,7 @@ fn is_memory_pressure(err: &InferenceError) -> bool {
 }
 
 fn run_windows(
-    session: &mut ort::session::Session,
+    backend: &mut ced::Backend,
     log_mel: &LogMel,
     window_frames: usize,
     hop_frames: usize,
@@ -188,7 +191,7 @@ fn run_windows(
     let mut batch_size = params.batch_size.max(1);
 
     loop {
-        match run_all_batches(session, log_mel, window_frames, hop_frames, n_windows, batch_size) {
+        match run_all_batches(backend, log_mel, window_frames, hop_frames, n_windows, batch_size) {
             Ok(scores) => {
                 if batch_size != params.batch_size {
                     tracing::info!(
@@ -214,7 +217,7 @@ fn run_windows(
 }
 
 fn run_all_batches(
-    session: &mut ort::session::Session,
+    backend: &mut ced::Backend,
     log_mel: &LogMel,
     window_frames: usize,
     hop_frames: usize,
@@ -232,7 +235,7 @@ fn run_all_batches(
             log_mel.push_window(w * hop_frames, window_frames, &mut feats);
         }
 
-        let probs = ced::run_batch(session, &feats, batch, window_frames)?;
+        let probs = ced::run_batch(backend, &feats, batch, window_frames)?;
         scores.extend_from_slice(&probs);
     }
 

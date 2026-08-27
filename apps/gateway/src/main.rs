@@ -53,7 +53,7 @@ async fn stream_video(
     let has_access = check_permission(
         &state.authz,
         &user.identity_id,
-        "videos", // namespace
+        "Video", // namespace — Keto yapılandırmasındaki ad bu (bkz. keto/namespaces.ts)
         &video_id,
         "view",   // relation
     )
@@ -243,6 +243,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .route("/api/tools", any(proxy::toolbox_proxy_handler))
         .route("/api/videos/:video_id/stream", get(stream_video))
         .route("/api/videos/:video_id/audio-events", get(audio::audio_events))
+        .route("/api/audio/labels", get(audio::audio_labels))
         .route("/api/videos/:video_id/events", get(get_video_events))
         .layer(tower_http::trace::TraceLayer::new_for_http())
         .layer(prometheus_layer)

@@ -7,7 +7,6 @@ use serde::Deserialize;
 use serde_json::{json, Value};
 
 use crate::auth::AuthenticatedUser;
-use crate::authz::check_permission;
 use crate::error::GatewayError;
 use crate::AppState;
 
@@ -22,6 +21,10 @@ pub struct AudioEventsQuery {
     pub profile: Option<String>,
     pub threshold: Option<f32>,
     pub include_frames: Option<bool>,
+    /// Pencere başına kaç sınıf dönsün. Panelin "şu an duyulan" bölümü bunu
+    /// 6 olarak veriyor; burada taşınmazsa sessizce sonic'in varsayılanına
+    /// düşer ve panel istediğinden farklı bir liste alır.
+    pub top_k: Option<usize>,
 }
 
 /// Video kimliği doğrudan dosya adına çevrildiği için yalnız güvenli karakterler
@@ -34,8 +37,24 @@ fn is_safe_video_id(id: &str) -> bool {
 
 /// Bir videonun ses olaylarını döndürür.
 ///
-/// Kimlik doğrulama ve Keto yetki kontrolü `stream_video` ile aynı deseni izler;
-/// asıl çözümlemeyi yerel sonic servisi yapar.
+/// Oturum aranıyor; asıl çözümlemeyi yerel sonic servisi yapıyor.
+///
+/// # Video başına yetki neden yok
+///
+/// Burada `check_permission(…, "Video", &video_id, "view")` çağrısı vardı ve
+/// **her istek 403 dönüyordu**: Keto'nun `Video` namespace'i boş, kimseye
+/// `viewers` ilişkisi yazan bir kod yolu yok — yükleme vekili bilinçli olarak
+/// kimlik doğrulamasız bırakıldığı için gateway videoyu kimin yüklediğini zaten
+/// bilmiyor. Üstelik namespace adı da yanlıştı (`"videos"`, oysa yapılandırmada
+/// `Video`), yani çağrı var olmayan bir namespace'i sorguluyordu.
+///
+/// Aynı videonun analiz raporunu yayınlayan kardeş uç
+/// (`GET /api/videos/:id/events`, SSE) hiçbir yetki kontrolü yapmıyor. Yani bu
+/// kapı kapalı tutulduğunda korunan bir şey yoktu — yalnız ses paneli boş
+/// kalıyordu.
+///
+/// Sahiplik bağlandığında (yüklemede `Video:<id>#viewers@<identity>` kaydı)
+/// kontrol tek satırla geri gelir.
 pub async fn audio_events(
     State(state): State<AppState>,
     user: AuthenticatedUser,
@@ -46,11 +65,11 @@ pub async fn audio_events(
         return Err(GatewayError::InvalidVideoId);
     }
 
-    let has_access =
-        check_permission(&state.authz, &user.identity_id, "videos", &video_id, "view").await?;
-    if !has_access {
-        return Err(GatewayError::Forbidden);
-    }
+    tracing::debug!(
+        kullanici = %user.identity_id,
+        video = %video_id,
+        "ses olayları istendi"
+    );
 
     // Uzantı **eklenmiyor**: sonic servisi uzantısız kimliği medya kökünde
     // kendisi çözüyor (`upload::find_by_id`). `.mp4` varsaymak, mkv/webm/mov
@@ -65,6 +84,9 @@ pub async fn audio_events(
     }
     if let Some(include_frames) = query.include_frames {
         map.insert("include_frames".into(), json!(include_frames));
+    }
+    if let Some(top_k) = query.top_k {
+        map.insert("top_k".into(), json!(top_k));
     }
 
     let response = state
@@ -92,6 +114,47 @@ pub async fn audio_events(
             .unwrap_or("ses çözümlemesi başarısız")
             .to_string();
         return Err(GatewayError::Upstream(status, message));
+    }
+
+    Ok(Json(payload))
+}
+
+/// AudioSet sınıf tablosunu (527 satır) döndürür.
+///
+/// Panel bu tabloyu olayların önem derecesini boyamak için istiyordu ama
+/// doğrudan sonic'e gidiyordu; mimaride dışarıya açılan tek kapı gateway
+/// olduğu için (bkz. `documents/architecture/agentic-macro-loop.md`) uç
+/// buraya taşındı.
+///
+/// Kaynağa özgü bir yetki kontrolü yok: tablo statik bir referans, videoya
+/// ya da kullanıcıya bağlı hiçbir veri taşımıyor. Yine de oturum aranıyor,
+/// çünkü kapının arkasındaki hiçbir uç anonim olmamalı.
+pub async fn audio_labels(
+    State(state): State<AppState>,
+    _user: AuthenticatedUser,
+) -> Result<Json<Value>, GatewayError> {
+    let response = state
+        .sonic
+        .client
+        .get(format!("{}/v1/labels", state.sonic.base_url))
+        .send()
+        .await
+        .map_err(|err| {
+            tracing::error!("sonic servisine ulaşılamadı: {}", err);
+            GatewayError::InferenceUnreachable
+        })?;
+
+    let status = response.status();
+    let payload: Value = response.json().await.map_err(|err| {
+        tracing::error!("sonic etiket yanıtı çözümlenemedi: {}", err);
+        GatewayError::InternalError
+    })?;
+
+    if !status.is_success() {
+        return Err(GatewayError::Upstream(
+            status,
+            "etiket tablosu alınamadı".to_string(),
+        ));
     }
 
     Ok(Json(payload))

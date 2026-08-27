@@ -1,0 +1,42 @@
+# Cikarimi host'taki `model-host` surecine tasiyan istege bagli katman.
+#
+# NEDEN: DirectML bir Windows DirectX 12 API'si ve ONNX Runtime'in DirectML
+# saglayicisi yalniz Windows icin dagitiliyor — sonic Linux konteynerinde
+# kostugu icin konteynerin icinden karta erisilemiyor. Docker'da CUDA denendi
+# ve CPU'dan **yavas** cikti (olcum: compose.gpu.yaml). Geriye tek yol kaliyor:
+# tensor->tensor cagrisini host'a tasimak.
+#
+# Konteynerden cikan yalnizca ONNX cagrisi. Cozme, log-mel, olay bolutleme ve
+# guvenlik kurallari sonic'te kaliyor — olculdugune gore toplam surenin %94'u
+# (13,7 sn'nin 12,9'u) zaten bu tek cagrida geciyor.
+#
+# KULLANIM
+#
+#   1) Host'ta (bir kez):  tools\scripts\setup-model-host.ps1
+#   2) Host'ta model sunucusunu baslat:
+#        $env:SONIC_DML_DEVICE = "1"
+#        .\target\release\model-host.exe
+#   3) Yigini bu katmanla kaldir:
+#        docker compose -f platform/docker/compose.yaml \
+#                       -f apps/ai/sonic/compose.modelhost.yaml up -d sonic
+#
+# Bu dosya ana compose'a **dahil degildir**. Karisik makineli takimda
+# (Windows + Mac/Linux) herkesi Rust + Windows SDK kurmaya mecbur birakmamak
+# icin boyle: acan aciyor, acmayan bugunku CPU yolunda kaliyor ve hicbir sey
+# degismiyor.
+#
+# DOGRULAMA — /healthz'deki `providers` alanina bakmayin, o alan *istenen*
+# saglayici zincirini gosteriyor, gercekten etkin olani degil. Bunun yerine:
+#   - `model-host` acilis logunda hangi adaptoru sectigini yaziyor
+#   - analiz koserken Gorev Yoneticisi'nde NVIDIA kartinda hareket gorunmeli
+#   - `timing.inference_ms` olculup CPU referansiyla karsilastirilmali
+#
+# GERI DONUS: bu -f katmanini kaldirin, baska hicbir sey gerekmiyor.
+
+services:
+  sonic:
+    environment:
+      # Ayarli oldugunda sonic model dosyasi yuklemiyor; cikarim bu adrese
+      # gidiyor. `host.docker.internal` bu depoda zaten kullaniliyor
+      # (platform/observability/prometheus.yaml, dort hedef).
+      - SONIC_MODEL_HOST=http://host.docker.internal:8082

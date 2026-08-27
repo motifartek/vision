@@ -1,4 +1,4 @@
-use std::net::Ipv4Addr;
+use std::net::{Ipv4Addr, SocketAddr};
 use std::path::PathBuf;
 
 /// Pencere/adım profilleri.
@@ -25,10 +25,15 @@ pub fn profile(name: &str) -> Option<WindowProfile> {
 
 #[derive(Debug, Clone)]
 pub struct Config {
-    /// Servisin kendi kimlik doğrulaması yok; dışarıya tek kapı gateway olduğundan
-    /// dinleme adresi 127.0.0.1'e sabittir ve yapılandırılamaz.
-    pub host: Ipv4Addr,
-    pub port: u16,
+    /// Dinleme adresi. Servisin kendi kimlik doğrulaması yok, o yüzden
+    /// varsayılan hâlâ `127.0.0.1:SONIC_PORT`.
+    ///
+    /// Ama konteynerde loopback'e bağlanmak servisi tümüyle kör ediyor:
+    /// yayımlanan port da `http://sonic:8081` de konteynerin dışından gelir,
+    /// ikisi de loopback'e düşmez. Bu yüzden adres `SONIC_BIND` ile açılabilir
+    /// (compose `0.0.0.0:8081` veriyor); dışarıya kapıyı yayımlanan portu
+    /// loopback'e sabitleyerek kapatıyoruz, sürecin kendi soketiyle değil.
+    pub bind: SocketAddr,
     pub models_dir: PathBuf,
     pub model: String,
     pub prefer_int8: bool,
@@ -36,6 +41,17 @@ pub struct Config {
     /// Tek ONNX çağrısındaki pencere sayısı. GPU'da büyük batch, başlatma
     /// maliyetini pencerelere bölerek asıl kazancı sağlar.
     pub batch_size: usize,
+    /// Ayarlıysa ONNX çağrısı bu adresteki `model-host` sürecine taşınır ve
+    /// bu süreçte model yüklenmez.
+    ///
+    /// Sebebi DirectML: Windows DirectX 12 API'si olduğu için Linux
+    /// konteynerinde çalışmıyor, ama sonic konteynerde koşuyor. Kartı
+    /// kullanmanın tek yolu tensör→tensör çağrısını host'a taşımak. Çözme,
+    /// log-mel, bölütleme ve güvenlik kuralları konteynerde kalıyor —
+    /// ölçüldüğüne göre toplam sürenin %94'ü zaten bu tek çağrıda geçiyor.
+    ///
+    /// Ayarlı değilse bugünkü davranış birebir korunur.
+    pub model_host: Option<String>,
     pub media_root: Option<PathBuf>,
     /// Yükleme tavanı, bayt. `0` = sınırsız (varsayılan): dosya belleğe
     /// alınmadan diske akıtıldığı için büyük videolar sorun değil. Diski
@@ -58,9 +74,18 @@ impl Config {
         // amorti ediyor. Bol VRAM'li makinede SONIC_BATCH ile yükseltin.
         let default_batch = if gpu { 64 } else { 32 };
 
+        // Bozuk bir `SONIC_BIND` sessizce loopback'e düşerse konteynerdeki
+        // arıza tam olarak düzeltmeye çalıştığımız arıza olur — servis ayakta
+        // görünür, kimse erişemez. Bu yüzden burada gürültülü duruyoruz.
+        let bind = match std::env::var("SONIC_BIND") {
+            Ok(raw) => raw.parse::<SocketAddr>().unwrap_or_else(|e| {
+                panic!("SONIC_BIND çözümlenemedi ({raw}): {e}. Beklenen biçim: 0.0.0.0:8081")
+            }),
+            Err(_) => SocketAddr::from((Ipv4Addr::LOCALHOST, env_parse("SONIC_PORT", 8081))),
+        };
+
         Self {
-            host: Ipv4Addr::LOCALHOST,
-            port: env_parse("SONIC_PORT", 8081),
+            bind,
             models_dir,
             // Varsayılan CED-Base: aynı videoda Tiny'nin ürettiği yanlış
             // pozitifleri (At %81, Kalp atışı, Hapşırık, Baykuş) hiç üretmiyor,
@@ -74,6 +99,12 @@ impl Config {
                 std::thread::available_parallelism().map(|n| n.get()).unwrap_or(4),
             ),
             batch_size: env_parse("SONIC_BATCH", default_batch),
+            // Sondaki `/` temizleniyor: `http://host:8082/` verildiğinde
+            // istekler `//v1/infer` olurdu.
+            model_host: std::env::var("SONIC_MODEL_HOST")
+                .ok()
+                .map(|v| v.trim().trim_end_matches('/').to_string())
+                .filter(|v| !v.is_empty()),
             media_root: std::env::var_os("SONIC_MEDIA_ROOT").map(PathBuf::from),
             max_upload_bytes: env_parse("SONIC_MAX_UPLOAD_BYTES", 0),
         }

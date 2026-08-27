@@ -1,0 +1,66 @@
+# Sonic'i NVIDIA GPU ile calistiran istege bagli katman.
+#
+# Bu dosya **varsayilan kuruluma dahil degildir**. Takimda NVIDIA karti olmayan
+# makineler de var; GPU ayirmasini ana compose'a koysaydik o makinelerde
+# konteyner hic baslamazdi ("could not select device driver"). Bu yuzden GPU
+# ayri bir katman: karti olan ekliyor, olmayan hicbir sey yapmiyor.
+#
+# Kullanim (karti olanlar):
+#
+#   docker compose -f platform/docker/compose.yaml \
+#                  -f apps/ai/sonic/compose.gpu.yaml up -d sonic
+#
+# ONCE SUNU OKUYUN: bu makinede GPU **daha yavas** cikti.
+#
+# 2026-08-27, RTX 4050 Laptop (6 GB), 10 dakikalik kayit (1198 pencere):
+#
+#   CPU  int8, 20 is parcacigi     10.8-13.7 sn    44-55x gercek zaman
+#   GPU  fp32, batch 64            18.1 sn         32x
+#   GPU  fp32, batch 128           18.8 sn         31x
+#   GPU  fp32, batch 192           19.4 sn         30x
+#
+# Sebep: CPU yolu int8 nicemlenmis agirlik kullaniyor, GPU'da int8 yok ve
+# fp32'ye cikmak zorunda. CED-Base kucuk bir model; 1198 pencerenin
+# host<->cihaz kopyalama maliyeti kazanci yiyor. Batch buyutmek kotulestiriyor,
+# yani darbogaz cekirdek baslatma maliyeti de degil.
+#
+# Bedeli de var: imaj 1,2 GB yerine 6,5 GB, ilk derleme ~10 dakika.
+#
+# Yani bu dosya **hizlandirmak icin degil**, bol VRAM'li masaustu bir kartta
+# yeniden olcmek isteyenler icin duruyor. Olcmeden acmayin.
+#
+# Kartiniz yoksa hicbir sey yapmayin: normal `up` zaten CPU ile calisiyor.
+#
+# Tuttugunu nasil anlarsiniz — saglayici listesinde CUDA gorunmeli:
+#
+#   curl -s http://127.0.0.1:8081/healthz
+#   → "providers":["CUDA","CPU"]     GPU calisiyor
+#   → "providers":["CPU"]            surum uyusmadi, sessizce CPU'ya dondu
+#
+# ONNX Runtime saglayiciyi bulamadiginda hata vermez, CPU'ya doner. Bu iyi
+# haber (servis her makinede ayakta kalir) ama sessiz oldugu icin yukaridaki
+# kontrolu yapmadan "GPU'da kosuyor" varsaymayin.
+
+services:
+  sonic:
+    build:
+      args:
+        # ort'un CUDA saglayicisi cuDNN istiyor; `runtime` etiketi ikisini de
+        # tasiyor, `base` tasimıyor.
+        RUNTIME_IMAGE: nvidia/cuda:12.6.3-cudnn-runtime-ubuntu24.04
+        SONIC_FEATURES: cuda
+    # Ayri etiket: CPU imajinin uzerine yazmiyor, boylece ayni makinede iki
+    # kurulum yan yana durabiliyor ve geri donmek imaj degistirmek kadar kolay.
+    image: docker-sonic-cuda
+    environment:
+      # int8 agirliklari CPU'ya ozgu; GPU'da fp32 kullanilir. config.rs bunu
+      # `cuda` ozelligi acikken zaten kendisi yapiyor, burasi yalnizca acik
+      # olsun diye.
+      - SONIC_INT8=false
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

@@ -10,7 +10,14 @@ services:
     ports:
       - "4317:4317"
       - "4318:4318"
+      # 8888: toplayıcının kendi iç telemetrisi.
       - "8888:8888"
+      # 8889: `otel-collector.yaml`'daki prometheus exporter'ı — servislerin
+      # OTLP ile gönderdiği metrikler buradan yeniden yayınlanıyor ve
+      # `prometheus.yaml` tam da burayı kazıyor. Yayımlanmadığı için hedef
+      # sürekli `down`'du: metrik hattı toplanıyor, dönüştürülüyor, sonra
+      # kimsenin ulaşamadığı bir porta yazılıyordu.
+      - "8889:8889"
     networks:
       - observability
 

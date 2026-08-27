@@ -11,8 +11,14 @@ use sonic::model;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
+            // Hedef adı crate adıdır. Burada `inference` yazıyordu — crate
+            // `sonic` olarak yeniden adlandırıldığında bu dize güncellenmedi ve
+            // direktif hiçbir şeyle eşleşmez oldu. EnvFilter eşleşmeyen hedefleri
+            // ERROR'a düşürdüğü için servis konteynerde tamamen sustu: görülen
+            // tek satır, `main` Err döndüğünde Rust'ın kendisinin bastığı ölümcül
+            // hataydı. Düzgün çalışırken hiçbir iz bırakmıyordu.
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "inference=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "sonic=debug,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -32,7 +38,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .map(|p| (p.window_sec * 100.0).round() as usize)
         .collect();
     let warmup_started = std::time::Instant::now();
-    model::ced::warmup(&mut loaded.session, cfg.batch_size, &window_frames);
+    model::ced::warmup(&mut loaded.backend, cfg.batch_size, &window_frames);
     tracing::info!(
         ms = warmup_started.elapsed().as_millis(),
         sekil = window_frames.len(),
@@ -42,7 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let state = Arc::new(AppState::new(
         &cfg,
         labels,
-        loaded.session,
+        loaded.backend,
         loaded.model_name,
         loaded.weights_file,
         loaded.providers,
@@ -66,13 +72,35 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .allow_methods(Any)
         .allow_headers(Any);
 
+    // Prometheus katmanı ve /metrics ucu. Ölçüm katmanı en dışta duruyor ki
+    // /metrics dahil her isteği saysın.
+    //
+    // `platform/observability/prometheus.yaml` bu servisi baştan beri kazıyordu
+    // ama rota hiç eklenmemişti: her kazıma 404 dönüyor, sonic'in tek bir
+    // metriği bile Prometheus'a ulaşmıyordu. Sessizce başarısızdı — istek
+    // logları olmadığı için kimse görmedi.
+    let (prometheus_layer, metric_handle) = axum_prometheus::PrometheusMetricLayer::pair();
+
     // Video yüklemeleri için boyut limitini tamamen kaldırıyoruz (3GB, 10GB vs. sınırsız)
     let app = api::router(state)
+        .route(
+            "/metrics",
+            axum::routing::get(|| async move { metric_handle.render() }),
+        )
         .layer(axum::extract::DefaultBodyLimit::disable())
-        .layer(cors);
+        .layer(cors)
+        .layer(prometheus_layer);
 
-    let listener = tokio::net::TcpListener::bind((cfg.host, cfg.port)).await?;
-    tracing::info!("inference servisi {} adresinde dinliyor", listener.local_addr()?);
+    if !cfg.bind.ip().is_loopback() {
+        tracing::warn!(
+            adres = %cfg.bind,
+            "servis loopback dışında dinliyor; kendi kimlik doğrulaması yok, \
+             bu adrese erişebilen herkes analiz ve silme çağırabilir"
+        );
+    }
+
+    let listener = tokio::net::TcpListener::bind(cfg.bind).await?;
+    tracing::info!("sonic servisi {} adresinde dinliyor", listener.local_addr()?);
     axum::serve(listener, app).await?;
 
     Ok(())

@@ -24,7 +24,18 @@ function Slider({
       value={value}
       min={min}
       max={max}
-      thumbAlignment="edge"
+      // `thumbAlignment` bilerek verilmiyor; base-ui varsayılanı `center`.
+      //
+      // Burada `edge` yazıyordu ve tutamak hiç görünmüyordu: `edge`, tutamağı
+      // yerleştirmek için genişliğini **ölçüyor** (kaynakta `inset:
+      // thumbAlignment !== 'center'`). Eşik kaydırıcısı `keepMounted` olan bir
+      // sekmenin içinde, yani sayfa açılırken `display: none` iken mount
+      // oluyor; gizli elemanda ölçüm sıfır çıkıyor ve tutamak konumlanamıyor.
+      // Track ölçüm istemediği için çiziliyordu — ekranda dümdüz bir çizgi
+      // kalıyor, sürüklenecek bir şey olmuyordu.
+      //
+      // `center` saf yüzde hesabıyla çalışır, ölçüme ihtiyaç duymaz; sekme
+      // gizliyken mount edilse de doğru yerde çıkar.
       {...props}
     >
       <SliderPrimitive.Control className="relative flex w-full touch-none items-center select-none data-disabled:opacity-50 data-vertical:h-full data-vertical:min-h-40 data-vertical:w-auto data-vertical:flex-col">
@@ -41,7 +52,11 @@ function Slider({
           <SliderPrimitive.Thumb
             data-slot="slider-thumb"
             key={index}
-            className="relative block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
+            // `after:content-['']` şart: Tailwind v4 `after:` sınıflarına
+            // içerik eklemiyor, dolayısıyla `after:-inset-2` ile büyütülmek
+            // istenen tıklama alanı hiç oluşmuyordu. Tutamak 12 piksel; onu
+            // fareyle yakalamak gereksiz yere zordu.
+            className="relative block size-3 shrink-0 rounded-full border border-ring bg-white ring-ring/50 transition-[color,box-shadow] select-none after:absolute after:-inset-2 after:content-[''] hover:ring-3 focus-visible:ring-3 focus-visible:outline-hidden active:ring-3 disabled:pointer-events-none disabled:opacity-50"
           />
         ))}
       </SliderPrimitive.Control>

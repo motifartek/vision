@@ -1,25 +1,62 @@
 services:
+  # Model agirliklarini bir kez indirip `sonic-models` biriminde biriktirir.
+  #
+  # Agirliklar depoda tutulmuyor (ced-base ~410 MB) ve birimi dolduran hicbir
+  # sey yoktu: sonic her acilista `class_labels_indices.csv yok` deyip yeniden
+  # basliyordu. Indirmeyi ana makinedeki bir on adima birakmak yerine konteynere
+  # aliyoruz, boylece `up` tek basina yetiyor.
+  #
+  # Ayni imaji kullaniyor (`docker-sonic`): script imajin icinde, ekstra bir
+  # temel imaj cekmiyoruz. Script mevcut dosyalari atladigi icin ilk indirmeden
+  # sonraki her acilis aga hic cikmadan saniyeler icinde bitiyor.
+  sonic-models-init:
+    build:
+      context: ../../../
+      dockerfile: apps/ai/sonic/Dockerfile
+    image: docker-sonic
+    entrypoint: ["/app/fetch-models.sh"]
+    command: ["${SONIC_MODEL:-ced-base}"]
+    volumes:
+      # Salt okunur degil: bu servisin tek isi bu birime yazmak.
+      - sonic-models:/app/models
+    restart: "no"
+    networks:
+      - default
+
   sonic:
     build:
       context: ../../../
       dockerfile: apps/ai/sonic/Dockerfile
     image: docker-sonic
     ports:
-      - "8081:8081"
+      # Konteyner disina yalniz loopback'ten aciliyor. Servisin kendi kimlik
+      # dogrulamasi yok; iceride 0.0.0.0 dinlemek zorunlu ama bunu yerel agina
+      # acmanin gerekcesi yok.
+      - "127.0.0.1:8081:8081"
     environment:
       - SONIC_PORT=8081
+      # Konteynerde loopback dinlemek servisi tumuyle kor ediyordu: hem
+      # yayimlanan port hem `http://sonic:8081` (gateway ve orchestrator)
+      # konteynerin disindan gelir, ikisi de 127.0.0.1'e dusmez.
+      - SONIC_BIND=0.0.0.0:8081
+      - SONIC_MODEL=${SONIC_MODEL:-ced-base}
       - SONIC_MODELS_DIR=/app/models
       # Kok, `stream`in depo koku olmali: orchestrator sonic'e nesne
       # anahtarini (`raw/<id>.mp4`) veriyor ve bu anahtar oraya gore cozuluyor.
-      # Onceden panelin public/media dizinine bakiyordu; stream'e yuklenen
-      # videolarin hicbirini goremiyordu.
       - SONIC_MEDIA_ROOT=/media
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     volumes:
       # Modellerin saklandigi yer (minio de kullanilabilirdi ama simdilik local baglayalim)
       - sonic-models:/app/models
-      # `stream`in yazdigi ham videolar. Salt okunur: sonic yalnizca okur.
-      - ../../../data/stream:/media:ro
+      # `stream`in yazdigi ham videolar. Once ana makinedeki `data/stream`
+      # baglaniyordu ama stream oraya degil bu birime yaziyor; sonic her zaman
+      # bos bir dizin goruyordu. Salt okunur: sonic yalnizca okur.
+      - stream-data:/media:ro
+    depends_on:
+      # Agirliklar yerine oturmadan basmanin anlami yok: eksikse zaten
+      # yeniden baslatma dongusune giriyor.
+      sonic-models-init:
+        condition: service_completed_successfully
     restart: unless-stopped
     networks:
       - default
@@ -27,3 +64,6 @@ services:
 
 volumes:
   sonic-models:
+  # `apps/stream/compose.yaml` ile ayni birim: ikisi de tek projede birlestigi
+  # icin burada yeniden bildirmek ayni birime isaret ediyor.
+  stream-data:

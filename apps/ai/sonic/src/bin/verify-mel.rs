@@ -42,7 +42,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
         let mut feats = Vec::with_capacity(log_mel.n_frames * sonic::audio::mel::N_MELS);
         log_mel.push_window(0, log_mel.n_frames, &mut feats);
 
-        let probs = model::ced::run_batch(&mut loaded.session, &feats, 1, log_mel.n_frames)?;
+        let probs = model::ced::run_batch(&mut loaded.backend, &feats, 1, log_mel.n_frames)?;
 
         let min = probs.iter().copied().fold(f32::INFINITY, f32::min);
         let max = probs.iter().copied().fold(f32::NEG_INFINITY, f32::max);

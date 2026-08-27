@@ -46,7 +46,10 @@ coverage/
 **/target/
 **/*.rs.bk
 
-# AI model ağırlıkları — apps/ai/inference/scripts/fetch-models ile indirilir
+# AI model ağırlıkları — apps/ai/sonic/scripts/fetch-models ile indirilir.
+# Yol `inference` iken yazılmıştı; crate `sonic` olarak yeniden adlandırılınca
+# bu satır eşleşmez oldu ve ~430 MB'lık ağırlıklar izlenmeye açık kaldı.
+apps/ai/sonic/models/
 apps/ai/inference/models/
 
 # Yerel demo medyası ve ondan üretilen kareler. Depoya girmez: lisansı bize ait

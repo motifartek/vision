@@ -9,10 +9,23 @@ log-mel.
 Model ağırlıkları depoda tutulmaz, script ile indirilir:
 
 ```bash
-sh apps/ai/inference/scripts/fetch-models.sh ced-base
+sh apps/ai/sonic/scripts/fetch-models.sh ced-base
 ```
 
-Windows PowerShell için: `apps\ai\inference\scripts\fetch-models.ps1`.
+Windows PowerShell için: `apps\ai\sonic\scripts\fetch-models.ps1`.
+
+**Docker'da elle indirmek gerekmez.** `sonic-models-init` servisi aynı scripti
+konteyner içinde koşturup ağırlıkları `sonic-models` birimine yazar, `sonic`
+ancak o bittikten sonra başlar. Script var olan dosyaları atladığı için indirme
+yalnız ilk `up`'ta olur; sonraki açılışlar ağa hiç çıkmaz. Hedef dizin
+`SONIC_MODELS_DIR`'den gelir, yani script ana makinede ve konteynerde aynıdır.
+
+Başka bir model istenirse `SONIC_MODEL` hem indirmeyi hem servisi birlikte
+yönlendirir:
+
+```bash
+SONIC_MODEL=ced-tiny docker compose -f platform/docker/compose.yaml up -d sonic
+```
 
 `ced-tiny`, `ced-mini`, `ced-small`, `ced-base` indirilebilir; hepsi aynı
 öznitelik hattını kullanır, yalnız ağırlık dosyası değişir.
@@ -37,8 +50,13 @@ kullanıldığı yanıttaki `media.decoder` alanında görünür.
 SONIC_MEDIA_ROOT=/path/to/media cargo run -p inference --release
 ```
 
-Servis **yalnız `127.0.0.1:8081`** dinler ve bu adres yapılandırılamaz: kendi
-kimlik doğrulaması yoktur. Tasarımda dışarıya açılan kapı gateway'dir, ama
+Servis **varsayılan olarak yalnız `127.0.0.1:8081`** dinler: kendi kimlik
+doğrulaması yoktur. Adres `SONIC_BIND` ile değiştirilebilir ama bunun tek
+meşru kullanımı konteynerdir — orada loopback'e bağlanmak servisi tümüyle kör
+eder, çünkü hem yayımlanan port hem `http://sonic:8081` konteynerin dışından
+gelir. Compose `SONIC_BIND=0.0.0.0:8081` verir ve kapıyı bunun yerine
+yayımlanan portu loopback'e sabitleyerek (`127.0.0.1:8081:8081`) kapatır.
+Tasarımda dışarıya açılan kapı gateway'dir, ama
 **bugün gateway akışta değil** — dashboard doğrudan buraya bağlanıyor
 (bkz. `audio-setup.md`). Bu yüzden tarayıcı kökeni de yerel arayüzle sınırlı:
 yalnız `localhost` / `127.0.0.1` / `[::1]` kökenli sayfalar istek atabilir.
@@ -47,12 +65,15 @@ yalnız `localhost` / `127.0.0.1` / `[::1]` kökenli sayfalar istek atabilir.
 
 | Değişken | Varsayılan | Açıklama |
 |---|---|---|
-| `SONIC_PORT` | `8081` | Dinlenen port (adres her zaman 127.0.0.1) |
+| `SONIC_BIND` | `127.0.0.1:<SONIC_PORT>` | Dinleme adresi; yalnız konteynerde `0.0.0.0:8081` yapılmalı |
+| `SONIC_PORT` | `8081` | Dinlenen port (`SONIC_BIND` verilmediğinde) |
 | `SONIC_MODELS_DIR` | `<crate>/models` | Model kök dizini |
 | `SONIC_MODEL` | `ced-base` | Alt dizin adı (`ced-tiny`, `ced-small`, …) |
 | `SONIC_INT8` | CPU'da `true` | int8 ağırlıkları tercih et |
 | `SONIC_THREADS` | çekirdek sayısı | ONNX Runtime iş parçacığı |
 | `SONIC_BATCH` | CPU `32`, GPU `64` | Tek çağrıdaki pencere sayısı |
+| `SONIC_MODEL_HOST` | *(yok)* | Ayarlanırsa çıkarım bu adresteki `model-host` sürecine taşınır; bkz. "Model host modu" |
+| `SONIC_DML_DEVICE` | `0` | DirectML adaptör numarası; çift GPU'lu makinede ayrık kart genelde `1` |
 | `SONIC_MEDIA_ROOT` | *(yok)* | Ayarlanırsa istenen yollar bu kökün dışına çıkamaz |
 | `SONIC_MAX_UPLOAD_BYTES` | `0` (sınırsız) | Yükleme tavanı; dosya diske akıtıldığı için varsayılan sınırsız |
 
@@ -61,12 +82,66 @@ dosya sistemindeki herhangi bir yolu okuyabilir — üretimde mutlaka ayarlayın
 
 ## GPU
 
-Hedef makinede GPU varsa ilgili özellikle derleyin; sağlayıcı bulunamazsa ONNX
-Runtime sessizce CPU'ya döner, yani aynı kaynak her iki makinede de çalışır.
+Aynı video (11 dk 58 sn, 1434 pencere), aynı makine (RTX 4050 Laptop 6 GB,
+20 iş parçacıklı CPU) — üç kurulum ölçüldü:
+
+| Kurulum | Ağırlık | Çıkarım | Toplam | Gerçek zaman |
+|---|---|---|---|---|
+| Docker, CPU | int8 | 12.332 ms | 13.231 ms | 54× |
+| Docker, CUDA | fp32 | 21.466 ms | 22.758 ms | 32× |
+| **Host, DirectML** | fp32 | **5.740 ms** | **6.453 ms** | **111×** |
+
+İki sonuç sezgiye aykırı, ikisi de ölçüldü:
+
+**Docker'da CUDA, CPU'dan yavaş.** int8 nicemleme CPU'ya özgü; GPU fp32'ye
+çıkmak zorunda ve bu kartın fp32'si 20 iş parçacıklı CPU'nun int8'ini
+geçemiyor. Batch büyütmek kötüleştiriyor (64→192: 17,9→19,4 sn), yani darboğaz
+çekirdek başlatma maliyeti bile değil. `compose.gpu.yaml` duruyor ama
+hızlandırmak için değil, bol VRAM'li bir kartta yeniden ölçmek isteyenler için.
+
+**DirectML Linux konteynerinde imkânsız.** Windows DirectX 12 API'si; ONNX
+Runtime'ın DirectML sağlayıcısı yalnız Windows için dağıtılıyor. Hızın tek
+gerçek kaynağı bu, ama konteynerin içinden erişilemiyor.
+
+### Model host modu
+
+Çözüm, servisi taşımak değil **yalnız ONNX çağrısını** taşımak: sonic Docker'da
+kalıyor, tensör→tensör çağrısı host'taki `model-host` sürecine gidiyor. Ölçüme
+göre toplam sürenin %94'ü zaten o tek çağrıda geçiyor; çözme, log-mel, olay
+bölütleme ve güvenlik kuralları konteynerde kalabiliyor.
+
+```powershell
+.\tools\scripts\setup-model-host.ps1     # ön koşullar, adaptör, ağırlık, derleme, mel kapısı
+$env:SONIC_DML_DEVICE = "1"
+.\target\release\model-host.exe
+```
 
 ```bash
-cargo build -p inference --release --features cuda
-cargo build -p inference --release --features tensorrt   # fp16 motoru kendisi kurar
+docker compose -f platform/docker/compose.yaml \
+               -f apps/ai/sonic/compose.modelhost.yaml up -d
+```
+
+`SONIC_DML_DEVICE` **kritik**: DirectML varsayılan olarak 0 numaralı adaptörü
+seçiyor ve çift GPU'lu laptoplarda bu genelde tümleşik karttır. Ayrık kart
+boşta beklerken tümleşikte koşmak CPU'dan bile yavaş olabilir. Setup scripti
+kartları listeleyip ayrık olanı kendisi buluyor.
+
+`SONIC_MODEL_HOST` ayarlı değilse hiçbir şey değişmez: konteyner içi CPU
+çıkarımı. Karışık makineli takımda (Windows + Mac/Linux) varsayılan yol budur
+ve `docker compose up` tek başına çalışmaya devam eder. Geri dönmek için
+`-f apps/ai/sonic/compose.modelhost.yaml` katmanını kaldırmak yeterli.
+
+**Doğrulama `/healthz`'deki `providers` alanına bakarak yapılmaz** — o alan
+derleme özelliklerinden kuruluyor, yani *istenen* sağlayıcı zincirini gösteriyor,
+gerçekten etkin olanı değil. ONNX Runtime bulamadığı sağlayıcıyı sessizce
+atlıyor. Ölçün: `timing.inference_ms` yukarıdaki tabloyla karşılaştırılmalı ve
+analiz sırasında Görev Yöneticisi'nde ayrık kartta hareket görünmeli.
+
+Doğrudan GPU derlemesi de mümkün (sağlayıcı bulunamazsa CPU'ya dönülür):
+
+```bash
+cargo build -p sonic --release --features cuda
+cargo build -p sonic --release --features directml
 ```
 
 int8 ağırlıkları CPU'ya özgüdür; GPU derlemelerinde varsayılan fp32'dir.

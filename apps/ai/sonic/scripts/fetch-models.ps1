@@ -7,7 +7,11 @@ $valid = @("ced-tiny", "ced-mini", "ced-small", "ced-base")
 if ($valid -notcontains $Model) { throw "Bilinmeyen model: $Model ($($valid -join '|'))" }
 
 $base = "https://huggingface.co/k2-fsa/sherpa-onnx-$Model-audio-tagging-2024-04-19/resolve/main"
-$dir = Join-Path $PSScriptRoot "..\models\$Model"
+# Kok, servisin okudugu kokle ayni degiskenden geliyor. `.sh` muadili bunu
+# zaten yapiyordu; ikisi ayri davranirsa SONIC_MODELS_DIR ayarlayan biri
+# Windows'ta agirliklari yanlis yere indirir ve servis bulamaz.
+$root = if ($env:SONIC_MODELS_DIR) { $env:SONIC_MODELS_DIR } else { Join-Path $PSScriptRoot "..\models" }
+$dir = Join-Path $root $Model
 New-Item -ItemType Directory -Force (Join-Path $dir "test_wavs") | Out-Null
 
 function Fetch($rel) {

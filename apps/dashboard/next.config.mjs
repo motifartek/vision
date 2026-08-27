@@ -23,6 +23,7 @@ const nextConfig = {
   },
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:8000/api/auth"
+    const gatewayBaseUrl = process.env.GATEWAY_BASE_URL ?? "http://127.0.0.1:8000"
     const inferenceUrl = process.env.INFERENCE_URL ?? "http://127.0.0.1:8081"
     // Stream varsayılan olarak **ağ geçidi üzerinden** geçiyor: video uçlarının
     // da kimlik doğrulamasının arkasında olması gerekiyor ve ağ geçidi bunun
@@ -54,10 +55,21 @@ const nextConfig = {
           source: '/api/vision/:path*',
           destination: `${visionUrl}/:path*`,
         },
+        // Ağ geçidinin kendi uçları: video akışı, ses olayları, SSE rapor akışı
+        // ve AudioSet etiket tablosu. Bunlar vekil değil, ağ geçidinin kendi
+        // rotaları — kimlik doğrulama ve Keto yetki kontrolü orada yapılıyor.
+        {
+          source: '/api/videos/:path*',
+          destination: `${gatewayBaseUrl}/api/videos/:path*`,
+        },
+        {
+          source: '/api/audio/:path*',
+          destination: `${gatewayBaseUrl}/api/audio/:path*`,
+        },
         // Dış araç yönetimi (Toolbox servisi Gateway üzerinden)
         {
           source: '/api/tools/:path*',
-          destination: `${process.env.TOOLS_URL ?? (process.env.GATEWAY_BASE_URL ? process.env.GATEWAY_BASE_URL + "/api/tools" : "http://127.0.0.1:8000/api/tools")}/:path*`,
+          destination: `${process.env.TOOLS_URL ?? `${gatewayBaseUrl}/api/tools`}/:path*`,
         },
       ]
     }

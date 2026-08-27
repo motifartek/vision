@@ -60,7 +60,7 @@ impl IntoResponse for InferenceError {
         };
 
         if status == StatusCode::INTERNAL_SERVER_ERROR {
-            tracing::error!("inference hatası: {}", self);
+            tracing::error!("sonic hatası: {}", self);
         }
 
         (status, Json(json!({ "error": self.to_string() }))).into_response()

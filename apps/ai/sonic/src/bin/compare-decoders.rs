@@ -9,7 +9,7 @@
 //! - **modelin ilk-5 etiketi ve skorları** — asıl ölçüt bu; PCM birebir aynı
 //!   olmasa da (farklı resampler fazı) modelin kararı değişmemeli.
 //!
-//! Kullanım: `cargo run -p inference --bin compare-decoders -- <dosya...>`
+//! Kullanım: `cargo run -p sonic --bin compare-decoders -- <dosya...>`
 
 use std::error::Error;
 use std::path::PathBuf;
@@ -85,7 +85,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
     tracing_subscriber::fmt()
         .with_env_filter(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "inference=info".into()),
+                .unwrap_or_else(|_| "sonic=info".into()),
         )
         .init();
 
@@ -121,7 +121,7 @@ async fn main() -> Result<(), Box<dyn Error>> {
             let frames = log_mel.n_frames.min(model::ced::MAX_WINDOW_FRAMES);
             let mut feats = Vec::with_capacity(frames * N_MELS);
             log_mel.push_window(0, frames, &mut feats);
-            let probs = model::ced::run_batch(&mut loaded.session, &feats, 1, frames)?;
+            let probs = model::ced::run_batch(&mut loaded.backend, &feats, 1, frames)?;
 
             let mut ranked: Vec<usize> = (0..NUM_CLASSES).collect();
             ranked.sort_unstable_by(|&a, &b| probs[b].total_cmp(&probs[a]));

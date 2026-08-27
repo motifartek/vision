@@ -54,7 +54,23 @@ fn is_video_file(path: &Path) -> bool {
 pub fn find_by_id(root: &Path, id: &str) -> Option<PathBuf> {
     let mut best: Option<(usize, PathBuf)> = None;
 
+    // Kök ve **doğrudan altındaki dizinler** taranıyor. Eskiden yalnız kök
+    // okunuyordu; medya kökü panelin düz `public/media` dizini olduğu sürece
+    // bu yetiyordu. Kök `stream`in deposuna çevrilince dosyalar `raw/` altına
+    // indi ve çıplak kimlikle gelen her istek — gateway'in `audio-events` ucu
+    // dahil — "medya dosyası bulunamadı" almaya başladı.
+    //
+    // Tek seviye bilinçli: özyineleme, kökün altındaki her şeyi tarama
+    // maliyetine ve beklenmedik dizinlere girme riskine sokardı.
+    let mut dirs = vec![root.to_path_buf()];
     for entry in std::fs::read_dir(root).ok()?.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            dirs.push(path);
+        }
+    }
+
+    for entry in dirs.iter().filter_map(|d| std::fs::read_dir(d).ok()).flatten().flatten() {
         let path = entry.path();
         if !path.is_file() || !is_video_file(&path) {
             continue;

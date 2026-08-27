@@ -3,9 +3,10 @@ use std::sync::{Arc, Mutex};
 use std::time::Instant;
 
 use axum::{extract::State, routing::{get, post}, Json, Router};
-use ort::session::Session;
+use crate::model::ced::Backend;
 use serde::Deserialize;
 use serde_json::{json, Value};
+use tower_http::trace::TraceLayer;
 
 use crate::analysis::{self, AnalyzeParams};
 use crate::contract::Analysis;
@@ -18,10 +19,10 @@ pub struct AppState {
     pub labels: Arc<Vec<ClassLabel>>,
     pub model_name: String,
     pub weights_file: String,
-    pub providers: Vec<&'static str>,
+    pub providers: Vec<String>,
     /// `Session::run` `&mut self` istiyor; ağır iş `spawn_blocking` içinde
     /// koştuğu için std Mutex (tokio Mutex'i değil) doğru araç.
-    pub session: Arc<Mutex<Session>>,
+    pub backend: Arc<Mutex<Backend>>,
     pub mel: Arc<MelExtractor>,
     pub media_root: Option<PathBuf>,
     pub default_batch: usize,
@@ -39,6 +40,12 @@ pub fn router(state: Arc<AppState>) -> Router {
             get(crate::upload::get_video).delete(crate::upload::delete_video),
         )
         .route("/v1/upload", post(crate::upload::upload_video))
+        // İstek başına iz: metot, yol, süre, durum kodu — ve isteği işlerken
+        // düşen her log bu span'in altına iliştiriliyor. `vision`, `stream` ve
+        // `gateway` bunu zaten takıyordu; sonic'te `tower-http`'in `trace`
+        // özelliği açıktı ama katman hiç eklenmemişti, dolayısıyla servise kimin
+        // ne sorduğu ve ne cevap aldığı loglardan görülemiyordu.
+        .layer(TraceLayer::new_for_http())
         .with_state(state)
 }
 
@@ -112,7 +119,7 @@ async fn analyze(
     let decoded = analysis::decode_media(&path).await?;
     let decode_ms = decode_started.elapsed().as_millis();
 
-    let session = state.session.clone();
+    let backend = state.backend.clone();
     let mel = state.mel.clone();
     let labels = state.labels.clone();
     let model_name = state.model_name.clone();
@@ -120,13 +127,13 @@ async fn analyze(
     let providers = state.providers.clone();
 
     let result = tokio::task::spawn_blocking(move || {
-        let mut session = session.lock().map_err(|_| {
+        let mut backend = backend.lock().map_err(|_| {
             InferenceError::Model("model oturumu önceki bir çökme sonrası kullanılamaz".into())
         })?;
         analysis::analyze_decoded(
             &decoded,
             &mel,
-            &mut session,
+            &mut backend,
             &labels,
             &params,
             &model_name,
@@ -218,17 +225,17 @@ impl AppState {
     pub fn new(
         cfg: &Config,
         labels: Vec<ClassLabel>,
-        session: Session,
+        backend: Backend,
         model_name: String,
         weights_file: String,
-        providers: Vec<&'static str>,
+        providers: Vec<String>,
     ) -> Self {
         Self {
             labels: Arc::new(labels),
             model_name,
             weights_file,
             providers,
-            session: Arc::new(Mutex::new(session)),
+            backend: Arc::new(Mutex::new(backend)),
             mel: Arc::new(MelExtractor::new()),
             media_root: cfg.media_root.clone(),
             default_batch: cfg.batch_size,

@@ -135,18 +135,26 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
    * hiçbir video analiz edilemiyordu. Artık yeniden çözümleme yalnız kullanıcı
    * açıkça isteyince oluyor.
    */
-  const [threshold, setThreshold] = useState(35)
-  const [appliedThreshold, setAppliedThreshold] = useState(35)
+  // Varsayılan %50: %35 bazı kayıtlarda zayıf skorlu sınıfları da listeye
+  // sokuyordu. Kaydırıcı duruyor, isteyen aşağı çekebilir.
+  const [threshold, setThreshold] = useState(50)
+  const [appliedThreshold, setAppliedThreshold] = useState(50)
+  // Ses analizi rota kimliğiyle çalışıyor: ağ geçidi dosyayı kendisi çözüyor,
+  // yani `filename`in çözülmesini beklemeye gerek yok. Eskiden buraya
+  // `filename` geçiliyordu ve o hiç çözülemediği için ses paneli hep boştu.
   const { analysis, nameOf, severityOf, refreshing, ...analysisState } = useAudioAnalysis(
-    filename,
+    videoId,
     profile,
     appliedThreshold / 100,
   )
   const thresholdDirty = threshold !== appliedThreshold
-  // Dosya bulunamadıysa çözümlemenin ne diyeceğini beklemenin anlamı yok:
-  // hata zincirin ilk halkasında ve sebebi daha açık.
-  const source = mediaError ? "error" : analysisState.source
-  const error = mediaError ?? analysisState.error
+  // Ses paneli artık yalnız kendi çözümlemesinin durumunu gösteriyor.
+  // Eskiden `mediaError` bunu eziyordu: dosya adı çözümü ses analizinin
+  // önkoşuluydu. Ağ geçidi kimliği kendisi çözdüğü için o bağ koptu ve
+  // oynatıcı tarafındaki bir arızanın ses panelini karartması artık yanlış
+  // olurdu — ses o dosyaya bakmıyor.
+  const source = analysisState.source
+  const error = analysisState.error
 
   // Boşluk tuşu oynat/duraklat — editörlerin evrensel alışkanlığı
   useEffect(() => {

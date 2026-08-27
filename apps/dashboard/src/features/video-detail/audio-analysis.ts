@@ -95,11 +95,22 @@ export type ClassLabel = {
 export type AnalysisSource = "live" | "error" | "loading"
 
 /**
- * Gateway rotası kimlik doğrulaması istiyor ve dashboard'da henüz login akışı
- * yok; bu yüzden yerel geliştirmede doğrudan inference servisine gidiyoruz.
- * Login geldiğinde NEXT_PUBLIC_STREAM_API gateway'e çevrilir.
+ * Dosya adı çözümü için `stream`. Ses analizi buradan **geçmiyor**; yalnız
+ * oynatıcı ve klip uçları bu kökü kullanıyor.
  */
 export const API = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
+
+/**
+ * Ses analizi ağ geçidinden geçiyor.
+ *
+ * Eskiden bu istekler de `API` (yani `/api/stream`) üzerinden gidiyordu ve
+ * `stream` servisinde `/v1/audio/analyze` diye bir uç olmadığı için 404
+ * alıyorlardı. Doğrudan sonic'e bağlamak da çözüm değil: mimaride dışarıya
+ * açılan tek kapı ağ geçidi (bkz. `documents/architecture/agentic-macro-loop.md`),
+ * kimlik doğrulama ve Keto yetki kontrolü orada yapılıyor. Ağ geçidi isteği
+ * kendisi sonic'e taşıyor.
+ */
+const GATEWAY = process.env.NEXT_PUBLIC_GATEWAY_API ?? "/api"
 
 /** Servis kapalı/erişilemez durumunun tek metni. */
 const SERVICE_DOWN = "analiz servisine ulaşılamıyor"
@@ -107,7 +118,7 @@ const SERVICE_DOWN = "analiz servisine ulaşılamıyor"
 /** 527 etiket sayfa ömrü boyunca bir kez indirilir. */
 let labelCache: Promise<ClassLabel[]> | null = null
 function fetchLabels(): Promise<ClassLabel[]> {
-  labelCache ??= fetch(`${API}/v1/labels`)
+  labelCache ??= fetch(`${GATEWAY}/audio/labels`, { credentials: "include" })
     .then((r) => {
       if (!r.ok) throw new Error(SERVICE_DOWN)
       return r.json() as Promise<ClassLabel[]>
@@ -123,8 +134,15 @@ function fetchLabels(): Promise<ClassLabel[]> {
 }
 
 /**
- * `mediaPath` uzantılı gerçek dosya adı olmalı (bkz. `useMediaFile`). Henüz
- * çözülmediyse `null` geçilir: istek atılmaz, durum "loading" kalır.
+ * `videoId` rota kimliğidir — dosya adı **gerekmiyor**.
+ *
+ * Eskiden buraya `useMediaFile`'ın çözdüğü dosya adı geçiliyordu. O çözüm
+ * `stream`e `/v1/videos/:id` atıp cevaptaki `filename` alanını okuyordu; ama
+ * `stream` `{"video":{"object_key":…}}` döndürüyor, `filename` diye bir alan
+ * yok. Değer `undefined` kalıyor, aşağıdaki `if (!videoId) return` erken
+ * dönüyor ve panel sonsuza dek "analiz ediliyor"da kalıyordu — istek hiç
+ * atılmadığı için hata bile görünmüyordu. Ağ geçidi kimliği kendisi çözdüğü
+ * için o adım tamamen kalktı.
  *
  * `threshold` **sunucuya gider**. Eskiden istek sabit %35 ile atılıyordu:
  * kaydırıcı yalnız şeridin çizimini süzüyor, olaylar/özet/güvenlik bulguları
@@ -132,9 +150,9 @@ function fetchLabels(): Promise<ClassLabel[]> {
  * (debounce) versin, yoksa kaydırıcının her adımı yeni bir çözümleme başlatır.
  */
 export function useAudioAnalysis(
-  mediaPath: string | null,
+  videoId: string | null,
   profile = "dengeli",
-  threshold = 0.35,
+  threshold = 0.5,
 ) {
   // Başlangıçta örnek veriyle doldurmuyoruz: örnek başka bir videonun analizi
   // ve onu istenen videonun zaman çizelgesine çizmek olayları yanlış yerde
@@ -149,7 +167,7 @@ export function useAudioAnalysis(
 
   useEffect(() => {
     let cancelled = false
-    const key = mediaPath === null ? null : `${mediaPath}|${profile}`
+    const key = videoId === null ? null : `${videoId}|${profile}`
     // Yalnız eşik değiştiyse eldeki analizi ekranda tutuyoruz: her kaydırma
     // adımında çizelgeyi iskelete döndürmek, tutarlılık için ödenecek bedelden
     // çok daha rahatsız edici.
@@ -162,23 +180,26 @@ export function useAudioAnalysis(
       setSource("loading")
       setError(null)
     }
-    // Dosya adı henüz çözülmedi ya da çözülemedi; sebebi çağıran gösteriyor.
-    if (!mediaPath) return
+    // Rota kimliği yoksa istenecek bir şey de yok.
+    if (!videoId) return
+    // Daraltma iç fonksiyona taşınmıyor; kimliği burada sabitliyoruz.
+    const id = videoId
 
     async function run() {
       try {
+        // Ağ geçidi ucu GET; parametreler sorgu dizesinde gidiyor ve oturum
+        // çerezi taşınmak zorunda, yoksa Kratos kapısından dönülür.
+        const query = new URLSearchParams({
+          profile,
+          threshold: String(threshold),
+          // Canlı okuma paneli pencere başına ilk-K sınıfı kullanıyor.
+          include_frames: "true",
+          top_k: "6",
+        })
+
         const [data, labelList] = await Promise.all([
-          fetch(`${API}/v1/audio/analyze`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              path: mediaPath,
-              profile,
-              threshold,
-              // Canlı okuma paneli pencere başına ilk-K sınıfı kullanıyor.
-              include_frames: true,
-              top_k: 6,
-            }),
+          fetch(`${GATEWAY}/videos/${encodeURIComponent(id)}/audio-events?${query}`, {
+            credentials: "include",
           }).then(async (r) => {
             if (!r.ok) {
               // Servis 4xx'te `{"error": "..."}` döndürüyor ("Dosyada ses akışı
@@ -231,7 +252,7 @@ export function useAudioAnalysis(
     return () => {
       cancelled = true
     }
-  }, [mediaPath, profile, threshold])
+  }, [videoId, profile, threshold])
 
   /** Sınıf indeksi → Türkçe ad. Etiketler gelmediyse olaylardan türetilir. */
   const nameOf = useMemo(() => {

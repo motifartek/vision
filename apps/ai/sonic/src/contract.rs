@@ -34,7 +34,7 @@ pub struct MediaInfo {
 pub struct ModelInfo {
     pub name: String,
     pub weights: String,
-    pub providers: Vec<&'static str>,
+    pub providers: Vec<String>,
     pub classes: usize,
     pub profile: &'static str,
     pub window_sec: f32,
