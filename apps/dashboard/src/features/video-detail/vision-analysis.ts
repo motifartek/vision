@@ -224,15 +224,12 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
     setRunning(true)
     setError(null)
     try {
-      const o = await iste<Outcome>(`${VISION}/v1/analyze`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ video_id: videoId }),
+      await iste(`${STREAM}/v1/videos/${videoId}/analyze`, {
+        method: "POST"
       })
-      setOutcome(o)
+      // Sonuç SSE üzerinden 'report' eventi ile gelecek, o yüzden setRunning(false) yapmıyoruz.
     } catch (e) {
       setError((e as Error).message)
-    } finally {
       setRunning(false)
     }
   }, [videoId])
@@ -249,9 +246,6 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
         })
         setPayload(p)
 
-        // İstem ayrı serviste: metnin tek kaynağı ajanın kendi render'ı.
-        // Klip bilgisini buradan taşıyoruz ki önizleme yan etkisiz kalsın —
-        // `vision` klip üretmiyor, üretileni anlatıyor.
         const yakinlastirma = p.clip.t0_ms > 0 || p.clip.time_scale > 1.01
         const pr = await iste<PromptPreview>(`${VISION}/v1/prompts/preview`, {
           method: "POST",
@@ -279,7 +273,7 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
     [videoId, durationMs],
   )
 
-  return { outcome, payload, prompt, running, error, analyze, loadPayload }
+  return { outcome, payload, prompt, running, error, analyze, loadPayload, setOutcome, setRunning }
 }
 
 /** Blob adresini panelin proxy'si üzerinden çözer. */

@@ -1,6 +1,5 @@
 use axum::{
     extract::{Path, State},
-    http::StatusCode,
     response::IntoResponse,
     routing::{delete, get, post, put},
     Json, Router,
@@ -15,12 +14,11 @@ use tracing::{error, info, warn};
 #[derive(Clone)]
 struct AppState {
     pool: PgPool,
+    nats: async_nats::Client,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
 struct ExternalTool {
-    #[serde(default)]
-    id: i32,
     name: String,
     title: String,
     description: String,
@@ -32,7 +30,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Toolbox servisi baslatiliyor...");
 
     let db_url = std::env::var("DATABASE_URL")
-        .unwrap_or_else(|_| "postgres://motif:motif@127.0.0.1:5433/motif".into());
+        .unwrap_or_else(|_| "postgres://motif:motif@127.0.0.1:5432/motif".to_string());
+    
     let pool = PgPoolOptions::new()
         .max_connections(5)
         .connect(&db_url)
@@ -45,8 +44,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // NATS Worker arka planda
     let pool_clone = pool.clone();
+    let nats_clone = nats_client.clone();
     tokio::spawn(async move {
-        let mut subscriber = nats_client.subscribe(subjects::TOOL_EXECUTE).await.unwrap();
+        let mut subscriber = nats_clone.subscribe(subjects::TOOL_EXECUTE).await.unwrap();
         info!("Toolbox worker hazir. {} dinleniyor...", subjects::TOOL_EXECUTE);
 
         while let Some(message) = subscriber.next().await {
@@ -54,22 +54,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 info!("Yeni arac calistirma istegi alindi: {:?}", req.tool_name);
                 tokio::time::sleep(Duration::from_millis(1500)).await;
 
-                let title = match sqlx::query("SELECT title FROM external_tools WHERE name = $1")
-                    .bind(&req.tool_name)
-                    .fetch_optional(&pool_clone)
-                    .await
-                {
-                    Ok(Some(row)) => row.try_get::<String, _>("title").unwrap_or_else(|_| req.tool_name.clone()),
-                    _ => req.tool_name.clone(),
-                };
-
-                info!("Mock fonksiyon calisti: {}", title);
-
+                // Tool uyarisi tetikle
                 let payload = serde_json::json!({
                     "video_id": req.video_id,
-                    "tool_name": req.tool_name,
-                    "title": title,
-                    "message": format!("🚨 Dış Sistem Uyarıldı: {}", title),
+                    "tool": req.tool_name,
+                    "title": req.tool_name, 
+                    "message": "Arac calistirildi",
                     "payload": req.payload
                 }).to_string();
 
@@ -85,18 +75,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         }
     });
 
-    // REST API Onde
-    let state = AppState { pool };
+    let state = AppState { pool, nats: nats_client.clone() };
     let app = Router::new()
         .route("/v1/tools", get(list_tools).post(create_tool))
         .route("/v1/tools/{name}", put(update_tool).delete(delete_tool))
+        .route("/v1/tools/execute", post(execute_tool))
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let bind = std::env::var("TOOLBOX_BIND").unwrap_or_else(|_| "0.0.0.0:8115".into());
-    let listener = tokio::net::TcpListener::bind(&bind).await?;
+    let bind = "0.0.0.0:8115";
+    let listener = tokio::net::TcpListener::bind(bind).await?;
     info!("Toolbox API {} uzerinde dinliyor", bind);
-
     axum::serve(listener, app).await?;
 
     motif_observer::shutdown();
@@ -107,18 +96,20 @@ async fn list_tools(State(state): State<AppState>) -> impl IntoResponse {
     let rows = sqlx::query("SELECT id, name, title, description FROM external_tools ORDER BY id ASC")
         .fetch_all(&state.pool)
         .await;
-
+    
     match rows {
-        Ok(rows) => {
-            let tools: Vec<ExternalTool> = rows.into_iter().map(|row| ExternalTool {
-                id: row.get("id"),
-                name: row.get("name"),
-                title: row.get("title"),
-                description: row.get("description"),
+        Ok(r) => {
+            let tools: Vec<serde_json::Value> = r.into_iter().map(|row| {
+                serde_json::json!({
+                    "id": row.get::<i32, _>("id"),
+                    "name": row.get::<String, _>("name"),
+                    "title": row.get::<String, _>("title"),
+                    "description": row.get::<String, _>("description")
+                })
             }).collect();
-            (StatusCode::OK, Json(serde_json::json!({ "tools": tools }))).into_response()
+            axum::Json(serde_json::json!({ "tools": tools })).into_response()
         }
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        Err(_) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, "Veritabani hatasi").into_response()
     }
 }
 
@@ -131,8 +122,8 @@ async fn create_tool(State(state): State<AppState>, Json(tool): Json<ExternalToo
         .await;
     
     match res {
-        Ok(_) => StatusCode::CREATED.into_response(),
-        Err(e) => (StatusCode::BAD_REQUEST, e.to_string()).into_response()
+        Ok(_) => (axum::http::StatusCode::CREATED, "Olusturuldu").into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
     }
 }
 
@@ -145,9 +136,9 @@ async fn update_tool(State(state): State<AppState>, Path(name): Path<String>, Js
         .await;
     
     match res {
-        Ok(done) if done.rows_affected() > 0 => StatusCode::OK.into_response(),
-        Ok(_) => StatusCode::NOT_FOUND.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        Ok(done) if done.rows_affected() > 0 => (axum::http::StatusCode::OK, "Guncellendi").into_response(),
+        Ok(_) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
     }
 }
 
@@ -158,8 +149,14 @@ async fn delete_tool(State(state): State<AppState>, Path(name): Path<String>) ->
         .await;
     
     match res {
-        Ok(done) if done.rows_affected() > 0 => StatusCode::NO_CONTENT.into_response(),
-        Ok(_) => StatusCode::NOT_FOUND.into_response(),
-        Err(e) => (StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
+        Ok(done) if done.rows_affected() > 0 => axum::http::StatusCode::NO_CONTENT.into_response(),
+        Ok(_) => axum::http::StatusCode::NOT_FOUND.into_response(),
+        Err(e) => (axum::http::StatusCode::INTERNAL_SERVER_ERROR, e.to_string()).into_response()
     }
+}
+
+async fn execute_tool(State(state): State<AppState>, Json(req): Json<ToolExecuteRequest>) -> impl IntoResponse {
+    let payload = serde_json::to_vec(&req).unwrap();
+    let _ = state.nats.publish(subjects::TOOL_EXECUTE, payload.into()).await;
+    (axum::http::StatusCode::ACCEPTED, "Tetiklendi").into_response()
 }

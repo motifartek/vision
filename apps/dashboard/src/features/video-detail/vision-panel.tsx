@@ -21,6 +21,7 @@ import {
  * bölüm ise **modele tam olarak ne gittiğini** açıyor.
  */
 export function VisionPanel({
+  videoId,
   outcome,
   payload,
   prompt,
@@ -31,6 +32,7 @@ export function VisionPanel({
   onSeek,
   ready,
 }: {
+  videoId: string
   outcome: Outcome | null
   payload: Payload | null
   prompt: PromptPreview | null
@@ -39,7 +41,6 @@ export function VisionPanel({
   onAnalyze: () => void
   onLoadPayload: () => void
   onSeek: (seconds: number) => void
-  /** Video görüntü servisinde bulunamadıysa analiz düğmesi anlamsız. */
   ready: boolean
 }) {
   return (
@@ -54,9 +55,15 @@ export function VisionPanel({
           )}
         </div>
 
-        <Button size="sm" onClick={onAnalyze} disabled={!ready || running}>
+        <Button
+          size="sm"
+          variant="outline"
+          className="w-full"
+          disabled={running || !ready}
+          onClick={onAnalyze}
+        >
           {running ? (
-            <Loader2 data-icon="inline-start" className="animate-spin" />
+            <Loader2 className="animate-spin" data-icon="inline-start" />
           ) : (
             <Sparkles data-icon="inline-start" />
           )}
@@ -64,14 +71,14 @@ export function VisionPanel({
         </Button>
 
         {!ready && (
-          <p className="text-[11px] leading-snug text-muted-foreground">
-            Bu video görüntü servisine yüklenmemiş. Yeniden yükleyin.
+          <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive">
+            Görüntü servisi videoyu henüz hazır etmedi, analiz başlatılamaz.
           </p>
         )}
-        {error && <p className="text-[11px] leading-snug text-destructive">{error}</p>}
+        {error && <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive">{error}</p>}
       </div>
 
-      {outcome && <Report outcome={outcome} onSeek={onSeek} />}
+      {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} />}
 
       <PayloadSection payload={payload} prompt={prompt} onLoad={onLoadPayload} ready={ready} />
     </div>
@@ -84,7 +91,59 @@ const RISK_RENK: Record<string, string> = {
   Düşük: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
 }
 
-function Report({ outcome, onSeek }: { outcome: Outcome; onSeek: (s: number) => void }) {
+function ActionCard({ videoId, action }: { videoId: string, action: string }) {
+  const [status, setStatus] = useState<"idle" | "running" | "success" | "error">("idle")
+
+  const handleExecute = async () => {
+    setStatus("running")
+    try {
+      const r = await fetch("/api/tools/execute", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          video_id: videoId,
+          tool_name: action,
+          payload: {}
+        })
+      })
+      if (!r.ok) throw new Error("Hata")
+      setStatus("success")
+    } catch (e) {
+      setStatus("error")
+      setTimeout(() => setStatus("idle"), 2000)
+    }
+  }
+
+  return (
+    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
+      <div className="flex min-w-0 items-center gap-2">
+        <span className="mt-[2px] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
+        <span className="truncate text-xs font-medium">{action}</span>
+      </div>
+      <div className="flex shrink-0 gap-1.5">
+        <Button 
+          size="sm" 
+          variant={status === "success" ? "secondary" : "default"} 
+          disabled={status !== "idle"}
+          onClick={handleExecute}
+          className="h-6 text-[10px]"
+        >
+          {status === "idle" && "Onayla ve Çalıştır"}
+          {status === "running" && "Çalıştırılıyor..."}
+          {status === "success" && "Çalıştırıldı"}
+          {status === "error" && "Hata!"}
+        </Button>
+        {status === "idle" && (
+           <Button size="sm" variant="ghost" className="h-6 text-[10px] text-muted-foreground hover:text-destructive">
+             Reddet
+           </Button>
+        )}
+      </div>
+    </div>
+  )
+}
+
+function Report({ videoId, outcome, onSeek }: { videoId: string; outcome: Outcome; onSeek: (s: number) => void }) {
   const { report, steps } = outcome
 
   return (
@@ -135,15 +194,12 @@ function Report({ outcome, onSeek }: { outcome: Outcome; onSeek: (s: number) => 
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 rounded-xl border bg-card px-4 py-3">
-        <span className="text-xs font-medium">Aksiyon önerileri</span>
-        <ul className="flex flex-col gap-1.5">
+        <span className="text-xs font-medium">Aksiyon Önerileri</span>
+        <div className="flex flex-col gap-2">
           {report.actions.map((a, i) => (
-            <li key={i} className="flex gap-2 text-[12px] leading-snug">
-              <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-foreground/50" />
-              {a}
-            </li>
+            <ActionCard key={i} videoId={videoId} action={a} />
           ))}
-        </ul>
+        </div>
       </div>
 
       <Steps steps={steps} />

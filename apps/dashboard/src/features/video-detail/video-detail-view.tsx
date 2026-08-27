@@ -83,6 +83,16 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
     // streamId henüz null olabilir, videoId ile bağlanıyoruz (çünkü gateway doğrudan o string üzerinden yönlendiriyor)
     const sse = new EventSource(`http://localhost:8000/api/videos/${videoId}/events`)
     
+    sse.addEventListener("report", (event) => {
+      try {
+        const data = JSON.parse(event.data)
+        vision.setOutcome({ report: data, steps: [] })
+        vision.setRunning(false)
+      } catch (e) {
+        console.error("Report parse hatası", e)
+      }
+    })
+
     sse.addEventListener("alert", (event) => {
       try {
         const data = JSON.parse(event.data)
@@ -99,7 +109,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           setToolAlerts(prev => prev.filter(a => a.id !== newAlert.id))
         }, 5000)
       } catch(e) {
-        console.error("Alert parse error:", e)
+        console.error("SSE parse hatasi:", e)
       }
     })
 
@@ -253,6 +263,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
 
           <TabsContent value="gorsel" className="flex min-h-0 flex-1 flex-col">
             <VisionPanel
+              videoId={videoId}
               outcome={vision.outcome}
               payload={vision.payload}
               prompt={vision.prompt}

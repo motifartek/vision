@@ -104,6 +104,7 @@ pub fn router(state: Arc<AppState>) -> Router {
         .route("/v1/videos/{id}/profile", get(get_profile))
         .route("/v1/videos/{id}/profile.svg", get(get_profile_svg))
         .route("/v1/videos/{id}/overview", post(post_overview))
+        .route("/v1/videos/{id}/analyze", post(request_analysis))
         .route("/v1/videos/{id}/raw", get(get_raw_video))
         .route("/v1/videos/{id}/heatmap", get(get_heatmap))
         .route("/v1/videos/{id}/payload", post(post_payload))
@@ -298,6 +299,30 @@ async fn post_overview(
     state.reset_zooms(&id).await;
     let frames = pipeline::overview(&state, &id, budget).await?;
     Ok(Json(json!({ "frames": frames })))
+}
+
+async fn request_analysis(
+    State(state): State<Arc<AppState>>,
+    Path(id): Path<String>,
+) -> ApiResult<StatusCode> {
+    let id = VideoId::from(id);
+    let record = catalog::VideoRecord::load(state.store.as_ref(), &id)
+        .map_err(|_| ApiError::new(StatusCode::NOT_FOUND, "Video bulunamadi"))?;
+
+    state.events.video_ingested(&motif_event_sdk::VideoIngested {
+        schema_version: 1,
+        video_id: record.id.clone(),
+        object_key: record.object_key.clone(),
+        duration_ms: record.info.duration_ms,
+        fps: record.info.fps,
+        width: record.info.width,
+        height: record.info.height,
+        size_bytes: record.info.size_bytes,
+        codec: record.info.codec.clone(),
+        ingested_at: record.uploaded_at,
+    }).await;
+
+    Ok(StatusCode::ACCEPTED)
 }
 
 /// Ham videoyu sunar.
