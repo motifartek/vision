@@ -2701,8 +2701,12 @@ dependencies = [
  "motif-core",
  "motif-event-sdk",
  "motif-optics",
+ "motif-prompt",
+ "reqwest 0.12.28",
  "serde",
  "serde_json",
+ "tokio",
+ "vision",
 ]
 
 [[package]]
@@ -4034,6 +4038,7 @@ dependencies = [
  "hyper-util",
  "js-sys",
  "log",
+ "mime_guess",
  "percent-encoding",
  "pin-project-lite",
  "quinn",

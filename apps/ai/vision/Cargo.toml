@@ -6,6 +6,14 @@ license.workspace = true
 repository.workspace = true
 description = "Video analiz ajanı: klip ister, VLM'e sorar, şartname raporunu üretir"
 
+[lib]
+name = "vision"
+path = "src/lib.rs"
+
+[[bin]]
+name = "vision"
+path = "src/main.rs"
+
 [dependencies]
 motif-core.workspace = true
 motif-event-sdk.workspace = true

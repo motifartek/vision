@@ -14,19 +14,15 @@
 //!      -d '{"video_id":"..."}'
 //! ```
 
-mod agent;
-mod api;
-mod stream_client;
-mod vlm;
-
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
 
-use crate::agent::VisionAgent;
-use crate::stream_client::StreamClient;
-use crate::vlm::EvrenProvider;
 use motif_prompt::PromptRegistry;
+use vision::agent::VisionAgent;
+use vision::api;
+use vision::stream_client::StreamClient;
+use vision::vlm::EvrenProvider;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -44,7 +40,7 @@ async fn main() -> Result<()> {
 
     // Katalog açılışta yükleniyor: bozuk bir prompt açılışta patlamalı,
     // analiz sırasında değil.
-    let prompts = Arc::new(PromptRegistry::embedded().context("prompt kataloğu")?);
+    let prompts = Arc::new(PromptRegistry::from_env_or_embedded().context("prompt kataloğu")?);
     tracing::info!("prompt kataloğu yüklendi");
 
     let agent = Arc::new(VisionAgent::new(

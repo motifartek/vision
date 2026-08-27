@@ -24,6 +24,7 @@
 //!   düşüremez.
 
 use std::collections::BTreeMap;
+use std::path::Path;
 
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
@@ -51,6 +52,14 @@ pub enum PromptError {
         fragment: String,
         placeholder: String,
     },
+    #[error("katalog dizini okunamadı ({path}): {source}")]
+    Io {
+        path: String,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("{path} dizininde katalog bulunamadı")]
+    EmptyDir { path: String },
 }
 
 /// Hangi prompt isteniyor.
@@ -166,6 +175,94 @@ impl PromptRegistry {
         let registry = Self { catalogs };
         registry.dogrula()?;
         Ok(registry)
+    }
+
+    /// Katalogları bir dizinden yükler.
+    ///
+    /// Varyant karşılaştırması için: `bench prompts` her varyantı ayrı bir
+    /// dizinden okuyup aynı golden dataset üzerinde koşuyor. Ayrıca prompt
+    /// ayarı sırasında yeniden derlemeden denemeye yarıyor —
+    /// `MOTIF_PROMPT_DIR` ayarlıysa servis de buradan okur.
+    pub fn from_dir(dizin: &Path) -> Result<Self, PromptError> {
+        let mut catalogs = BTreeMap::new();
+
+        let girdiler = std::fs::read_dir(dizin).map_err(|source| PromptError::Io {
+            path: dizin.display().to_string(),
+            source,
+        })?;
+
+        for girdi in girdiler.flatten() {
+            let yol = girdi.path();
+            if yol.extension().and_then(|e| e.to_str()) != Some("toml") {
+                continue;
+            }
+            let ham = std::fs::read_to_string(&yol).map_err(|source| PromptError::Io {
+                path: yol.display().to_string(),
+                source,
+            })?;
+            let katalog: Catalog = toml::from_str(&ham).map_err(|source| PromptError::Parse {
+                agent: yol.display().to_string(),
+                source,
+            })?;
+            catalogs.insert(katalog.meta.agent.clone(), katalog);
+        }
+
+        if catalogs.is_empty() {
+            return Err(PromptError::EmptyDir {
+                path: dizin.display().to_string(),
+            });
+        }
+
+        let registry = Self { catalogs };
+        registry.dogrula()?;
+        Ok(registry)
+    }
+
+    /// `MOTIF_PROMPT_DIR` ayarlıysa diskten, değilse gömülüden yükler.
+    ///
+    /// Servisler bunu çağırıyor: normalde gömülü katalog (doğruluk kaynağı
+    /// depo), ayar turlarında disk.
+    pub fn from_env_or_embedded() -> Result<Self, PromptError> {
+        match std::env::var_os("MOTIF_PROMPT_DIR") {
+            Some(dizin) => {
+                tracing::info!(dizin = ?dizin, "prompt kataloğu diskten okunuyor");
+                Self::from_dir(Path::new(&dizin))
+            }
+            None => Self::embedded(),
+        }
+    }
+
+    /// Katalogları TOML olarak dışa aktarır.
+    ///
+    /// Şartname *"tekrar üretilebilir olmalıdır"* diyor: bir ölçüm sonucunun
+    /// hangi metinle çıktığı belli olmalı. Dışa aktarılan dosya commit'lenip
+    /// teslime eklenebilir.
+    pub fn export(&self) -> String {
+        let mut cikti = String::from(
+            concat!(
+                "# Bu dosya `bench prompts --export` ile üretildi.
+",
+                "# Ölçüm sonuçlarının hangi metinle çıktığını sabitler.
+
+",
+            ),
+        );
+        for (agent, katalog) in &self.catalogs {
+            cikti.push_str(&format!("# --- {agent} (v{}) ---
+", katalog.meta.version));
+            for (ad, parca) in &katalog.fragment {
+                cikti.push_str(&format!(
+                    "
+[{agent}.{ad}]
+editable = {}
+text = \"\"\"
+{}\"\"\"
+",
+                    parca.editable, parca.text
+                ));
+            }
+        }
+        cikti
     }
 
     /// Her parçanın yer tutucularının tanınır olduğunu açılışta doğrular.
@@ -285,6 +382,45 @@ fn ozet(metin: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn dizinden_yukleme_ve_disa_aktarim() {
+        // Varyant karşılaştırması buna dayanıyor: dışa aktarılan katalog
+        // geri yüklenebilmeli, yoksa ölçüm tekrar üretilemez.
+        let dir = std::env::temp_dir().join("motif-prompt-export");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+
+        // Gömülü şablonu diske yazıp oradan yükle.
+        std::fs::write(dir.join("vision.toml"), VISION_TEMPLATE).unwrap();
+        let diskten = PromptRegistry::from_dir(&dir).expect("diskten yüklenmeli");
+
+        let gomulu = PromptRegistry::embedded().unwrap();
+        let ctx = PromptContext::new(35_000);
+        assert_eq!(
+            diskten.render(PromptKind::VisionIlkBakis, &ctx).prefix,
+            gomulu.render(PromptKind::VisionIlkBakis, &ctx).prefix,
+        );
+
+        // Dışa aktarım metni parçaları içermeli.
+        let disa = gomulu.export();
+        assert!(disa.contains("vision.rol"));
+        assert!(disa.contains("vision.sozlesme"));
+
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn bos_dizin_hata_verir() {
+        let dir = std::env::temp_dir().join("motif-prompt-bos");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        assert!(matches!(
+            PromptRegistry::from_dir(&dir),
+            Err(PromptError::EmptyDir { .. })
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn gomulu_katalog_yuklenir() {
