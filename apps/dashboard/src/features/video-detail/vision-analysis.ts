@@ -261,7 +261,8 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
         try {
           const tRes = await fetch("/api/tools")
           if (tRes.ok) {
-            const toolsList = await tRes.json() as {name: string, title: string, description: string}[]
+            const body = await tRes.json() as {tools: {name: string, title: string, description: string}[]}
+            const toolsList = body.tools
             if (toolsList && toolsList.length > 0) {
               toolsText = toolsList.map(t => `- ${t.name} (${t.title}): ${t.description}`).join("\n")
             }

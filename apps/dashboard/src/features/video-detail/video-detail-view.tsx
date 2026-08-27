@@ -266,7 +266,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             <TabsTrigger value="veri">Veri</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="gorsel" className="flex min-h-0 flex-1 flex-col">
+          <TabsContent value="gorsel" keepMounted className="flex min-h-0 flex-1 flex-col data-[hidden]:hidden">
             <VisionPanel
               videoId={videoId}
               outcome={vision.outcome}
@@ -282,7 +282,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             />
           </TabsContent>
 
-          <TabsContent value="veri" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <TabsContent value="veri" keepMounted className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto data-[hidden]:hidden">
             <PayloadSection 
               payload={vision.payload} 
               prompt={vision.prompt} 
@@ -292,7 +292,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             <RawResponseSection outcome={vision.outcome} />
           </TabsContent>
 
-          <TabsContent value="ses" className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
+          <TabsContent value="ses" keepMounted className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto data-[hidden]:hidden">
           <NowPlayingPanel
             analysis={analysis}
             source={source}
