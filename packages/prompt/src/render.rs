@@ -8,7 +8,7 @@ use motif_event_sdk::format_timestamp;
 use crate::{PromptContext, PromptError, PromptKind};
 
 /// Tanınan yer tutucular. Bu listenin dışındaki her `{...}` hatadır.
-const YER_TUTUCULAR: &[&str] = &["sure", "t0", "t1", "olcek"];
+const YER_TUTUCULAR: &[&str] = &["sure", "t0", "t1", "olcek", "isitsel", "onceki"];
 
 /// Bir metindeki yer tutucuların tanınır olduğunu doğrular.
 ///
@@ -70,6 +70,24 @@ pub(crate) fn doldur(
 
     if cikti.contains("{sure}") {
         cikti = cikti.replace("{sure}", &format_timestamp(ctx.duration_ms));
+    }
+    // Güvenilmez metin ayraçlı bölgeye sarılarak giriyor. Kaçırma
+    // `UntrustedText::new` içinde yapıldı; burada yalnız yerleştiriliyor.
+    if cikti.contains("{isitsel}") {
+        let bolge = ctx
+            .audio
+            .as_ref()
+            .map(|a| a.bolgeye_sar())
+            .unwrap_or_default();
+        cikti = cikti.replace("{isitsel}", &bolge);
+    }
+    if cikti.contains("{onceki}") {
+        let bolge = ctx
+            .prior
+            .as_ref()
+            .map(|p| p.bolgeye_sar())
+            .unwrap_or_default();
+        cikti = cikti.replace("{onceki}", &bolge);
     }
     if let Some(clip) = ctx.clip.as_ref() {
         cikti = cikti

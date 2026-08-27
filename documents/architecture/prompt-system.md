@@ -471,10 +471,22 @@ değil, orchestrator takip sorusu sormaya başladığında hazır olmak.
 `bench prompts` + `--export`.
 *Kabul:* iki varyant karşılaştırılabiliyor, export dosyası commit'lenebiliyor.
 
-**Faz 5 — Güvenilmez bölge** *(2 saat)*
+**Faz 5 — Güvenilmez bölge** *(bitti)*
 `UntrustedText`, ayraç kaçırma, işitsel bağlam bu bölgeden geçer.
-*Kabul:* ayraç taklidi içeren metin bölümü kapatamıyor (test).
-**Orchestrator bağlam enjeksiyonuna başlamadan önce bitmeli.**
+*Kabul:* karşılandı — ayraç taklidi bölgeyi kapatamıyor, dört ayrı taklit
+biçimi testle sınanıyor.
+
+Uygulamada iki şey tasarımdan farklı çıktı. Ayraç dizisini aramak yetmiyor:
+başına işaret koymak alt dizeyi ortadan kaldırmıyor, o yüzden satır başındaki
+tireler ayrılıyor (`--- x ---` → `[?] - - - x - - -`). Ayrıca uzunluk sınırı
+eklendi: enjekte edilen büyük bir blok asıl talimatı bağlamın dışına itebilir.
+
+Bölge **yalnız son ekte** duruyor ve bir test bunu koruyor; ön eke girmesi
+hem model kaynaklı metni sabit talimatların arasına karıştırır hem önbelleği
+ıskalatırdı.
+
+Ses bağlamı yokken üretilen metin **bayt bayt aynı** kaldı: içerik özeti
+`78114813a383775d` değişmedi, yalnız katalog sürümü 2'den 3'e çıktı.
 
 **Faz 6 — Override katmanı** *(yarım gün)*
 `PromptStore` trait + SurrealDB uygulaması, HTTP uçları, doğrulama.
