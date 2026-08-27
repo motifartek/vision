@@ -309,7 +309,69 @@ sentetik kümede toplam yakınlaştırma sayısı düşerken recall düşmüyor.
 
 ---
 
-### Faz 3 — Profili ilk pencere seçimine sok *(1 gün)* ★ tartışmalı olan
+### Faz 3 — Profili ilk pencere seçimine sok *(ölçüldü, geri alındı)*
+
+*Kabul karşılanmadı.* Ölçüm:
+`documents/measurements/stream-faz3-hareket-ipucu.md`
+
+Uygulanan varyant: uzun kayıtlarda (≥60 sn) hareket profilinin en yoğun
+anları son eke **ipucu** olarak ekleniyor; karar modelde kalıyor (§K3).
+Varyantı katalog sürüyor — `hareket_ipucu` parçası gömülü katalogda yok,
+dolayısıyla taban koşu profil maliyetini hiç ödemiyor.
+
+| varyant | olay | yayılım | süre |
+|---|---|---|---|
+| `gomulu` | 0,7/6 | 0–1 | 56,8 sn |
+| `hareket` | 0,7/6 | 0–2 | **85,7 sn** |
+
+**Fark +0,0 olay** — gürültü bandının (2) içinde, anlamlı değil. Bedeli ise
+kesin: profil hesabı çözümlemeyi **%51 yavaşlatıyor**.
+
+#### İpucu doğruydu; sorun orada değildi
+
+Bu fazın en değerli çıktısı bu. İpucunun gösterdiği anlar ground truth ile
+karşılaştırıldı:
+
+| video | gerçek olaylar | ipucunun verdiği |
+|---|---|---|
+| `uzun-tek-olay` | 01:10, 01:11 | 00:16, 00:33, 00:49, **01:10**, 01:59 |
+| `uzun-iki-olay` | 00:25, 00:26, 01:26, 01:27 | 00:16, **00:25**, 00:33, 00:49, **01:26** |
+
+Hareket profili **her iki olayı da buldu**. Yani modele tam olarak nereye
+bakacağı söylendi — ve altı koşunun altısında da `uzun-iki-olay`'da 0/4 aldı.
+
+Sonuç: **darboğaz örnekleme ya da dikkat yönlendirme değil, semantik tanıma.**
+Model bu sahnelerde olayı "olay" olarak tanımıyor; nereye bakacağını bilmemesi
+sorun değildi. Bu, sentetik kümenin kendi dokümanının söylediğiyle örtüşüyor:
+küme örneklemeyi ölçüyor, anlamayı değil.
+
+İkincil gözlem: ipucu modeli **daha muhafazakâr** yaptı — koşu başına üretilen
+olay 6,0'dan 2,0'a düştü. Recall değişmediğine göre bu, doğru olayları da
+bastırmış olabilir.
+
+#### Neden kod geri alındı
+
+Plan §K4 bunu önceden bağlamıştı: *"Fark gürültü içindeyse değişiklik geri
+alınır."* Ayrıca denetimin kendi bulgusu, kullanılmayan makinenin yük olduğuydu;
+ölçülüp faydasız çıkan bir yolu depoda bırakmak aynı hatayı tekrarlamak olurdu.
+
+Geri alınan: `PromptContext.hareket`, `ClipSource::motion_buckets`, tepe seçimi
+ve ajan bağlantısı, varyant katalogu. Kalan: bu bulgu ve ölçüm dosyası.
+
+#### Ölçümün sınırı — dürüstlük payı
+
+Bu test **zayıf**: 2 video, 3 koşu, gürültü bandı 2. Sentetik sahnelerde model
+zaten olayı tanımadığı için, ipucunun gerçek kayıtlarda fayda sağlayıp
+sağlamayacağı bu kümeyle **ölçülemez**. Fikir çürütülmedi; bu veriyle
+doğrulanamadı.
+
+Yeniden denenecekse gereken: gerçek İSG videolarından, olayları etiketlenmiş
+bir küme (Golden Dataset, #5). Sentetik kümeyle tekrar denemenin bilgi değeri
+yok.
+
+---
+
+### Faz 3 — özgün plan *(referans)*
 
 Klip mimarisinde profilin **tek gerçek kaldıracı** bu: kare seçmek değil,
 *hangi aralığı keseceğine* girdi olmak.
