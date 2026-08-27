@@ -98,14 +98,14 @@ function RegisterForm() {
           <div className="grid grid-cols-2 gap-3">
             <div className="flex flex-col gap-1.5">
               <label htmlFor="firstName" className="text-sm font-medium">İsim</label>
-              <Input id="firstName" disabled={!flow} {...register("firstName")} />
+              <Input id="firstName" {...register("firstName")} disabled={!flow} />
               {errors.firstName && (
                 <p className="text-xs text-destructive">{errors.firstName.message}</p>
               )}
             </div>
             <div className="flex flex-col gap-1.5">
               <label htmlFor="lastName" className="text-sm font-medium">Soyisim</label>
-              <Input id="lastName" disabled={!flow} {...register("lastName")} />
+              <Input id="lastName" {...register("lastName")} disabled={!flow} />
               {errors.lastName && (
                 <p className="text-xs text-destructive">{errors.lastName.message}</p>
               )}
@@ -113,14 +113,14 @@ function RegisterForm() {
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium">E-posta</label>
-            <Input id="email" type="email" autoComplete="email" disabled={!flow} {...register("email")} />
+            <Input id="email" type="email" autoComplete="email" {...register("email")} disabled={!flow} />
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
             )}
           </div>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="password" className="text-sm font-medium">Şifre</label>
-            <Input id="password" type="password" autoComplete="new-password" disabled={!flow} {...register("password")} />
+            <Input id="password" type="password" autoComplete="new-password" {...register("password")} disabled={!flow} />
             {errors.password && (
               <p className="text-xs text-destructive">{errors.password.message}</p>
             )}

@@ -99,7 +99,7 @@ function RecoveryForm() {
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
           <div className="flex flex-col gap-1.5">
             <label htmlFor="email" className="text-sm font-medium">E-posta</label>
-            <Input id="email" type="email" autoComplete="email" disabled={!flow} {...register("email")} />
+            <Input id="email" type="email" autoComplete="email" {...register("email")} disabled={!flow} />
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
             )}

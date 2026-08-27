@@ -97,8 +97,8 @@ function LoginForm() {
               type="email"
               placeholder="ornek@motif.ai"
               autoComplete="email"
-              disabled={!flow}
               {...register("email")}
+              disabled={!flow}
             />
             {errors.email && (
               <p className="text-xs text-destructive">{errors.email.message}</p>
@@ -115,8 +115,8 @@ function LoginForm() {
               id="password"
               type="password"
               autoComplete="current-password"
-              disabled={!flow}
               {...register("password")}
+              disabled={!flow}
             />
             {errors.password && (
               <p className="text-xs text-destructive">{errors.password.message}</p>
