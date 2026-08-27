@@ -154,10 +154,28 @@ content: [
 Bugünkü `ilk_istem` bunun tersini yapıyor: süreyi ilk cümleye gömüyor, yani ön
 ek her videoda değişiyor ve önbellek hiç isabet etmiyor.
 
-> Not: bu sıralama bugün tek turluk analizde ölçülebilir kazanç vermiyor —
-> her çağrı farklı klip gönderiyor. Kazanç orchestrator aynı klip üzerinden
-> takip sorusu sormaya başladığında ortaya çıkacak. Şimdi doğru kurmak
-> bedava, sonra düzeltmek değil.
+### Ölçüldü (Faz 3)
+
+Bu not bir tahmindi; ölçüm doğruladı ve sınırını da gösterdi.
+
+**Ayrı isteklerde kazanç yok.** Aynı klip, farklı süre değeriyle üç çağrı:
+yeni sıralama (sabit ön ek → video → değişken son ek) ortalama **2,45 sn**,
+eski sıralama (değişken ön ekte) **2,49 sn**. Fark gürültü içinde.
+
+**Çok turlu konuşmada kazanç gerçek.** Aynı bağlam üzerinden art arda sorular:
+
+| Çağrı | Süre | Giriş token |
+|---|---|---|
+| 1. soru (soğuk) | 1,00 sn | 1.102 |
+| 2. soru (aynı bağlam) | **0,46 sn** | 1.165 |
+| 3. soru (aynı bağlam) | **0,56 sn** | 1.189 |
+
+Token sayısı artarken süre düşüyor — ön ek önbelleği çalışıyor, **2,2 kat**.
+
+Sonuç: sıralamanın bugünkü tek turlu analizde ölçülebilir faydası yok, çünkü
+her `analyze` yeni bir konuşma başlatıyor. Kazanç orchestrator aynı klip
+üzerinden takip sorusu sormaya başladığında ortaya çıkacak. Ayrımı şimdi
+kurmak bedava; sonra kurmak metin değişikliği demek olurdu.
 
 ## 6. Katalog biçimi
 
@@ -439,10 +457,15 @@ kullanılır.
 *Kabul:* panelde gösterilen metin ile modele giden metin **birebir aynı**;
 ölmüş `zoom_range`/`crop_region` cümleleri kalkar.
 
-**Faz 3 — Ön ek sıralaması** *(2 saat)*
+**Faz 3 — Ön ek sıralaması** *(bitti)*
 Sabit ön ek videodan önce, değişkenler sonra.
-*Kabul:* golden dataset ölçümü düşmez; aynı klip üzerinden ikinci çağrının
-süresi belirgin şekilde kısalır.
+*Kabul:* golden dataset ölçümü düşmedi — **37/39 olay, 10/10 şema**, değişiklik
+öncesiyle aynı.
+
+Hız ölçütü **kısmen** karşılandı ve gerekçesi §5'te: ayrı isteklerde kazanç
+yok (2,45 vs 2,49 sn), çok turlu konuşmada 2,2 kat. Ajan bugün çok tur
+kullanmadığı için kazanç henüz görünmüyor; ayrımın gerekçesi ölçülmüş hız
+değil, orchestrator takip sorusu sormaya başladığında hazır olmak.
 
 **Faz 4 — Ölçüm** *(3 saat)*
 `bench prompts` + `--export`.

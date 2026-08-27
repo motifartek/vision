@@ -6,45 +6,62 @@
 # Yer tutucular sınırlıdır: {sure}, {t0}, {t1}, {olcek}. Tanınmayan bir yer
 # tutucu ayrıştırma hatası verir — sessizce boş kalmaz.
 #
-# Metinler bugün modele giden hâliyle birebir aynıdır; bu faz saf
-# tekilleştirmedir, davranış değişmemelidir.
+# Parçalar ikiye ayrılır (tasarım §K8):
+#
+#   ÖN EK  — videodan ÖNCE gider, yer tutucu TAŞIMAZ, her çağrıda aynıdır
+#   SON EK — videodan SONRA gider, kayda özgü değerleri taşır
+#
+# Sebep ön ek önbelleği: EVREN ölçmüş, aynı bağlam üzerinden tekrarlı soru
+# çağrıyı 4,8 kat hızlandırıyor ama ön ekin birebir aynı kalması gerekiyor.
+# Bir yer tutucu ön eke girerse önbellek her videoda ıskalar.
 
 [meta]
 agent = "vision"
-version = 1
+version = 2
 
 # --- düzenlenebilir parçalar ---
 
+# ÖN EK. Süre buradan çıkarıldı: yer tutucu ön ekte kalırsa önbellek her
+# videoda ıskalar. Süre artık `kayit_bilgisi` ile son ekte.
 [fragment.rol]
 editable = true
-text = "Sen bir iş sağlığı ve güvenliği analistisin. Sana {sure} uzunluğunda bir güvenlik kamerası kaydı verildi.\n\nSahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç aşamalarını ayrı olaylar olarak işaretle."
+text = "Sen bir iş sağlığı ve güvenliği analistisin. Sana bir güvenlik kamerası kaydı verildi.\n\nSahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç aşamalarını ayrı olaylar olarak işaretle."
 
+# ÖN EK.
 [fragment.zaman_kurali]
 editable = true
 text = "Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma."
 
+# SON EK — kayda özgü.
+[fragment.kayit_bilgisi]
+editable = true
+text = "Bu kaydın uzunluğu {sure}."
+
+# SON EK — kayda özgü.
 [fragment.pencere_bilgisi]
 editable = true
 text = "İstediğin {t0} – {t1} aralığının klibi."
 
-# Boşlukla başlaması bilinçli: pencere bilgisinin hemen ardına, aynı paragrafa
-# ekleniyor. Yalnız time_scale > 1.01 iken kullanılır (koşul kodda, §K5).
+# SON EK. Boşlukla başlaması bilinçli: pencere bilgisinin hemen ardına,
+# aynı paragrafa ekleniyor. Yalnız time_scale > 1.01 iken (koşul kodda).
 [fragment.agir_cekim]
 editable = true
 text = " Klip {olcek} kat ağır çekimde: olaylar gerçekte burada göründüğünden {olcek} kat hızlı gelişiyor."
 
+# ÖN EK.
 [fragment.yakinlastirma_talimati]
 editable = true
 text = "Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık yakınlaştırma isteme."
 
+# ÖN EK.
 [fragment.yakinlastirma_zaman_kurali]
 editable = true
 text = "Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak kayda çevirmeye çalışma, o hesabı biz yapıyoruz."
 
 # --- düzenlenemez parça ---
 
-# Ayrıştırıcı bu şemayı bekliyor. Arayüzden değiştirilemez (§K3): şema
-# bozulursa şartnamenin puanladığı çıktının kendisi kırılır.
+# ÖN EK. Ayrıştırıcı bu şemayı bekliyor. Arayüzden değiştirilemez (§K3):
+# şema bozulursa şartnamenin puanladığı çıktının kendisi kırılır.
 [fragment.sozlesme]
 editable = false
 text = """

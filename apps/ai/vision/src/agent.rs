@@ -107,12 +107,10 @@ impl VisionAgent {
             .stream
             .full_clip(video_id, info.duration_ms, Some(MAX_DIM))
             .await?;
-        let mut prompt = self
-            .preview(
-                PromptKind::VisionIlkBakis,
-                &PromptContext::new(info.duration_ms),
-            )
-            .joined();
+        let mut prompt = self.preview(
+            PromptKind::VisionIlkBakis,
+            &PromptContext::new(info.duration_ms),
+        );
 
         for tur in 0..=MAX_ZOOM {
             let adim_basladi = std::time::Instant::now();
@@ -128,7 +126,10 @@ impl VisionAgent {
                 "klip modele gönderiliyor"
             );
 
-            let karar = self.vlm.analyze(&prompt, &baytlar).await?;
+            let karar = self
+                .vlm
+                .analyze(&prompt.prefix, &prompt.suffix, &baytlar)
+                .await?;
 
             match karar {
                 Decision::Report(ham) => {
@@ -170,12 +171,10 @@ impl VisionAgent {
                     let t1 = t1_ms.min(info.duration_ms).max(t0 + 500);
 
                     clip = self.stream.zoom_clip(video_id, t0, t1, ZOOM_BUDGET).await?;
-                    prompt = self
-                        .preview(
-                            PromptKind::VisionYakinlastirma,
-                            &PromptContext::new(info.duration_ms).with_clip(clip.clone()),
-                        )
-                        .joined();
+                    prompt = self.preview(
+                        PromptKind::VisionYakinlastirma,
+                        &PromptContext::new(info.duration_ms).with_clip(clip.clone()),
+                    );
                 }
             }
         }
@@ -258,72 +257,14 @@ fn risk_cevir(s: &str) -> RiskLevel {
 #[cfg(test)]
 mod tests {
     use super::*;
-    // --- Faz 1 referans uygulaması ---
+    // Faz 1'de burada eski prompt fonksiyonları referans olarak duruyordu ve
+    // katalog çıktısının onlarla birebir aynı olduğu sınanıyordu. Faz 3 metni
+    // **kasten** değiştirdi: süre ön ekten çıkıp son eke taşındı, çünkü ön ek
+    // önbelleği ancak ön ek her çağrıda aynı kalırsa isabet ediyor.
     //
-    // Katalogdan önceki prompt fonksiyonları. Silinmiyor, teste taşınıyor:
-    // Faz 1'in kabul ölçütü davranışın **değişmemesi**. Katalog çıktısı bu
-    // metinlerle birebir aynı olmalı; aşağıdaki iki test bunu kanıtlıyor.
-    //
-    // Faz 3'te ön ek/son ek ayrımı geldiğinde bu referans kaldırılacak ve
-    // yerini ölçülmüş karşılaştırma alacak.
-
-    /// Modelden istenen çıktı sözleşmesi.
-    ///
-    /// Şema araç tanımı yerine isteme yazılıyor: servis araç çağrısını
-    /// desteklemiyor, gerekçesi [`crate::vlm`] modülünde.
-    const SOZLESME: &str = r#"
-
-Yalnızca JSON döndür, başka hiçbir şey yazma.
-
-Emin değilsen ve bir aralığa yakından bakman gerekiyorsa:
-{"zoom": {"t0_ms": <başlangıç>, "t1_ms": <bitiş>}}
-
-Emin olduğunda raporu ver:
-{"summary": "kısa Türkçe özet",
- "events": [{"time": "MM:SS", "event": "olay açıklaması", "severity": "Düşük|Orta|Yüksek"}],
- "risk": "Düşük|Orta|Yüksek",
- "actions": ["operatörün hemen uygulayabileceği somut öneri"]}
-
-actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne dayanmalı."#;
-
-    fn ilk_istem(duration_ms: u64) -> String {
-        format!(
-            "Sen bir iş sağlığı ve güvenliği analistisin. Sana {} uzunluğunda bir \
-             güvenlik kamerası kaydı verildi.\n\n\
-             Sahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup \
-             bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç \
-             aşamalarını ayrı olaylar olarak işaretle.\n\n\
-             Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS \
-             biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma.{SOZLESME}",
-            motif_event_sdk::format_timestamp(duration_ms)
-        )
-    }
-
-    fn yakinlastirma_istemi(clip: &ClipRef) -> String {
-        let baslik = format!(
-            "İstediğin {} – {} aralığının klibi.",
-            motif_event_sdk::format_timestamp(clip.t0_ms),
-            motif_event_sdk::format_timestamp(clip.t1_ms)
-        );
-
-        let hiz = if clip.time_scale > 1.01 {
-            format!(
-                " Klip {:.0} kat ağır çekimde: olaylar gerçekte burada göründüğünden \
-                 {:.0} kat hızlı gelişiyor.",
-                clip.time_scale, clip.time_scale
-            )
-        } else {
-            String::new()
-        };
-
-        format!(
-            "{baslik}{hiz}\n\n\
-             Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık \
-             yakınlaştırma isteme.\n\n\
-             Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak \
-             kayda çevirmeye çalışma, o hesabı biz yapıyoruz.{SOZLESME}"
-        )
-    }
+    // Referans bu yüzden kaldırıldı; doğrulama artık golden dataset ölçümü.
+    // Yapısal güvenceler `packages/prompt` testlerinde: ön ek videodan
+    // bağımsız, ön ekte yer tutucu yok, kayda özgü değerler son ekte.
 
     fn katalog() -> PromptRegistry {
         PromptRegistry::embedded().expect("gömülü katalog")
@@ -344,10 +285,8 @@ actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne daya
         let _ = ajan.analyze("v1").await;
 
         let gonderilen = model.gorulen.lock().unwrap().first().cloned().unwrap();
-        let onizleme = ajan
-            .preview(PromptKind::VisionIlkBakis, &PromptContext::new(35_000))
-            .joined();
-        assert_eq!(gonderilen, onizleme);
+        let o = ajan.preview(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        assert_eq!(gonderilen, format!("{}\u{1e}{}", o.prefix, o.suffix));
     }
 
     /// Servis araç çağrısını desteklemiyor; istemde araç tanıtılmamalı.
@@ -388,45 +327,23 @@ actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne daya
 
     #[async_trait::async_trait]
     impl VlmProvider for YakalayanModel {
-        async fn analyze(&self, prompt: &str, _c: &[u8]) -> Result<Decision, VlmError> {
-            self.gorulen.lock().unwrap().push(prompt.to_string());
+        async fn analyze(
+            &self,
+            prefix: &str,
+            suffix: &str,
+            _c: &[u8],
+        ) -> Result<Decision, VlmError> {
+            // Modelin gördüğü metin: ön ek + son ek, gönderilme sırasıyla.
+            // Ayraç görünmez bir kayıt ayırıcısı, metinde geçmesi imkânsız.
+            self.gorulen
+                .lock()
+                .unwrap()
+                .push(format!("{prefix}\u{1e}{suffix}"));
             Ok(rapor("00:12"))
         }
     }
 
-    /// Genel bakış istemi katalogdan aynı çıkıyor mu?
-    #[test]
-    fn ilk_bakis_metni_degismedi() {
-        let beklenen = ilk_istem(35_132);
-        let uretilen = katalog()
-            .render(PromptKind::VisionIlkBakis, &PromptContext::new(35_132))
-            .joined();
-        assert_eq!(uretilen, beklenen);
-    }
 
-    /// Yakınlaştırma istemi, ağır çekimli ve ağır çekimsiz, aynı mı?
-    #[test]
-    fn yakinlastirma_metni_degismedi() {
-        for olcek in [1.0_f32, 8.0] {
-            let c = ClipRef {
-                t0_ms: 12_000,
-                t1_ms: 15_000,
-                object_key: "clips/x.mp4".into(),
-                duration_ms: (3_000.0 * olcek) as u64,
-                time_scale: olcek,
-                service_frames: 47,
-                effective_fps: 2.0 * olcek as f64,
-            };
-            let beklenen = yakinlastirma_istemi(&c);
-            let uretilen = katalog()
-                .render(
-                    PromptKind::VisionYakinlastirma,
-                    &PromptContext::new(35_132).with_clip(c),
-                )
-                .joined();
-            assert_eq!(uretilen, beklenen, "ölçek {olcek} için metin değişti");
-        }
-    }
 
 
     use crate::stream_client::StreamError;
@@ -502,7 +419,12 @@ actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne daya
 
     #[async_trait::async_trait]
     impl VlmProvider for SahteModel {
-        async fn analyze(&self, _p: &str, _c: &[u8]) -> Result<Decision, VlmError> {
+        async fn analyze(
+            &self,
+            _prefix: &str,
+            _suffix: &str,
+            _c: &[u8],
+        ) -> Result<Decision, VlmError> {
             let mut k = self.kararlar.lock().unwrap();
             if k.is_empty() {
                 return Err(VlmError::NoDecision("senaryo bitti".into()));

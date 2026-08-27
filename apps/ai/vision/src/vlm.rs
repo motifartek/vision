@@ -118,7 +118,17 @@ pub enum VlmError {
 #[async_trait::async_trait]
 pub trait VlmProvider: Send + Sync {
     /// Bir klibi modele verip kararını döndürür.
-    async fn analyze(&self, prompt: &str, clip: &[u8]) -> Result<Decision, VlmError>;
+    ///
+    /// Metin **ikiye ayrılmış** geliyor: `prefix` videodan önce, `suffix`
+    /// videodan sonra. Ayrım ön ek önbelleği için — servis üzerinde ölçüldü,
+    /// `[metin, video, metin]` sıralaması destekleniyor ve sabit ön ek
+    /// önbelleğe isabet ediyor.
+    async fn analyze(
+        &self,
+        prefix: &str,
+        suffix: &str,
+        clip: &[u8],
+    ) -> Result<Decision, VlmError>;
 }
 
 /// EVREN çıkarım servisi istemcisi.
@@ -159,19 +169,33 @@ impl EvrenProvider {
 
 #[async_trait::async_trait]
 impl VlmProvider for EvrenProvider {
-    async fn analyze(&self, prompt: &str, clip: &[u8]) -> Result<Decision, VlmError> {
+    async fn analyze(
+        &self,
+        prefix: &str,
+        suffix: &str,
+        clip: &[u8],
+    ) -> Result<Decision, VlmError> {
         let b64 = base64::engine::general_purpose::STANDARD.encode(clip);
+
+        // Sıra bilinçli: sabit metin → video → değişken metin.
+        //
+        // Ön ek önbelleği ancak baştaki token dizisi birebir aynı kaldığında
+        // isabet ediyor. Kayda özgü değerler videodan önce dursaydı ön ek her
+        // videoda değişir ve önbellek hiç tutmazdı.
+        let mut icerik = vec![
+            json!({"type": "text", "text": prefix}),
+            json!({
+                "type": "video_url",
+                "video_url": {"url": format!("data:video/mp4;base64,{b64}")}
+            }),
+        ];
+        if !suffix.trim().is_empty() {
+            icerik.push(json!({"type": "text", "text": suffix}));
+        }
 
         let body = json!({
             "model": self.model,
-            "messages": [{
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt},
-                    {"type": "video_url",
-                     "video_url": {"url": format!("data:video/mp4;base64,{b64}")}}
-                ]
-            }],
+            "messages": [{ "role": "user", "content": icerik }],
             // Akıl yürütme açıkken dar bütçe boş cevap üretiyor; servis
             // dokümantasyonunun ilk uyarısı bu.
             "max_tokens": 2048,

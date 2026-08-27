@@ -120,8 +120,8 @@ pub struct PromptVersion {
 /// Ayrım ön ek önbelleği için (bkz. tasarım §K8) — sabit metin önde kalırsa
 /// aynı klip üzerinden tekrarlı sorular önbelleğe isabet eder.
 ///
-/// Faz 1'de `suffix` boş; bugünkü davranış korunuyor. Parçaların son eke
-/// taşınması Faz 3.
+/// Ön ek yer tutucu taşımaz; kayda özgü her şey son ektedir. Bu ayrım
+/// olmadan önbellek her videoda ıskalıyordu.
 #[derive(Debug, Clone)]
 pub struct RenderedPrompt {
     pub prefix: String,
@@ -200,26 +200,34 @@ impl PromptRegistry {
     pub fn render(&self, kind: PromptKind, ctx: &PromptContext) -> RenderedPrompt {
         let agent = kind.agent();
 
-        // Hangi parça, hangi sırada. Koşullar burada — şablonda değil (§K5).
-        let mut on_ek: Vec<&str> = Vec::new();
-        match kind {
-            PromptKind::VisionIlkBakis => {
-                on_ek.push("rol");
-                on_ek.push("zaman_kurali");
-                on_ek.push("sozlesme");
-            }
+        // Hangi parça, hangi sırada, hangi tarafta. Koşullar burada —
+        // şablonda değil (§K5).
+        //
+        // Ön ek videodan önce gider ve **yer tutucu taşımaz**: ön ek önbelleği
+        // ancak birebir aynı kalırsa isabet ediyor. Kayda özgü her şey son eke.
+        let (on_ek, son_ek): (Vec<&str>, Vec<&str>) = match kind {
+            PromptKind::VisionIlkBakis => (
+                vec!["rol", "zaman_kurali", "sozlesme"],
+                vec!["kayit_bilgisi"],
+            ),
             PromptKind::VisionYakinlastirma => {
-                on_ek.push("pencere_bilgisi");
+                let mut son = vec!["pencere_bilgisi"];
                 if ctx.agir_cekimde() {
-                    on_ek.push("agir_cekim");
+                    son.push("agir_cekim");
                 }
-                on_ek.push("yakinlastirma_talimati");
-                on_ek.push("yakinlastirma_zaman_kurali");
-                on_ek.push("sozlesme");
+                (
+                    vec![
+                        "yakinlastirma_talimati",
+                        "yakinlastirma_zaman_kurali",
+                        "sozlesme",
+                    ],
+                    son,
+                )
             }
-        }
+        };
 
         let prefix = self.birlestir(agent, &on_ek, ctx, kind);
+        let suffix = self.birlestir(agent, &son_ek, ctx, kind);
 
         let version = PromptVersion {
             agent: agent.to_string(),
@@ -228,14 +236,15 @@ impl PromptRegistry {
                 .get(agent)
                 .map(|k| k.meta.version)
                 .unwrap_or(0),
-            hash: ozet(&prefix),
+            // Özet ikisini birden kapsıyor: iki koşunun aynı metinle çalışıp
+            // çalışmadığı buradan anlaşılmalı, yalnız ön ekten değil.
+            hash: ozet(&format!("{prefix}\u{1e}{suffix}")),
             source: PromptSource::Embedded,
         };
 
         RenderedPrompt {
             prefix,
-            // Faz 3'e kadar boş: bugünkü tek parçalı davranış korunuyor.
-            suffix: String::new(),
+            suffix,
             version,
         }
     }
@@ -374,12 +383,41 @@ mod tests {
         }
     }
 
+    /// Ön ek önbelleğinin tek şartı: ön ek her çağrıda **aynı** olmalı.
     #[test]
-    fn faz1_son_ek_bos() {
-        // Faz 1 saf tekilleştirme; parçaların son eke taşınması Faz 3.
+    fn on_ek_videodan_bagimsiz() {
         let r = PromptRegistry::embedded().unwrap();
-        let p = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
-        assert!(p.suffix.is_empty());
-        assert_eq!(p.joined(), p.prefix);
+        let a = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(35_000));
+        let b = r.render(PromptKind::VisionIlkBakis, &PromptContext::new(600_000));
+
+        assert_eq!(a.prefix, b.prefix, "ön ek videoya göre değişiyor");
+        assert_ne!(a.suffix, b.suffix, "süre son ekte taşınmalı");
+    }
+
+    /// Ön ekte yer tutucu kalırsa önbellek her videoda ıskalar.
+    #[test]
+    fn on_ekte_yer_tutucu_yok() {
+        let r = PromptRegistry::embedded().unwrap();
+        let ctx = PromptContext::new(35_000).with_clip(test_clip(8.0));
+
+        for kind in [PromptKind::VisionIlkBakis, PromptKind::VisionYakinlastirma] {
+            let p = r.render(kind, &ctx);
+            for yt in ["{sure}", "{t0}", "{t1}", "{olcek}"] {
+                assert!(!p.prefix.contains(yt), "{kind:?} ön ekinde {yt} kalmış");
+            }
+        }
+    }
+
+    /// Yakınlaştırmada kayda özgü değerler son ekte olmalı.
+    #[test]
+    fn yakinlastirma_degerleri_son_ekte() {
+        let r = PromptRegistry::embedded().unwrap();
+        let p = r.render(
+            PromptKind::VisionYakinlastirma,
+            &PromptContext::new(35_000).with_clip(test_clip(8.0)),
+        );
+        assert!(p.suffix.contains("00:12"), "pencere son ekte değil");
+        assert!(p.suffix.contains("8 kat"), "ağır çekim oranı son ekte değil");
+        assert!(p.prefix.contains("Yalnızca JSON"), "sözleşme ön ekte olmalı");
     }
 }
