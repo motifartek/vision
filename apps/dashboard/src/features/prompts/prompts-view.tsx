@@ -1,10 +1,10 @@
-"use client"
+"use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react"
-import { Eye, Loader2, Lock, RotateCcw, Save } from "lucide-react"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { Textarea } from "@/components/ui/textarea"
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Eye, Loader2, Lock, RotateCcw, Save } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Textarea } from "@/components/ui/textarea";
 
 /**
  * Prompt konsolu.
@@ -18,85 +18,103 @@ import { Textarea } from "@/components/ui/textarea"
  *   *üstüne biner*; "Varsayılana dön" her zaman bir tık uzakta.
  */
 
-const VISION = process.env.NEXT_PUBLIC_VISION_API ?? "/api/vision"
+const VISION = process.env.NEXT_PUBLIC_VISION_API ?? "/api/vision";
+const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 type Fragment = {
-  fragment: string
-  editable: boolean
-  embedded: string
-  override: { text: string; author: string; updated_at: string } | null
-}
+  fragment: string;
+  editable: boolean;
+  embedded: string;
+  override: { text: string; author: string; updated_at: string } | null;
+};
 
 type Preview = {
-  prefix: string
-  suffix: string
-  version: { number: number; hash: string; source: unknown }
-  text_tokens: number
-}
+  prefix: string;
+  suffix: string;
+  version: { number: number; hash: string; source: unknown };
+  text_tokens: number;
+};
 
 /** Parçanın modele giden metni: override varsa o, yoksa gömülü. */
 function etkinMetin(f: Fragment) {
-  return f.override?.text ?? f.embedded
+  return f.override?.text ?? f.embedded;
 }
 
 export function PromptsView() {
-  const [fragments, setFragments] = useState<Fragment[]>([])
-  const [secili, setSecili] = useState<string | null>(null)
-  const [taslak, setTaslak] = useState("")
-  const [preview, setPreview] = useState<Preview | null>(null)
-  const [durum, setDurum] = useState<"bos" | "yukleniyor" | "kaydediliyor" | "hazir">("yukleniyor")
-  const [hata, setHata] = useState<string | null>(null)
+  const [fragments, setFragments] = useState<Fragment[]>([]);
+  const [secili, setSecili] = useState<string | null>(null);
+  const [taslak, setTaslak] = useState("");
+  const [preview, setPreview] = useState<Preview | null>(null);
+  const [durum, setDurum] = useState<
+    "bos" | "yukleniyor" | "kaydediliyor" | "hazir"
+  >("yukleniyor");
+  const [hata, setHata] = useState<string | null>(null);
 
   const yukle = useCallback(async () => {
-    setDurum("yukleniyor")
+    setDurum("yukleniyor");
     try {
-      const r = await fetch(`${VISION}/v1/prompts`)
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      const d = (await r.json()) as { fragments: Fragment[] }
-      setFragments(d.fragments)
-      setHata(null)
+      const r = await fetch(`${VISION}/v1/prompts`);
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      const d = (await r.json()) as { fragments: Fragment[] };
+      setFragments(d.fragments);
+      setHata(null);
     } catch {
-      setHata("Görüntü ajanına ulaşılamıyor.")
-      setFragments([])
+      setHata("Görüntü ajanına ulaşılamıyor.");
+      setFragments([]);
     } finally {
-      setDurum("hazir")
+      setDurum("hazir");
     }
-  }, [])
+  }, []);
 
   useEffect(() => {
-    void yukle()
-  }, [yukle])
+    void yukle();
+  }, [yukle]);
 
   const aktif = useMemo(
     () => fragments.find((f) => f.fragment === secili) ?? null,
     [fragments, secili],
-  )
+  );
 
   // Parça değişince taslak o parçanın etkin metniyle başlar.
   useEffect(() => {
-    if (aktif) setTaslak(etkinMetin(aktif))
-  }, [aktif])
+    if (aktif) setTaslak(etkinMetin(aktif));
+  }, [aktif]);
 
-  const kirli = aktif != null && taslak !== etkinMetin(aktif)
+  const kirli = aktif != null && taslak !== etkinMetin(aktif);
 
   const onizle = useCallback(async () => {
     try {
+      let toolsText: string | null = null;
+      try {
+        const tRes = await fetch(`${API}/tools`);
+        if (tRes.ok) {
+          const tData = await tRes.json();
+          if (tData.tools && tData.tools.length > 0) {
+            toolsText = tData.tools
+              .map((t: any) => `- ${t.name} (${t.title}): ${t.description}`)
+              .join("\n");
+          }
+        }
+      } catch (e) {
+        console.error("Araçlar alınamadı", e);
+      }
+
       const r = await fetch(`${VISION}/v1/prompts/preview`, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ duration_ms: 35_000 }),
-      })
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setPreview((await r.json()) as Preview)
-      setHata(null)
+        body: JSON.stringify({ duration_ms: 35_000, tools: toolsText }),
+      });
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setPreview((await r.json()) as Preview);
+      setHata(null);
     } catch {
-      setHata("Önizleme alınamadı.")
+      setHata("Önizleme alınamadı.");
     }
-  }, [])
+  }, []);
 
   const kaydet = useCallback(async () => {
-    if (!aktif) return
-    setDurum("kaydediliyor")
+    if (!aktif) return;
+    setDurum("kaydediliyor");
     try {
       const r = await fetch(
         `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`,
@@ -105,47 +123,50 @@ export function PromptsView() {
           headers: { "content-type": "application/json; charset=utf-8" },
           body: JSON.stringify({ text: taslak, author: "panel" }),
         },
-      )
+      );
       if (!r.ok) {
         // Servis reddetme sebebini yazıyor; kullanıcıya onu göster.
-        const govde = (await r.json().catch(() => null)) as { error?: string } | null
-        throw new Error(govde?.error ?? `HTTP ${r.status}`)
+        const govde = (await r.json().catch(() => null)) as {
+          error?: string;
+        } | null;
+        throw new Error(govde?.error ?? `HTTP ${r.status}`);
       }
-      setHata(null)
-      await yukle()
-      await onizle()
+      setHata(null);
+      await yukle();
+      await onizle();
     } catch (e) {
-      setHata((e as Error).message)
+      setHata((e as Error).message);
     } finally {
-      setDurum("hazir")
+      setDurum("hazir");
     }
-  }, [aktif, taslak, yukle, onizle])
+  }, [aktif, taslak, yukle, onizle]);
 
   const varsayilana_don = useCallback(async () => {
-    if (!aktif) return
-    setDurum("kaydediliyor")
+    if (!aktif) return;
+    setDurum("kaydediliyor");
     try {
       const r = await fetch(
         `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`,
         { method: "DELETE" },
-      )
-      if (!r.ok) throw new Error(`HTTP ${r.status}`)
-      setHata(null)
-      await yukle()
-      await onizle()
+      );
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      setHata(null);
+      await yukle();
+      await onizle();
     } catch (e) {
-      setHata((e as Error).message)
+      setHata((e as Error).message);
     } finally {
-      setDurum("hazir")
+      setDurum("hazir");
     }
-  }, [aktif, yukle, onizle])
+  }, [aktif, yukle, onizle]);
 
   return (
     <div className="flex w-full flex-col gap-6">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Prompt&apos;lar</h1>
         <p className="text-muted-foreground">
-          Modele giden metin. Düzenlemeler gömülü katalogun üstüne biner; kaynak her zaman depodur.
+          Modele giden metin. Düzenlemeler gömülü katalogun üstüne biner; kaynak
+          her zaman depodur.
         </p>
       </div>
 
@@ -159,7 +180,9 @@ export function PromptsView() {
         {/* parça listesi */}
         <div className="flex flex-col gap-1 rounded-xl border bg-card p-2">
           {durum === "yukleniyor" && fragments.length === 0 && (
-            <p className="px-2 py-3 text-sm text-muted-foreground">Yükleniyor…</p>
+            <p className="px-2 py-3 text-sm text-muted-foreground">
+              Yükleniyor…
+            </p>
           )}
           {fragments.map((f) => (
             <button
@@ -170,14 +193,18 @@ export function PromptsView() {
                 secili === f.fragment ? "bg-accent" : "hover:bg-accent/60"
               }`}
             >
-              <span className="truncate font-mono text-[12px]">{f.fragment}</span>
+              <span className="truncate font-mono text-[12px]">
+                {f.fragment}
+              </span>
               <span className="flex shrink-0 items-center gap-1.5">
                 {f.override && (
                   <Badge variant="secondary" className="h-4 px-1 text-[9px]">
                     düzenli
                   </Badge>
                 )}
-                {!f.editable && <Lock className="size-3 text-muted-foreground" />}
+                {!f.editable && (
+                  <Lock className="size-3 text-muted-foreground" />
+                )}
               </span>
             </button>
           ))}
@@ -200,7 +227,9 @@ export function PromptsView() {
                       {new Date(aktif.override.updated_at).toLocaleString("tr")}
                     </span>
                   ) : (
-                    <span className="text-[11px] text-muted-foreground">gömülü varsayılan</span>
+                    <span className="text-[11px] text-muted-foreground">
+                      gömülü varsayılan
+                    </span>
                   )}
                 </div>
 
@@ -208,8 +237,9 @@ export function PromptsView() {
                   <>
                     <p className="flex items-start gap-2 text-[12px] leading-snug text-muted-foreground">
                       <Lock className="mt-0.5 size-3.5 shrink-0" />
-                      Bu parça çıktı sözleşmesini tarif ediyor ve ayrıştırıcı ona bağlı.
-                      Değiştirilirse rapor okunamaz hâle gelir; bu yüzden salt okunur.
+                      Bu parça çıktı sözleşmesini tarif ediyor ve ayrıştırıcı
+                      ona bağlı. Değiştirilirse rapor okunamaz hâle gelir; bu
+                      yüzden salt okunur.
                     </p>
                     <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-[11px] leading-snug">
                       {aktif.embedded}
@@ -225,9 +255,16 @@ export function PromptsView() {
                       aria-label={`${aktif.fragment} metni`}
                     />
                     <div className="flex flex-wrap items-center gap-2">
-                      <Button size="sm" onClick={kaydet} disabled={!kirli || durum === "kaydediliyor"}>
+                      <Button
+                        size="sm"
+                        onClick={kaydet}
+                        disabled={!kirli || durum === "kaydediliyor"}
+                      >
                         {durum === "kaydediliyor" ? (
-                          <Loader2 data-icon="inline-start" className="animate-spin" />
+                          <Loader2
+                            data-icon="inline-start"
+                            className="animate-spin"
+                          />
                         ) : (
                           <Save data-icon="inline-start" />
                         )}
@@ -260,7 +297,9 @@ export function PromptsView() {
               {/* gömülüye karşı fark */}
               {aktif.editable && taslak !== aktif.embedded && (
                 <div className="flex flex-col gap-2 rounded-xl border bg-card px-4 py-3">
-                  <span className="text-xs font-medium">Gömülü varsayılandan farkı</span>
+                  <span className="text-xs font-medium">
+                    Gömülü varsayılandan farkı
+                  </span>
                   <Fark eski={aktif.embedded} yeni={taslak} />
                 </div>
               )}
@@ -275,7 +314,8 @@ export function PromptsView() {
                       </span>
                     </span>
                     <span className="font-mono text-[10px] text-muted-foreground">
-                      v{preview.version.number} · {preview.version.hash} · {preview.text_tokens} token
+                      v{preview.version.number} · {preview.version.hash} ·{" "}
+                      {preview.text_tokens} token
                     </span>
                   </div>
                   <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-[11px] leading-snug">
@@ -289,7 +329,7 @@ export function PromptsView() {
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 /**
@@ -300,10 +340,10 @@ export function PromptsView() {
  * Amaç neyin değiştiğini göstermek, sürüm kontrolü yapmak değil.
  */
 function Fark({ eski, yeni }: { eski: string; yeni: string }) {
-  const a = eski.split("\n")
-  const b = yeni.split("\n")
-  const aSet = new Set(a)
-  const bSet = new Set(b)
+  const a = eski.split("\n");
+  const b = yeni.split("\n");
+  const aSet = new Set(a);
+  const bSet = new Set(b);
 
   return (
     <div className="overflow-x-auto rounded-md bg-muted/40 p-2 font-mono text-[11px] leading-snug">
@@ -317,10 +357,13 @@ function Fark({ eski, yeni }: { eski: string; yeni: string }) {
       {b
         .filter((s) => !aSet.has(s))
         .map((s, i) => (
-          <div key={`y${i}`} className="whitespace-pre-wrap text-emerald-600 dark:text-emerald-400">
+          <div
+            key={`y${i}`}
+            className="whitespace-pre-wrap text-emerald-600 dark:text-emerald-400"
+          >
             + {s || "(boş satır)"}
           </div>
         ))}
     </div>
-  )
+  );
 }
