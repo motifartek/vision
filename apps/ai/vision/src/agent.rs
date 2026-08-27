@@ -16,6 +16,7 @@
 use std::sync::Arc;
 
 use motif_event_sdk::{AnalysisReport, ClipRef, DetectedEvent, RiskLevel, SCHEMA_VERSION};
+use motif_prompt::{PromptContext, PromptKind, PromptRegistry};
 
 use crate::stream_client::ClipSource;
 use crate::vlm::{Decision, RawReport, VlmProvider};
@@ -67,11 +68,21 @@ pub struct AgentOutcome {
 pub struct VisionAgent {
     stream: Arc<dyn ClipSource>,
     vlm: Arc<dyn VlmProvider>,
+    /// Prompt kataloğu. Metinler artık burada, `packages/prompt` içinde.
+    prompts: Arc<PromptRegistry>,
 }
 
 impl VisionAgent {
-    pub fn new(stream: Arc<dyn ClipSource>, vlm: Arc<dyn VlmProvider>) -> Self {
-        Self { stream, vlm }
+    pub fn new(
+        stream: Arc<dyn ClipSource>,
+        vlm: Arc<dyn VlmProvider>,
+        prompts: Arc<PromptRegistry>,
+    ) -> Self {
+        Self {
+            stream,
+            vlm,
+            prompts,
+        }
     }
 
     pub async fn analyze(&self, video_id: &str) -> Result<AgentOutcome, AgentError> {
@@ -83,7 +94,13 @@ impl VisionAgent {
             .stream
             .full_clip(video_id, info.duration_ms, Some(MAX_DIM))
             .await?;
-        let mut prompt = ilk_istem(info.duration_ms);
+        let mut prompt = self
+            .prompts
+            .render(
+                PromptKind::VisionIlkBakis,
+                &PromptContext::new(info.duration_ms),
+            )
+            .joined();
 
         for tur in 0..=MAX_ZOOM {
             let adim_basladi = std::time::Instant::now();
@@ -141,7 +158,13 @@ impl VisionAgent {
                     let t1 = t1_ms.min(info.duration_ms).max(t0 + 500);
 
                     clip = self.stream.zoom_clip(video_id, t0, t1, ZOOM_BUDGET).await?;
-                    prompt = yakinlastirma_istemi(&clip);
+                    prompt = self
+                        .prompts
+                        .render(
+                            PromptKind::VisionYakinlastirma,
+                            &PromptContext::new(info.duration_ms).with_clip(clip.clone()),
+                        )
+                        .joined();
                 }
             }
         }
@@ -221,11 +244,23 @@ fn risk_cevir(s: &str) -> RiskLevel {
     }
 }
 
-/// Modelden istenen çıktı sözleşmesi.
-///
-/// Şema araç tanımı yerine isteme yazılıyor: servis araç çağrısını
-/// desteklemiyor, gerekçesi [`crate::vlm`] modülünde.
-const SOZLESME: &str = r#"
+#[cfg(test)]
+mod tests {
+    use super::*;
+    // --- Faz 1 referans uygulaması ---
+    //
+    // Katalogdan önceki prompt fonksiyonları. Silinmiyor, teste taşınıyor:
+    // Faz 1'in kabul ölçütü davranışın **değişmemesi**. Katalog çıktısı bu
+    // metinlerle birebir aynı olmalı; aşağıdaki iki test bunu kanıtlıyor.
+    //
+    // Faz 3'te ön ek/son ek ayrımı geldiğinde bu referans kaldırılacak ve
+    // yerini ölçülmüş karşılaştırma alacak.
+
+    /// Modelden istenen çıktı sözleşmesi.
+    ///
+    /// Şema araç tanımı yerine isteme yazılıyor: servis araç çağrısını
+    /// desteklemiyor, gerekçesi [`crate::vlm`] modülünde.
+    const SOZLESME: &str = r#"
 
 Yalnızca JSON döndür, başka hiçbir şey yazma.
 
@@ -240,48 +275,84 @@ Emin olduğunda raporu ver:
 
 actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne dayanmalı."#;
 
-fn ilk_istem(duration_ms: u64) -> String {
-    format!(
-        "Sen bir iş sağlığı ve güvenliği analistisin. Sana {} uzunluğunda bir \
-         güvenlik kamerası kaydı verildi.\n\n\
-         Sahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup \
-         bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç \
-         aşamalarını ayrı olaylar olarak işaretle.\n\n\
-         Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS \
-         biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma.{SOZLESME}",
-        motif_event_sdk::format_timestamp(duration_ms)
-    )
-}
-
-fn yakinlastirma_istemi(clip: &ClipRef) -> String {
-    let baslik = format!(
-        "İstediğin {} – {} aralığının klibi.",
-        motif_event_sdk::format_timestamp(clip.t0_ms),
-        motif_event_sdk::format_timestamp(clip.t1_ms)
-    );
-
-    let hiz = if clip.time_scale > 1.01 {
+    fn ilk_istem(duration_ms: u64) -> String {
         format!(
-            " Klip {:.0} kat ağır çekimde: olaylar gerçekte burada göründüğünden \
-             {:.0} kat hızlı gelişiyor.",
-            clip.time_scale, clip.time_scale
+            "Sen bir iş sağlığı ve güvenliği analistisin. Sana {} uzunluğunda bir \
+             güvenlik kamerası kaydı verildi.\n\n\
+             Sahnede ne olduğunu, riskli ya da olağandışı bir durum bulunup \
+             bulunmadığını değerlendir. Olayın başlangıç, gelişim ve sonuç \
+             aşamalarını ayrı olaylar olarak işaretle.\n\n\
+             Zamanları bu kaydın başından itibaren geçen süre olarak MM:SS \
+             biçiminde ver. Kameranın görüntü üzerine bastığı saati kullanma.{SOZLESME}",
+            motif_event_sdk::format_timestamp(duration_ms)
         )
-    } else {
-        String::new()
-    };
+    }
 
-    format!(
-        "{baslik}{hiz}\n\n\
-         Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık \
-         yakınlaştırma isteme.\n\n\
-         Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak \
-         kayda çevirmeye çalışma, o hesabı biz yapıyoruz.{SOZLESME}"
-    )
-}
+    fn yakinlastirma_istemi(clip: &ClipRef) -> String {
+        let baslik = format!(
+            "İstediğin {} – {} aralığının klibi.",
+            motif_event_sdk::format_timestamp(clip.t0_ms),
+            motif_event_sdk::format_timestamp(clip.t1_ms)
+        );
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+        let hiz = if clip.time_scale > 1.01 {
+            format!(
+                " Klip {:.0} kat ağır çekimde: olaylar gerçekte burada göründüğünden \
+                 {:.0} kat hızlı gelişiyor.",
+                clip.time_scale, clip.time_scale
+            )
+        } else {
+            String::new()
+        };
+
+        format!(
+            "{baslik}{hiz}\n\n\
+             Bu aralıkta tam olarak ne olduğunu belirle ve raporu ver. Artık \
+             yakınlaştırma isteme.\n\n\
+             Zamanları BU KLİBİN başından itibaren MM:SS biçiminde ver; kaynak \
+             kayda çevirmeye çalışma, o hesabı biz yapıyoruz.{SOZLESME}"
+        )
+    }
+
+    fn katalog() -> PromptRegistry {
+        PromptRegistry::embedded().expect("gömülü katalog")
+    }
+
+    /// Genel bakış istemi katalogdan aynı çıkıyor mu?
+    #[test]
+    fn ilk_bakis_metni_degismedi() {
+        let beklenen = ilk_istem(35_132);
+        let uretilen = katalog()
+            .render(PromptKind::VisionIlkBakis, &PromptContext::new(35_132))
+            .joined();
+        assert_eq!(uretilen, beklenen);
+    }
+
+    /// Yakınlaştırma istemi, ağır çekimli ve ağır çekimsiz, aynı mı?
+    #[test]
+    fn yakinlastirma_metni_degismedi() {
+        for olcek in [1.0_f32, 8.0] {
+            let c = ClipRef {
+                t0_ms: 12_000,
+                t1_ms: 15_000,
+                object_key: "clips/x.mp4".into(),
+                duration_ms: (3_000.0 * olcek) as u64,
+                time_scale: olcek,
+                service_frames: 47,
+                effective_fps: 2.0 * olcek as f64,
+            };
+            let beklenen = yakinlastirma_istemi(&c);
+            let uretilen = katalog()
+                .render(
+                    PromptKind::VisionYakinlastirma,
+                    &PromptContext::new(35_132).with_clip(c),
+                )
+                .joined();
+            assert_eq!(uretilen, beklenen, "ölçek {olcek} için metin değişti");
+        }
+    }
+
+
     use crate::stream_client::StreamError;
     use crate::vlm::{Decision, RawEvent, VlmError};
     use motif_event_sdk::VideoInfoResponse;
@@ -399,7 +470,7 @@ mod tests {
             ]),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         let sonuc = ajan.analyze("v1").await.unwrap();
 
         let istekler = kaynak.istekler.lock().unwrap().clone();
@@ -430,7 +501,7 @@ mod tests {
             ),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         let hata = ajan.analyze("v1").await.unwrap_err();
         assert!(matches!(hata, AgentError::NoReport));
         // MAX_ZOOM + 1 tur; kaynak isteği bir tam + MAX_ZOOM yakınlaştırma.
@@ -453,7 +524,7 @@ mod tests {
             ]),
         });
 
-        let ajan = VisionAgent::new(kaynak.clone(), model);
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         ajan.analyze("v1").await.unwrap();
 
         let istekler = kaynak.istekler.lock().unwrap().clone();

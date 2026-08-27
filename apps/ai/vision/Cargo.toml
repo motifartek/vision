@@ -10,6 +10,7 @@ description = "Video analiz ajanı: klip ister, VLM'e sorar, şartname raporunu 
 motif-core.workspace = true
 motif-event-sdk.workspace = true
 motif-observer.workspace = true
+motif-prompt.workspace = true
 
 axum.workspace = true
 tokio.workspace = true

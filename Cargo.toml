@@ -18,6 +18,7 @@ members = [
     "apps/stream",
     "packages/core",
     "packages/observer",
+    "packages/prompt",
     "packages/database",
     "packages/event-sdk",
     "packages/optics",
@@ -46,6 +47,7 @@ chrono = { version = "0.4", features = ["serde"] }
 # Dahili crate'ler
 motif-core = { path = "packages/core" }
 motif-observer = { path = "packages/observer" }
+motif-prompt = { path = "packages/prompt" }
 motif-database = { path = "packages/database" }
 motif-event-sdk = { path = "packages/event-sdk" }
 motif-optics = { path = "packages/optics" }

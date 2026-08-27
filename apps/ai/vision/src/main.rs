@@ -26,6 +26,7 @@ use anyhow::{Context, Result};
 use crate::agent::VisionAgent;
 use crate::stream_client::StreamClient;
 use crate::vlm::EvrenProvider;
+use motif_prompt::PromptRegistry;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -41,7 +42,16 @@ async fn main() -> Result<()> {
 
     tracing::info!(%stream_url, "stream servisi hedefi");
 
-    let agent = Arc::new(VisionAgent::new(Arc::new(stream), Arc::new(vlm)));
+    // Katalog açılışta yükleniyor: bozuk bir prompt açılışta patlamalı,
+    // analiz sırasında değil.
+    let prompts = Arc::new(PromptRegistry::embedded().context("prompt kataloğu")?);
+    tracing::info!("prompt kataloğu yüklendi");
+
+    let agent = Arc::new(VisionAgent::new(
+        Arc::new(stream),
+        Arc::new(vlm),
+        prompts,
+    ));
 
     let listener = tokio::net::TcpListener::bind(&bind)
         .await

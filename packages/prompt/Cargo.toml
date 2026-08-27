@@ -1,0 +1,16 @@
+[package]
+name = "motif-prompt"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Prompt kataloğu: tek doğruluk kaynağı, tipli bağlam, sürümleme"
+
+[dependencies]
+motif-event-sdk.workspace = true
+
+serde.workspace = true
+toml = "0.8"
+sha2 = "0.10"
+thiserror.workspace = true
+tracing.workspace = true
