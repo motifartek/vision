@@ -46,6 +46,16 @@ coverage/
 **/target/
 **/*.rs.bk
 
+# Cargo ortam değişkenleri — SIR İÇERİR, depoya girmez.
+#
+# `[env]` bloğu EVREN ve Qdrant anahtarlarını taşıyor. Bir kez takipli hâlde
+# commit'lendi ve herkese açık depoya pushlandı; anahtarlar o yüzden
+# yenilendi. Kural bunun tekrarlanmaması için.
+#
+# Kurulum için `.cargo/config.toml.example` dosyasını kopyalayıp kendi
+# anahtarlarınızı yazın.
+.cargo/config.toml
+
 # AI model ağırlıkları — apps/ai/sonic/scripts/fetch-models ile indirilir.
 # ced-base tek başına ~430 MB; depo herkese açık.
 #

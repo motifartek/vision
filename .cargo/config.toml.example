@@ -1,3 +1,12 @@
+# Cargo ortam değişkenleri — ÖRNEK.
+#
+# Kullanım:
+#   cp .cargo/config.toml.example .cargo/config.toml
+#   # sonra anahtarları doldurun
+#
+# `.cargo/config.toml` bilerek takip DIŞI: sır içeriyor. Bir kez commit'lenip
+# herkese açık depoya pushlandı, anahtarlar yenilenmek zorunda kaldı.
+
 [env]
 # Ortak Veritabanı ve Mesajlaşma
 DATABASE_URL = "postgres://motif:motif@localhost:5433/motif"
@@ -16,7 +25,7 @@ STREAM_URL = "http://localhost:8100"
 STREAM_STORAGE_ROOT = "./data/stream"
 
 # Teknofest API ve Vektor DB
-EVREN_KEY = "sk-evren-team40-8bcea34f0ffd8f6039f8ca9c9630d398"
+EVREN_KEY = "BURAYA-KENDI-ANAHTARINIZI-YAZIN"
 EVREN_LLM_URL = "https://evren-llmapi.ssyz.org.tr/v1/chat/completions"
 QDRANT_URL = "https://evren-vektor.ssyz.org.tr/team40/"
-QDRANT_KEY = "qdr-team40-ca848324524056afa24d5df2548000a9"
+QDRANT_KEY = "BURAYA-KENDI-ANAHTARINIZI-YAZIN"
