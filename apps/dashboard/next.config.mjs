@@ -23,7 +23,7 @@ const nextConfig = {
   },
   async rewrites() {
     const gatewayUrl = process.env.GATEWAY_URL ?? "http://127.0.0.1:8000/api/auth"
-    const inferenceUrl = process.env.INFERENCE_URL ?? "http://127.0.0.1:8081"
+    const sonicUrl = process.env.SONIC_URL ?? "http://127.0.0.1:8081"
     // Stream varsayılan olarak **ağ geçidi üzerinden** geçiyor: video uçlarının
     // da kimlik doğrulamasının arkasında olması gerekiyor ve ağ geçidi bunun
     // için akışkan bir vekil taşıyor (`gateway::proxy::stream_proxy_handler`).
@@ -41,8 +41,8 @@ const nextConfig = {
       ],
       fallback: [
         {
-          source: '/api/inference/:path*',
-          destination: `${inferenceUrl}/:path*`,
+          source: '/api/sonic/:path*',
+          destination: `${sonicUrl}/:path*`,
         },
         // Video alımı, klip üretimi ve hareket profili.
         {

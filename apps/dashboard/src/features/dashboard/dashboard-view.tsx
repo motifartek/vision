@@ -31,7 +31,7 @@ import { formatTime } from "@/features/video-detail/time";
  * uydurmaydı; üstelik üç kart da var olmayan `/videos/podcast-highlight-03`
  * adresine gidiyordu, yani demoda ilk tıklama kırık bir analiz sayfası açıyordu.
  */
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference";
+const API = process.env.NEXT_PUBLIC_SONIC_API ?? "/api/sonic";
 const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream";
 
 type VideoEntry = {

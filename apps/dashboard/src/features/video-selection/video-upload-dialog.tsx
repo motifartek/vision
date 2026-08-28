@@ -6,7 +6,7 @@ import { Upload, X, FileVideo, CheckCircle2, AlertCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog"
 
-const API = process.env.NEXT_PUBLIC_AUDIO_API ?? "/api/inference"
+const API = process.env.NEXT_PUBLIC_SONIC_API ?? "/api/sonic"
 const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 /** Sunucudaki `VIDEO_EXTENSIONS` ile birebir aynı (upload.rs). */

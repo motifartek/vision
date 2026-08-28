@@ -187,7 +187,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         client: Client::builder()
             .timeout(Duration::from_secs(600))
             .build()?,
-        base_url: env_or("GATEWAY_INFERENCE_URL", "http://127.0.0.1:8081"),
+        base_url: env_or("GATEWAY_SONIC_URL", "http://127.0.0.1:8081"),
     };
 
     tracing::info!("Keto gRPC kanalına bağlanılıyor...");

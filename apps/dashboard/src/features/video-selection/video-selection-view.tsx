@@ -37,7 +37,7 @@ export type VideoRecord = {
   duration_sec: number | null
 }
 
-const INFERENCE = process.env.NEXT_PUBLIC_INFERENCE_API ?? "/api/inference"
+const SONIC = process.env.NEXT_PUBLIC_SONIC_API ?? "/api/sonic"
 const STREAM = process.env.NEXT_PUBLIC_STREAM_API ?? "/api/stream"
 
 const CARD_COLORS = [

@@ -40,7 +40,7 @@ axum-prometheus = "0.7"
 # bulamazsa sessizce CPU'ya döner, yani aynı ikili her iki makinede de çalışır:
 #   cargo build -p inference --release --features cuda
 [features]
-default = []
+default = ["directml"]
 cuda = ["ort/cuda"]
 tensorrt = ["ort/tensorrt", "ort/cuda"]
 directml = ["ort/directml"]
