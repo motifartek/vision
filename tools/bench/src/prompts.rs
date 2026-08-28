@@ -732,7 +732,50 @@ fn rapor_metni(ozetler: &[VaryantOzeti], video_sayisi: usize, tekrar: usize) -> 
         }
     }
 
+    // Yanlış alarm: ground truth'u sıfır olan videolar.
+    //
+    // Bu ölçüt **temiz**: eşleştirme belirsizliği yok, üretilen her olay
+    // yanlış. Recall'ın aksine sentetik kümenin semantik zayıflığından
+    // etkilenmiyor — "olay yok" demek için sahneyi anlamak gerekmiyor.
+    let olaysiz_var = ozetler.iter().any(|o| {
+        o.kosumlar
+            .first()
+            .is_some_and(|k| k.sonuclar.iter().any(|s| s.gercek == 0))
+    });
+    if olaysiz_var {
+        let _ = writeln!(s, "\n## Yanlış alarm (olaysız kayıtlar)\n");
+        let _ = writeln!(
+            s,
+            "Ground truth'u sıfır olan kayıtlarda üretilen her olay yanlıştır. \
+             Eşleştirme belirsizliği olmadığı için bu ölçüt recall'dan daha \
+             güvenilir.\n"
+        );
+        let _ = writeln!(s, "| varyant | video | koşu başına üretilen olay |");
+        let _ = writeln!(s, "|---|---|---|");
+        for o in ozetler {
+            let Some(ilk) = o.kosumlar.first() else { continue };
+            for (i, temel) in ilk.sonuclar.iter().enumerate() {
+                if temel.gercek != 0 {
+                    continue;
+                }
+                let sayilar: Vec<String> = o
+                    .kosumlar
+                    .iter()
+                    .map(|k| match k.sonuclar.get(i) {
+                        Some(x) if x.hata.is_none() => x.model_olay.to_string(),
+                        _ => "hata".into(),
+                    })
+                    .collect();
+                let _ = writeln!(s, "| `{}` | {} | {} |", o.ad, temel.ad, sayilar.join(", "));
+            }
+        }
+    }
+
     let _ = writeln!(s, "\n## Koşu başına ayrıntı\n");
+    let _ = writeln!(
+        s,
+        "Hücreler `yakalanan/gerçek (modelin ürettiği)` biçiminde.\n"
+    );
     for o in ozetler {
         let _ = writeln!(s, "### `{}` — prompt {}\n", o.ad, o.prompt_surumu);
         let _ = writeln!(s, "| video | {} |", (1..=o.kosumlar.len())
@@ -750,7 +793,7 @@ fn rapor_metni(ozetler: &[VaryantOzeti], video_sayisi: usize, tekrar: usize) -> 
                     .map(|k| match k.sonuclar.get(i) {
                         Some(x) => match &x.hata {
                             Some(_) => "**hata**".to_string(),
-                            None => format!("{}/{}", x.eslesen, x.gercek),
+                            None => format!("{}/{} ({})", x.eslesen, x.gercek, x.model_olay),
                         },
                         None => "—".to_string(),
                     })

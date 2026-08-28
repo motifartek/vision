@@ -400,7 +400,64 @@ yönlendirilebilir. Bu yüzden ipucu biçiminde ve ölçüme bağlı.
 
 ---
 
-### Faz 4 — Yanlış pozitif *(yarım gün, koşullu)*
+### Faz 4 — Yanlış pozitif *(ölçüldü, varyant reddedildi)*
+
+*Kabul karşılanmadı.* Ölçüm:
+`documents/measurements/stream-faz4-yanlis-alarm.md`
+
+Kabul iki taraflıydı: olaysız kayıtta üretilen olay düşmeli **ve** gerçek
+olaylı senaryolarda recall düşmemeli. İkincisi olmadan birincisi kandırmaca
+olurdu — her şeye "olay yok" diyen bir model yanlış alarmı sıfırlar.
+
+Tam olarak bu oldu.
+
+| varyant | olay | yayılım | `normal-operasyon`'da üretilen |
+|---|---|---|---|
+| `gomulu` | 14,3/24 | 12–17 | 7, 9, 6 |
+| `olaysiz` | **1,3/24** | 0–2 | **0, 0, 0** |
+
+Yanlış alarm mükemmel çözüldü. Ama recall 14,3'ten 1,3'e düştü — gürültü
+bandının (5) çok dışında. Varyant `coklu-olay`'da 6/6'dan 0/6'ya, tüm kümede
+üretilen olayı 37,3'ten 2,7'ye indirdi. Reddedildi.
+
+#### Neden — ve neden bu kümeyle çözülemez
+
+Varyant "az olay ver" demiyordu; **ölçüt** veriyordu: güvenlik ihlali, kaza,
+ramak kala, olağandışı durum. Sentetik videolarda hareket eden soyut
+dikdörtgenler var. Model bu ölçütü doğru uyguluyor ve "burada iş güvenliği
+olayı yok" diyor — **haklı olarak**.
+
+Yani taban varyantın yüksek olay sayısı, modelin şekilleri betimlemesi;
+varyant bunu kesiyor ve recall onunla birlikte gidiyor.
+
+Buradan çıkan sonuç Faz 3'ünkiyle aynı duvar, öteki taraftan: **sentetik küme
+semantik müdahaleleri ölçemez.** Gerçek dünya ölçütü veren her varyant bu
+kümede olayları bastırır; ölçüt vermeyen hiçbir varyant yanlış alarmı azaltmaz.
+İkisini ayıramadığımız için daha yumuşak bir varyant denemek ölçmek değil
+tahmin etmek olur.
+
+Karar: varyant geri alındı, iterasyon yapılmadı. Bu soru **Golden Dataset**
+(#5) gelmeden açılmamalı.
+
+#### Yan bulgu: gürültü bandı oturumlar arası değişiyor
+
+Aynı kod, aynı küme, iki ayrı ölçüm oturumu:
+
+| oturum | taban recall | yayılım |
+|---|---|---|
+| Faz 1 | 14,7/24 | 14–15 (**band 1**) |
+| Faz 4 | 14,3/24 | 12–17 (**band 5**) |
+
+Ortalama neredeyse aynı ama yayılım beş kat farklı. Tek bir oturumda ölçülen
+band **iyimser olabilir**; Faz 1'de gördüğümüz 1 rakamı şanslı bir koşum
+dizisiydi. Bir videoda tek koşuda 19 olay üretilirken diğerinde 3 üretildi.
+
+Bundan sonraki karşılaştırmalarda eşik olarak **tek oturumun bandı değil,
+oturumlar arası en kötü band** alınmalı. Bu ölçümde o değer 5.
+
+---
+
+### Faz 4 — özgün plan *(referans)*
 
 `normal-operasyon` senaryosunda 0 olaya karşı 9 olay üretildi. Bu stream değil
 istem tarafı, ama ölçüsü aynı harness'ta.
