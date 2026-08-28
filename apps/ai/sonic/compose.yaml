@@ -2,7 +2,13 @@ services:
   sonic:
     build:
       context: ../../../
-      dockerfile: apps/ai/sonic/Dockerfile
+      # Kök Dockerfile, `sonic` hedefi — diğer altı servisle aynı desen.
+      #
+      # `apps/ai/sonic/Dockerfile` aa192d0 ile silinip kök dosyaya taşınmıştı
+      # ama bu satır güncellenmemişti. Hata görünmüyordu çünkü imaj zaten
+      # derlenmiş duruyordu; sıfırdan derlemede ortaya çıktı.
+      dockerfile: Dockerfile
+      target: sonic
     image: docker-sonic
     ports:
       - "8081:8081"

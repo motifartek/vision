@@ -16,6 +16,7 @@
 use std::sync::Arc;
 
 use motif_event_sdk::{AnalysisReport, ClipRef, DetectedEvent, RiskLevel, SCHEMA_VERSION};
+use motif_optics::{fits_in_one_request, segment_plan};
 use motif_prompt::{PromptContext, PromptKind, PromptRegistry, RenderedPrompt, UntrustedText};
 
 use crate::stream_client::ClipSource;
@@ -35,6 +36,19 @@ pub const ZOOM_BUDGET: usize = 48;
 
 /// Uzun kenar sınırı. Token maliyeti kare alanıyla doğru orantılı.
 pub const MAX_DIM: u32 = 768;
+
+/// Ardışık parçaların örtüşme payı.
+///
+/// Sınıra denk gelen bir olay iki parçaya da girsin, kesiğin tam ortasında
+/// kalıp kaybolmasın. Örtüşen bölgede aynı olay iki kez raporlanabiliyor;
+/// [`birlestir`] onları ayıklıyor.
+pub const PARCA_ORTUSMESI_MS: u64 = 10_000;
+
+/// Örtüşen bölgede iki olayı "aynı" saymak için zaman yakınlığı.
+///
+/// Ölçüm harness'ındaki eşleşme toleransıyla (±3 sn) uyumlu tutuluyor: orada
+/// aynı sayılan iki zaman burada da aynı sayılmalı.
+const TEKRAR_TOLERANS_MS: u64 = 3_000;
 
 #[derive(Debug, thiserror::Error)]
 pub enum AgentError {
@@ -119,6 +133,72 @@ impl VisionAgent {
         tools: Option<String>,
     ) -> Result<AgentOutcome, AgentError> {
         let basladi = std::time::Instant::now();
+        let info = self.stream.video_info(video_id).await?;
+
+        // Kısa kayıt: tek pencere, bugünkü davranış birebir korunuyor.
+        if fits_in_one_request(info.duration_ms) {
+            return self
+                .pencereyi_coz(video_id, 0, info.duration_ms, &isitsel, &tools, 0, basladi)
+                .await;
+        }
+
+        // Uzun kayıt: servise tek istekte sığmıyor.
+        //
+        // Ölçüldü: 10 dakikalık bir kayıt `413 Request Entity Too Large` ile
+        // tamamen reddediliyordu — kırpılmıyor, bozulmuyor, hiç rapor
+        // üretilmiyordu. Parçalama bunu çalışır hâle getiriyor.
+        let parcalar = segment_plan(info.duration_ms, PARCA_ORTUSMESI_MS);
+        tracing::info!(
+            video_id,
+            sure_sn = info.duration_ms / 1000,
+            parca = parcalar.len(),
+            "kayıt tek isteğe sığmıyor; parçalanıyor"
+        );
+
+        let mut sonuclar = Vec::new();
+        for (sira, (t0, t1)) in parcalar.iter().enumerate() {
+            match self
+                .pencereyi_coz(video_id, *t0, *t1, &isitsel, &tools, sira, basladi)
+                .await
+            {
+                Ok(o) => sonuclar.push(o),
+                // Bir parçanın düşmesi diğerlerini iptal etmemeli: eldeki
+                // parçalardan rapor üretmek, hiç rapor üretmemekten iyi.
+                Err(e) => tracing::warn!(%e, t0, t1, "parça çözümlenemedi, atlanıyor"),
+            }
+        }
+
+        if sonuclar.is_empty() {
+            return Ok(AgentOutcome {
+                report: cevapsiz_rapor(video_id, basladi.elapsed().as_millis() as u64),
+                steps: Vec::new(),
+            });
+        }
+
+        Ok(birlestir(
+            video_id,
+            sonuclar,
+            &parcalar,
+            basladi.elapsed().as_millis() as u64,
+        ))
+    }
+
+    /// Tek bir zaman penceresini çözer: bak → gerekirse yakınlaştır → raporla.
+    ///
+    /// Kısa kayıtta pencere tüm videodur; uzun kayıtta parçalardan biri.
+    /// Rapordaki zamanlar `ClipRef::to_source_ms` ile **kaynak zamanına**
+    /// taşındığı için pencere kayması çağıranı ilgilendirmiyor.
+    #[allow(clippy::too_many_arguments)]
+    async fn pencereyi_coz(
+        &self,
+        video_id: &str,
+        pencere_t0: u64,
+        pencere_t1: u64,
+        isitsel: &Option<UntrustedText>,
+        tools: &Option<String>,
+        adim_ofseti: usize,
+        basladi: std::time::Instant,
+    ) -> Result<AgentOutcome, AgentError> {
         let mut steps = Vec::new();
 
         // Her turda yeniden kurulacağı için bağlamı üreten bir kapanış.
@@ -132,13 +212,16 @@ impl VisionAgent {
             }
             ctx
         };
+        let _ = adim_ofseti;
 
-        let info = self.stream.video_info(video_id).await?;
         let mut clip = self
             .stream
-            .full_clip(video_id, info.duration_ms, Some(MAX_DIM))
+            .window_clip(video_id, pencere_t0, pencere_t1, Some(MAX_DIM))
             .await?;
-        let mut prompt = self.preview(PromptKind::VisionIlkBakis, &baglam(info.duration_ms));
+        // Model klibin kendi saatiyle konuşuyor ve klip = pencere. Tüm
+        // videonun süresini söylemek, parçada yanlış bir zaman ölçeği verirdi.
+        let pencere_suresi = pencere_t1.saturating_sub(pencere_t0);
+        let mut prompt = self.preview(PromptKind::VisionIlkBakis, &baglam(pencere_suresi));
         // Son turun istemi zoom'suz şemayla sorulduysa, döngü sonrası bir daha
         // sormanın anlamı kalmıyor.
         let mut son_tur_istemi = false;
@@ -198,8 +281,12 @@ impl VisionAgent {
                     }
 
                     // Modelin istediği aralık kaynağın dışına taşabiliyor.
-                    let t0 = t0_ms.min(info.duration_ms.saturating_sub(1));
-                    let t1 = t1_ms.min(info.duration_ms).max(t0 + 500);
+                    // Model klip saatiyle konuşuyor; istediği aralık pencereye
+                    // göre kaynak zamanına taşınıyor ve pencere dışına taşamıyor.
+                    let istek_t0 = pencere_t0 + t0_ms;
+                    let istek_t1 = pencere_t0 + t1_ms;
+                    let t0 = istek_t0.min(pencere_t1.saturating_sub(1)).max(pencere_t0);
+                    let t1 = istek_t1.min(pencere_t1).max(t0 + 500);
 
                     // Klip üretilemezse analiz düşmüyor: elde olan klip
                     // yeterince iyi ve rapora zorlamak boş dönmekten iyi.
@@ -217,7 +304,7 @@ impl VisionAgent {
                             son_tur_istemi = tur_kind == PromptKind::VisionSonTur;
                             prompt = self.preview(
                                 tur_kind,
-                                &baglam(info.duration_ms).with_clip(clip.clone()),
+                                &baglam(pencere_suresi).with_clip(clip.clone()),
                             );
                         }
                         Err(e) => {
@@ -237,7 +324,7 @@ impl VisionAgent {
         self.zorunlu_rapor(
             video_id,
             &clip,
-            &baglam(info.duration_ms),
+            &baglam(pencere_suresi),
             son_tur_istemi,
             steps,
             basladi,
@@ -302,6 +389,101 @@ impl VisionAgent {
             report: cevapsiz_rapor(video_id, basladi.elapsed().as_millis() as u64),
             steps,
         })
+    }
+}
+
+/// Parça raporlarını tek şartname raporuna indirger.
+///
+/// Zamanlar parça çözülürken zaten kaynak zamanına taşındı
+/// ([`ClipRef::to_source_ms`]), yani burada kaydırma yok — yalnız birleştirme.
+///
+/// # Örtüşen olaylar
+///
+/// Parçalar bilerek örtüşüyor, dolayısıyla sınırdaki bir olay iki parçadan da
+/// gelebiliyor. Ayıklama **yalnız örtüşme bölgelerinde** yapılıyor: bunun
+/// dışında birbirine yakın iki olay gerçekten ayrı olabilir. Model zaten
+/// "olayın başlangıç, gelişim ve sonuç aşamalarını ayrı işaretle" talimatı
+/// aldığı için 00:29 ve 00:30 gibi ardışık beyanlar normal; onları
+/// birleştirmek veri kaybı olurdu.
+fn birlestir(
+    video_id: &str,
+    sonuclar: Vec<AgentOutcome>,
+    parcalar: &[(u64, u64)],
+    processing_ms: u64,
+) -> AgentOutcome {
+    // Örtüşme bölgeleri: ardışık parçaların kesiştiği aralıklar.
+    let ortusmeler: Vec<(u64, u64)> = parcalar
+        .windows(2)
+        .filter_map(|w| {
+            let (_, ilk_bitis) = w[0];
+            let (ikinci_baslangic, _) = w[1];
+            (ikinci_baslangic < ilk_bitis).then_some((ikinci_baslangic, ilk_bitis))
+        })
+        .collect();
+    let ortusmede = |t: u64| ortusmeler.iter().any(|&(a, b)| t >= a && t <= b);
+
+    let mut steps = Vec::new();
+    let mut ozetler = Vec::new();
+    let mut olaylar: Vec<DetectedEvent> = Vec::new();
+    let mut aksiyonlar: Vec<String> = Vec::new();
+    let mut en_yuksek = RiskLevel::Dusuk;
+
+    for (sira, o) in sonuclar.into_iter().enumerate() {
+        for mut s in o.steps {
+            // Adım numaraları parçalar arasında çakışmasın.
+            s.step += sira * (MAX_ZOOM + 2);
+            steps.push(s);
+        }
+        if !o.report.summary.trim().is_empty() {
+            ozetler.push(o.report.summary);
+        }
+        if o.report.risk.severity_rank() > en_yuksek.severity_rank() {
+            en_yuksek = o.report.risk;
+        }
+        for a in o.report.actions {
+            if !aksiyonlar.iter().any(|v| v == &a) {
+                aksiyonlar.push(a);
+            }
+        }
+        olaylar.extend(o.report.events);
+    }
+
+    olaylar.sort_by_key(|e| e.t_ms);
+    let mut ayiklanmis: Vec<DetectedEvent> = Vec::new();
+    for e in olaylar {
+        let tekrar = ortusmede(e.t_ms)
+            && ayiklanmis
+                .last()
+                .is_some_and(|s| e.t_ms.abs_diff(s.t_ms) <= TEKRAR_TOLERANS_MS);
+        if !tekrar {
+            ayiklanmis.push(e);
+        }
+    }
+
+    // Özetler birleştiriliyor, yeniden yazdırılmıyor: modele "özetlerin
+    // özetini çıkar" diye ikinci bir çağrı atmak hem maliyet hem de bilgi
+    // kaybı riski. Parçaların anlatısı sırayla okunabiliyor.
+    let summary = if ozetler.is_empty() {
+        "Kayıt parçalar hâlinde çözümlendi; özet üretilemedi.".to_string()
+    } else {
+        ozetler.join(" ")
+    };
+
+    if aksiyonlar.is_empty() {
+        aksiyonlar.push("Kaydı incelemeye al ve olayı raporla".to_string());
+    }
+
+    AgentOutcome {
+        report: AnalysisReport {
+            schema_version: SCHEMA_VERSION,
+            video_id: video_id.to_string().into(),
+            summary,
+            events: ayiklanmis,
+            risk: en_yuksek,
+            actions: aksiyonlar,
+            processing_ms: Some(processing_ms),
+        },
+        steps,
     }
 }
 
@@ -523,16 +705,18 @@ mod tests {
                 codec: "h264".into(),
             })
         }
-        async fn full_clip(
+        async fn window_clip(
             &self,
             _v: &str,
-            duration_ms: u64,
+            t0_ms: u64,
+            t1_ms: u64,
             _m: Option<u32>,
         ) -> Result<ClipRef, StreamError> {
-            self.istekler.lock().unwrap().push("full".into());
+            self.istekler.lock().unwrap().push(format!("pencere({t0_ms},{t1_ms})"));
+            let duration_ms = t1_ms - t0_ms;
             Ok(ClipRef {
-                t0_ms: 0,
-                t1_ms: duration_ms,
+                t0_ms,
+                t1_ms,
                 object_key: "clips/full.mp4".into(),
                 duration_ms,
                 time_scale: 1.0,
@@ -656,7 +840,7 @@ mod tests {
         let sonuc = ajan.analyze("v1", None, None).await.unwrap();
 
         let istekler = kaynak.istekler.lock().unwrap().clone();
-        assert_eq!(istekler, vec!["full", "zoom(12000,15000)"]);
+        assert_eq!(istekler, vec!["pencere(0,35000)", "zoom(12000,15000)"]);
 
         assert_eq!(sonuc.steps.len(), 2);
         assert!(sonuc.steps[0].action.starts_with("zoom_range"));
@@ -710,6 +894,148 @@ mod tests {
         assert_eq!(kaynak.istekler.lock().unwrap().len(), 1 + MAX_ZOOM);
     }
 
+    // --- uzun kayıt parçalaması ---
+    //
+    // Ölçüldü: 10 dakikalık kayıt `413 Request Entity Too Large` ile tamamen
+    // reddediliyordu. Bu testler parçalamanın kapsamı ve zaman doğruluğunu
+    // kilitliyor.
+
+    /// Uzun kaynak için sahte: her pencereyi kaydeder, hep rapor döner.
+    struct UzunKaynak {
+        pencereler: Mutex<Vec<(u64, u64)>>,
+        sure_ms: u64,
+    }
+
+    #[async_trait::async_trait]
+    impl ClipSource for UzunKaynak {
+        async fn video_info(&self, _v: &str) -> Result<VideoInfoResponse, StreamError> {
+            Ok(VideoInfoResponse {
+                duration_ms: self.sure_ms,
+                fps: 30.0,
+                width: 1280,
+                height: 720,
+                size_bytes: 1,
+                codec: "h264".into(),
+            })
+        }
+        async fn window_clip(
+            &self,
+            _v: &str,
+            t0_ms: u64,
+            t1_ms: u64,
+            _m: Option<u32>,
+        ) -> Result<ClipRef, StreamError> {
+            self.pencereler.lock().unwrap().push((t0_ms, t1_ms));
+            Ok(ClipRef {
+                t0_ms,
+                t1_ms,
+                object_key: format!("clips/{t0_ms}-{t1_ms}.mp4"),
+                duration_ms: t1_ms - t0_ms,
+                time_scale: 1.0,
+                service_frames: ((t1_ms - t0_ms) / 500) as u32,
+                effective_fps: 2.0,
+            })
+        }
+        async fn zoom_clip(
+            &self,
+            _v: &str,
+            t0_ms: u64,
+            t1_ms: u64,
+            _b: usize,
+        ) -> Result<ClipRef, StreamError> {
+            Ok(ClipRef {
+                t0_ms,
+                t1_ms,
+                object_key: "clips/zoom.mp4".into(),
+                duration_ms: t1_ms - t0_ms,
+                time_scale: 1.0,
+                service_frames: 48,
+                effective_fps: 2.0,
+            })
+        }
+        async fn fetch_blob(&self, _k: &str) -> Result<Vec<u8>, StreamError> {
+            Ok(vec![0u8; 8])
+        }
+    }
+
+    /// 10 dakikalık kayıt parçalanmalı ve **baştan sona** kapsanmalı.
+    #[tokio::test]
+    async fn uzun_kayit_parcalanir_ve_tamami_kapsanir() {
+        let kaynak = Arc::new(UzunKaynak {
+            pencereler: Mutex::new(Vec::new()),
+            sure_ms: 600_000,
+        });
+        // Her parça ilk turda raporlasın.
+        let model = Arc::new(SahteModel {
+            kararlar: Mutex::new((0..10).map(|_| rapor("00:05")).collect()),
+        });
+
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
+        let sonuc = ajan.analyze("v1", None, None).await.unwrap();
+
+        let p = kaynak.pencereler.lock().unwrap().clone();
+        assert!(p.len() >= 3, "10 dakika tek parçada kalmış: {p:?}");
+        assert_eq!(p.first().unwrap().0, 0, "baştan başlamıyor");
+        assert_eq!(p.last().unwrap().1, 600_000, "sona ulaşmıyor");
+
+        // Her parça servise sığmalı — asıl amaç buydu.
+        for (a, b) in &p {
+            assert!(
+                fits_in_one_request(b - a),
+                "parça {a}-{b} hâlâ tek isteğe sığmıyor"
+            );
+        }
+        assert!(!sonuc.report.events.is_empty(), "rapor boş döndü");
+    }
+
+    /// Parça zamanları kaynak zamanına taşınmalı.
+    ///
+    /// Model her parçada klibin kendi saatiyle "00:05" diyor; ikinci parçanın
+    /// 00:05'i kaynakta 250+5 saniyedir. Taşıma yapılmazsa tüm olaylar
+    /// videonun başına yığılır.
+    #[tokio::test]
+    async fn parca_zamanlari_kaynaga_tasinir() {
+        let kaynak = Arc::new(UzunKaynak {
+            pencereler: Mutex::new(Vec::new()),
+            sure_ms: 600_000,
+        });
+        let model = Arc::new(SahteModel {
+            kararlar: Mutex::new((0..10).map(|_| rapor("00:05")).collect()),
+        });
+
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
+        let sonuc = ajan.analyze("v1", None, None).await.unwrap();
+
+        let zamanlar: Vec<u64> = sonuc.report.events.iter().map(|e| e.t_ms).collect();
+        assert!(
+            zamanlar.iter().any(|&t| t > 200_000),
+            "olaylar videonun başına yığılmış, kaynak zamanına taşınmamış: {zamanlar:?}"
+        );
+        // Sıralı olmalı; birleştirme zamana göre diziyor.
+        assert!(zamanlar.windows(2).all(|w| w[0] <= w[1]), "{zamanlar:?}");
+    }
+
+    /// Kısa kayıt parçalanmamalı: bugünkü davranış birebir korunmalı.
+    #[tokio::test]
+    async fn kisa_kayit_tek_pencerede_kalir() {
+        let kaynak = Arc::new(UzunKaynak {
+            pencereler: Mutex::new(Vec::new()),
+            sure_ms: 44_000,
+        });
+        let model = Arc::new(SahteModel {
+            kararlar: Mutex::new(vec![rapor("00:05")]),
+        });
+
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
+        ajan.analyze("v1", None, None).await.unwrap();
+
+        assert_eq!(
+            kaynak.pencereler.lock().unwrap().clone(),
+            vec![(0, 44_000)],
+            "kısa kayıt gereksiz yere parçalanmış"
+        );
+    }
+
     /// Yakınlaştırma klibi üretilemezse analiz kaybolmamalı.
     ///
     /// Bu yol ölçümde gerçekten tetiklendi: `stream` yakınlaştırma limitine
@@ -730,15 +1056,17 @@ mod tests {
                     codec: "h264".into(),
                 })
             }
-            async fn full_clip(
+            async fn window_clip(
                 &self,
                 _v: &str,
-                duration_ms: u64,
+                t0_ms: u64,
+                t1_ms: u64,
                 _m: Option<u32>,
             ) -> Result<ClipRef, StreamError> {
+                let duration_ms = t1_ms - t0_ms;
                 Ok(ClipRef {
-                    t0_ms: 0,
-                    t1_ms: duration_ms,
+                    t0_ms,
+                    t1_ms,
                     object_key: "clips/full.mp4".into(),
                     duration_ms,
                     time_scale: 1.0,

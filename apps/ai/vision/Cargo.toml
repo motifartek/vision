@@ -17,6 +17,9 @@ path = "src/main.rs"
 [dependencies]
 motif-core.workspace = true
 motif-event-sdk.workspace = true
+# Servis sınırları (520 kare / 2 fps / 260 sn) tek yerde dursun diye:
+# uzun kayıt parçalaması bu sabitlere dayanıyor.
+motif-optics.workspace = true
 motif-observer.workspace = true
 motif-prompt.workspace = true
 motif-database.workspace = true
