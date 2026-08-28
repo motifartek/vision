@@ -291,8 +291,8 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           </TabsContent>
 
           <TabsContent value="asistan" keepMounted className="flex min-h-0 flex-1 flex-col data-[hidden]:hidden">
-  <AssistantPanel videoId={videoId} rawJson={vision.outcome} />
-</TabsContent>
+              <AssistantPanel videoId={videoId} rawJson={vision.outcome} autoApprove={autoApprove} />
+            </TabsContent>
 
 <TabsContent value="veri" keepMounted className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto data-[hidden]:hidden">
             <PayloadSection 

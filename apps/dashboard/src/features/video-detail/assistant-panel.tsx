@@ -11,7 +11,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson: any }) {
+export function AssistantPanel({ videoId, rawJson, autoApprove = false }: { videoId: string; rawJson: any; autoApprove?: boolean }) {
   const [enrichedReport, setEnrichedReport] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   
@@ -138,7 +138,7 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
           videoId={videoId} 
           actions={llmResponse?.tool_calls?.map((t: any) => t.action || t.name) || []} 
           running={loading}
-          autoApprove={false} 
+          autoApprove={autoApprove} 
         />
       </div>
 
