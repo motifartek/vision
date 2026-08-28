@@ -57,7 +57,7 @@ Cargo.toml (workspace: [workspace.dependencies] ile ortak sürümler)
 - [ ] `packages/core`: `VideoId`, `AppError`, `Result<T>`, tracing init helper
 - [ ] `packages/event-sdk`: NATS subject sabitleri + ilk mesaj tipleri (aşağıda)
 - [ ] `ffmpeg -version` / `ffprobe -version` kontrolü yapan bir preflight fonksiyonu
-- [ ] `documents/features/stream-service.md` iskeleti (kurulum adımları buraya yazılacak)
+- [ ] `documents/features/01-stream-service.md` iskeleti (kurulum adımları buraya yazılacak)
 
 **Kilit detay — event-sdk ilk taslak**
 
@@ -547,7 +547,7 @@ zincirleri" (%20) maddeleri bu noktada karşılanmış olur.
 - [ ] Kare bütçesini gerçek VRAM'e göre ayarla (donanım belli olunca)
 - [ ] YOLO on/off benchmark'ı (#6 kararı — negatif sonuç da raporlanacak)
 - [ ] Golden Dataset (#5) tam seti üzerinde final KPI koşusu
-- [ ] `documents/features/stream-service.md`: kurulum, ffmpeg bağımlılığı, çalıştırma adımları
+- [ ] `documents/features/01-stream-service.md`: kurulum, ffmpeg bağımlılığı, çalıştırma adımları
 - [ ] Mimari diyagram (şartname teslim listesinde zorunlu)
 - [ ] Demo için: hareket eğrisi SVG'si + zoom davranışının görsel anlatımı
 

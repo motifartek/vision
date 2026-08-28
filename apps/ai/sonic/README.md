@@ -40,7 +40,7 @@ SONIC_MEDIA_ROOT=/path/to/media cargo run -p inference --release
 Servis **yalnız `127.0.0.1:8081`** dinler ve bu adres yapılandırılamaz: kendi
 kimlik doğrulaması yoktur. Tasarımda dışarıya açılan kapı gateway'dir, ama
 **bugün gateway akışta değil** — dashboard doğrudan buraya bağlanıyor
-(bkz. `audio-setup.md`). Bu yüzden tarayıcı kökeni de yerel arayüzle sınırlı:
+(bkz. `05-audio-setup.md`). Bu yüzden tarayıcı kökeni de yerel arayüzle sınırlı:
 yalnız `localhost` / `127.0.0.1` / `[::1]` kökenli sayfalar istek atabilir.
 
 ### Ortam değişkenleri

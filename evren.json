@@ -1,8 +1,0 @@
-{
-  "model": "llm-fast",
-  "messages": [
-    {"role": "system", "content": "Sen bir is sagligi asistanisin."},
-    {"role": "user", "content": "Kaza oldu, acil ambulans lazim. Cevabinin sonuna KESINLIKLE su formati ekle: <tool_call>{\"action\": \"call_ambulance\", \"params\": {}}</tool_call>"}
-  ],
-  "temperature": 0.7
-}

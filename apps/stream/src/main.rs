@@ -7,7 +7,7 @@
 //! Servis hiçbir altyapı olmadan ayağa kalkar: nesne deposu varsayılan olarak
 //! yerel dosya sistemi, NATS isteğe bağlı. `cargo run -p stream` yeterli.
 //!
-//! Yol haritası: `documents/architecture/stream-phase-plan.md`
+//! Yol haritası: `documents/architecture/07-stream-phase-plan.md`
 
 mod api;
 mod catalog;
