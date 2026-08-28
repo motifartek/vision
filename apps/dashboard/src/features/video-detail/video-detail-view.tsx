@@ -203,14 +203,13 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
         {/* Şeride rahat ama abartısız bir yükseklik: `auto` dibe yapıştırıyor,
             250px ise tek şeritle boş kalıyordu. */}
         <section className="grid min-h-0 min-w-0 grid-rows-[minmax(0,1fr)_auto_175px] gap-3">
-          <div className="relative flex min-h-0 items-center justify-center rounded-xl border bg-card p-3">
-            {/* Isı haritası videoyla aynı kutuya hizalanmalı; sarmalayıcı
-                `<video>` ile birebir aynı boyutta olsun diye `inline-flex`. */}
-            <div className="relative inline-flex max-h-full max-w-full">
+          <div className="relative flex min-h-0 h-full w-full items-center justify-center rounded-xl border bg-black/80 p-2 overflow-hidden">
+            {/* Isı haritası videoyla aynı kutuya hizalanmalı; video en boy oranını koruyarak kutuya sığar */}
+            <div className="relative flex h-full w-full max-h-full max-w-full items-center justify-center">
               <video
                 ref={videoRef}
                 src={playbackSrc(filename, streamId)}
-                className="max-h-full max-w-full rounded-lg bg-muted"
+                className="h-full w-full max-h-full max-w-full rounded-lg object-contain"
                 onClick={toggle}
                 controls
                 playsInline
@@ -222,7 +221,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
               <Button
                 variant="outline"
                 size="xs"
-                className="absolute right-4 top-4 bg-card/90 backdrop-blur"
+                className="absolute right-4 top-4 bg-card/90 backdrop-blur z-10"
                 onClick={() => setOverlay((o) => !o)}
                 aria-pressed={overlay}
                 title="Hareket yoğunluğunu video üzerinde gösterir"
