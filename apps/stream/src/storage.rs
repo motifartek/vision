@@ -7,7 +7,7 @@
 //!
 //! Şu an tek gerçekleme [`LocalStore`] (yerel dosya sistemi). S3/MinIO
 //! gerçeklemesi aynı arayüzün arkasına girecek — bkz. `documents/features/
-//! stream-service.md`.
+//! 01-stream-service.md`.
 
 use std::path::{Component, Path, PathBuf};
 

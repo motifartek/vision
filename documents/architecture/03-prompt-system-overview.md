@@ -4,7 +4,7 @@ MotifAI — TEKNOFEST 2026 Yapay Zekâ Dil Ajanları Yarışması, 3. Senaryo
 
 Bu belge `prompt-system` dalında yapılan işin **son hâlini** anlatır. Tasarım
 gerekçeleri ve karar tartışmaları için ayrıntılı belgeye bakın:
-[architecture/prompt-system.md](architecture/prompt-system.md).
+[04-prompt-system-decisions.md](04-prompt-system-decisions.md).
 
 This document describes the **final state** of the work done on the
 `prompt-system` branch. For design rationale and decision records, see the

@@ -2,7 +2,7 @@
 
 > Durum: video I/O katmanı hazır (probe + decode). Hareket analizi ve örnekleme sırada;
 > servis katmanı (MinIO, NATS, araç yüzeyi) sonraki fazlarda.
-> Yol haritası: [`documents/architecture/stream-phase-plan.md`](../architecture/stream-phase-plan.md)
+> Yol haritası: [`documents/architecture/07-stream-phase-plan.md`](../architecture/07-stream-phase-plan.md)
 > İlgili issue'lar: #1, #6
 
 ## Ne yapar

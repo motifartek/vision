@@ -1,7 +1,7 @@
 //! Prompt kataloğu.
 //!
 //! Modele giden her metnin **tek doğruluk kaynağı**. Tasarım gerekçeleri
-//! `documents/architecture/prompt-system.md` içinde; burada yalnızca uygulama.
+//! `documents/architecture/04-prompt-system-decisions.md` içinde; burada yalnızca uygulama.
 //!
 //! # Neden bir crate
 //!

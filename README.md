@@ -9,7 +9,7 @@ Mimari ve projenin detaylı çalışma prensipleri için `documents/` klasörün
 - [Mimari Kararlar ve Yapı](documents/architecture/)
 - [Sistem Özellikleri](documents/features/)
 - [Performans Ölçümleri](documents/measurements/)
-- [Prompt Sistemi ve Özelleştirmeler](documents/prompt-system-overview.md)
+- [Prompt Sistemi ve Özelleştirmeler](documents/architecture/03-prompt-system-overview.md)
 
 ## 🚀 Çalışma Pipeline'ı
 
