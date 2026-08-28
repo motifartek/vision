@@ -82,6 +82,12 @@ pub struct Clip {
     pub time_scale: f32,
     pub size_bytes: u64,
     /// Servisin bu klipten çıkaracağı kare sayısı (2 fps).
+    ///
+    /// **Kırpılmıyor.** Servis tavanını (520) aşan bir değer, klibin tek
+    /// istekte gönderilemeyeceği anlamına geliyor ve çağıranın bunu görmesi
+    /// gerekiyor. Önceden `.min(SERVICE_MAX_FRAMES)` uygulanıyordu: 600
+    /// saniyelik bir klip "520 kare" diye raporlanıyor, ajan tüm videoyu
+    /// kapsadığını sanıyordu. Taşmayı gizlemek, taşmanın kendisinden kötü.
     pub service_frames: u32,
     /// Kaynak aralığa göre etkin kare hızı.
     ///
@@ -255,7 +261,7 @@ pub fn extract_clip(
         duration_ms: info.duration_ms,
         time_scale: opts.time_scale,
         size_bytes: info.size_bytes,
-        service_frames: service_frames.min(SERVICE_MAX_FRAMES),
+        service_frames,
         effective_fps: SERVICE_SAMPLE_FPS * opts.time_scale as f64,
     })
 }

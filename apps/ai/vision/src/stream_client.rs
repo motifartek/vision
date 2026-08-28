@@ -30,10 +30,15 @@ pub enum StreamError {
 #[async_trait::async_trait]
 pub trait ClipSource: Send + Sync {
     async fn video_info(&self, video_id: &str) -> Result<VideoInfoResponse, StreamError>;
-    async fn full_clip(
+    /// Kaynağın bir penceresini gerçek zamanlı klip olarak ister.
+    ///
+    /// Uzun kayıtlar servise tek istekte sığmadığı için pencere alıyor:
+    /// tüm video için `(0, duration_ms)` verilir.
+    async fn window_clip(
         &self,
         video_id: &str,
-        duration_ms: u64,
+        t0_ms: u64,
+        t1_ms: u64,
         max_dim: Option<u32>,
     ) -> Result<ClipRef, StreamError>;
     async fn zoom_clip(
@@ -132,11 +137,12 @@ impl ClipSource for StreamClient {
         serde_json::from_value(v).map_err(|e| StreamError::Decode(e.to_string()))
     }
 
-    /// Kaydın tamamını tek klip olarak ister (ilk bakış).
-    async fn full_clip(
+    /// Bir pencereyi gerçek zamanlı klip olarak ister.
+    async fn window_clip(
         &self,
         video_id: &str,
-        duration_ms: u64,
+        t0_ms: u64,
+        t1_ms: u64,
         max_dim: Option<u32>,
     ) -> Result<ClipRef, StreamError> {
         let v = self
@@ -144,8 +150,8 @@ impl ClipSource for StreamClient {
                 "/v1/tools/clip_range",
                 &serde_json::json!({
                     "video_id": video_id,
-                    "t0_ms": 0,
-                    "t1_ms": duration_ms,
+                    "t0_ms": t0_ms,
+                    "t1_ms": t1_ms,
                     "max_dim": max_dim,
                 }),
             )
