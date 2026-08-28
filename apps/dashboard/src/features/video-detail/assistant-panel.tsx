@@ -136,7 +136,7 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
       <div className="mb-2">
         <ToolCarousel 
           videoId={videoId} 
-          actions={llmResponse?.tool_calls?.map((t: any) => t.name) || []} 
+          actions={llmResponse?.tool_calls?.map((t: any) => t.action || t.name) || []} 
           running={loading}
           autoApprove={false} 
         />

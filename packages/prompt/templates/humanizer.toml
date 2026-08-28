@@ -22,8 +22,9 @@ text = """Sistemde bulunan ve karar alarak tetikleyebileceğin dış araçlar ş
 
 {tools}
 
-Eğer duruma müdahale etmek için bu araçlardan birini tetiklemen gerekiyorsa, zenginleştirilmiş yorumunu tamamladıktan sonra cevabının en sonuna şu formatta aracı ekle:
-<tool_call>{"action": "arac_ismi", "params": {"param1": "deger"}}</tool_call>"""
+DİKKAT: Eğer duruma müdahale etmek için bu araçlardan birini tetiklemen gerekiyorsa, zenginleştirilmiş yorumunu tamamladıktan sonra cevabının EN SONUNA KESİNLİKLE şu formatta aracı eklemelisin:
+[TOOL_CALL]
+{"action": "arac_ismi", "params": {}}"""
 
 [fragment.dilekce_olustur]
 editable = true
