@@ -37,12 +37,15 @@ pub const ZOOM_BUDGET: usize = 48;
 /// Uzun kenar sınırı. Token maliyeti kare alanıyla doğru orantılı.
 pub const MAX_DIM: u32 = 768;
 
-/// Uzun kayıt parçalarının varsayılan azami süresi.
+/// Parçalama gerektiğinde bir parçanın azami süresi.
 ///
-/// **Servis tavanı değil, ölçülmüş tercih.** Tavan 260 sn (520 kare / 2 fps)
-/// ama orada kalmak pahalıya mal oluyor: EVREN'in piksel bütçesi tüm video
-/// için tek bir toplam, yani parça uzadıkça çözünürlük düşüyor (rehber: 720p
-/// 77 sn üstünde, 540p 134 sn üstünde küçülmeye başlıyor).
+/// **Parçalamayı tetikleyen eşik bu değil** — onu servis sınırı belirliyor
+/// (260 sn). Bu sabit yalnız "parçalıyoruz, peki ne kadar uzun?" sorusunun
+/// cevabı.
+///
+/// Servis tavanında kalmak pahalıya mal oluyor: EVREN'in piksel bütçesi tüm
+/// video için tek bir toplam, yani parça uzadıkça çözünürlük düşüyor (rehber:
+/// 720p 77 sn üstünde, 540p 134 sn üstünde küçülmeye başlıyor).
 ///
 /// Ölçüldü — 10 dakikalık gerçek kayıt, 13 etiketli olay, 3 tekrar:
 ///
@@ -54,8 +57,9 @@ pub const MAX_DIM: u32 = 768;
 /// Fark +7 olay, gürültü bandının (4) çok üstünde. Bedeli iki katı çağrı ve
 /// %57 daha uzun süre; kapsama üç katına çıktığı için ödenir.
 ///
-/// Daha kısa parça daha da iyi olabilir (rehberin tablosu 77 sn'yi işaret
-/// ediyor) ama ölçülmedi.
+/// Ölçülmemiş iki şey: daha kısa parçanın (rehber 77 sn'yi işaret ediyor)
+/// daha da iyi olup olmadığı, ve **tek isteğe sığan** bir kaydı bölmenin
+/// fayda getirip getirmediği. İkincisi bu yüzden yapılmıyor.
 pub const PARCA_AZAMI_MS: u64 = 120_000;
 
 /// Ardışık parçaların örtüşme payı.
@@ -169,13 +173,13 @@ impl VisionAgent {
         let basladi = std::time::Instant::now();
         let info = self.stream.video_info(video_id).await?;
 
-        // Parça tavanı: verilmişse o, yoksa ölçülmüş varsayılan.
-        let tavan = self.parca_ms.unwrap_or(PARCA_AZAMI_MS);
-        let tek_istege_sigar =
-            fits_in_one_request(info.duration_ms) && info.duration_ms <= tavan;
-
-        // Kısa kayıt: tek pencere, bugünkü davranış birebir korunuyor.
-        if tek_istege_sigar {
+        // Parçalamayı **servis sınırı** tetikliyor, parça boyu değil.
+        //
+        // Tek isteğe sığan kayıt tek parça gidiyor: o aralıkta bölmenin
+        // faydası ölçülmedi ve ölçülmemiş bir iddia için iki katı çağrı
+        // ödemek doğru olmaz. Ölçülen şey, parçalama *gerektiğinde* parçanın
+        // ne kadar uzun olacağıydı.
+        if fits_in_one_request(info.duration_ms) {
             return self
                 .pencereyi_coz(video_id, 0, info.duration_ms, &isitsel, &tools, 0, basladi)
                 .await;
@@ -186,7 +190,9 @@ impl VisionAgent {
         // Ölçüldü: 10 dakikalık bir kayıt `413 Request Entity Too Large` ile
         // tamamen reddediliyordu — kırpılmıyor, bozulmuyor, hiç rapor
         // üretilmiyordu. Parçalama bunu çalışır hâle getiriyor.
-        let parcalar = parcala(info.duration_ms, tavan, PARCA_ORTUSMESI_MS);
+        // Parçalamaya karar verildi; boy ölçülmüş varsayılandan geliyor.
+        let parca_boyu = self.parca_ms.unwrap_or(PARCA_AZAMI_MS);
+        let parcalar = parcala(info.duration_ms, parca_boyu, PARCA_ORTUSMESI_MS);
         tracing::info!(
             video_id,
             sure_sn = info.duration_ms / 1000,
@@ -1077,33 +1083,54 @@ mod tests {
         assert!(zamanlar.windows(2).all(|w| w[0] <= w[1]), "{zamanlar:?}");
     }
 
-    /// Servis tavanına sığan ama ölçülmüş tavanı aşan kayıt da parçalanmalı.
+    /// Servis sınırına sığan kayıt parçalanmamalı — 120 sn'yi aşsa bile.
     ///
-    /// 200 saniyelik bir kayıt 520 kare sınırının altında, yani teknik olarak
-    /// tek istekte gönderilebilir. Yine de parçalanıyor: ölçüm 260 sn'lik
-    /// parçaların %23, 120 sn'liklerin %77 yakaladığını gösterdi. Sığmak
-    /// yetmiyor, iyi sonuç vermesi gerekiyor.
+    /// Parçalamayı tetikleyen şey servis sınırı (260 sn), parça boyu değil.
+    /// 200 saniyelik bir kayıt tek istekte gönderilebiliyor; onu bölmenin
+    /// fayda getirip getirmediği **ölçülmedi**, dolayısıyla iki katı çağrı
+    /// ödenmiyor. Ölçülen şey, parçalama gerektiğinde parçanın boyuydu.
     #[tokio::test]
-    async fn tavana_sigan_ama_uzun_kayit_da_parcalanir() {
+    async fn servis_sinirina_sigan_kayit_parcalanmaz() {
         let kaynak = Arc::new(UzunKaynak {
             pencereler: Mutex::new(Vec::new()),
             sure_ms: 200_000,
         });
         let model = Arc::new(SahteModel {
-            kararlar: Mutex::new((0..6).map(|_| rapor("00:05")).collect()),
+            kararlar: Mutex::new(vec![rapor("00:05")]),
+        });
+
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
+        ajan.analyze("v1", None, None).await.unwrap();
+
+        assert_eq!(
+            kaynak.pencereler.lock().unwrap().clone(),
+            vec![(0, 200_000)],
+            "servise sığan kayıt gereksiz yere parçalanmış"
+        );
+    }
+
+    /// Parçalama tetiklendiğinde parça boyu ölçülmüş tavanı aşmamalı.
+    #[tokio::test]
+    async fn parcalanan_kayitta_parca_boyu_120_saniye() {
+        let kaynak = Arc::new(UzunKaynak {
+            pencereler: Mutex::new(Vec::new()),
+            sure_ms: 600_000,
+        });
+        let model = Arc::new(SahteModel {
+            kararlar: Mutex::new((0..12).map(|_| rapor("00:05")).collect()),
         });
 
         let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
         ajan.analyze("v1", None, None).await.unwrap();
 
         let p = kaynak.pencereler.lock().unwrap().clone();
-        assert!(
-            p.len() > 1,
-            "200 sn tek pencerede kalmış; ölçüm bunun kötü olduğunu gösterdi: {p:?}"
-        );
         for (a, b) in &p {
-            assert!(b - a <= PARCA_AZAMI_MS, "parça {a}-{b} tavanı aşıyor");
+            assert!(
+                b - a <= PARCA_AZAMI_MS,
+                "parça {a}-{b} 120 sn'yi aşıyor; ölçüm 260 sn'nin %23'te kaldığını gösterdi"
+            );
         }
+        assert!(p.len() >= 5, "600 sn 120 sn'lik parçalara bölünmemiş: {p:?}");
     }
 
     /// Kısa kayıt parçalanmamalı: bugünkü davranış birebir korunmalı.
