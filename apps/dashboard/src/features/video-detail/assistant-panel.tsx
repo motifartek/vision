@@ -172,7 +172,14 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
         <Button onClick={() => { setDocumentContent({ kind: 'Gelen Veri (LLM)', data: llmResponse || { message: "Henüz yanıt yok." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
           Gelen Veri
         </Button>
-        <Button onClick={() => { setDocumentContent({ kind: 'Giden Veri (LLM)', data: llmRequest || { message: "Henüz istek yapılmadı." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
+        <Button onClick={() => {
+          if (llmRequest?.actual_generated_prompt) {
+            setDocumentContent({ kind: 'Giden Veri (LLM)', text: llmRequest.actual_generated_prompt });
+          } else {
+            setDocumentContent({ kind: 'Giden Veri (LLM)', data: llmRequest || { message: "Henüz istek yapılmadı." } });
+          }
+          setDialogOpen(true);
+        }} variant="outline" className="flex-1 text-xs">
           Giden Veri
         </Button>
       </div>
