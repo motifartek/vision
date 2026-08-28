@@ -2,6 +2,7 @@
 name = "sonic"
 version = "0.1.0"
 edition = "2021"
+default-run = "sonic"
 
 [dependencies]
 axum = { version = "0.7", features = ["multipart"] }
