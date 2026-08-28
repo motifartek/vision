@@ -28,32 +28,38 @@ impl HumanizerAgent {
         let mut clean_text = text.to_string();
         let mut tools = Vec::new();
 
-        while let Some(start) = clean_text.find("<tool_call>") {
-            if let Some(end_offset) = clean_text[start..].find("</tool_call>") {
-                let end = start + end_offset;
-                let json_str = &clean_text[start + 11..end];
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(json_str) {
+        if let Some(start) = clean_text.find("[TOOL_CALL]") {
+            let json_str = clean_text[start + 11..].trim();
+            
+            // Try to find the end of the JSON object, or just parse the rest
+            if let Some(end_idx) = json_str.rfind('}') {
+                let valid_json = &json_str[..=end_idx];
+                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(valid_json) {
                     tracing::info!("Araç çağrısı yakalandı: {}", parsed);
                     tools.push(parsed);
                 }
-                let block_end = end + 12;
-                clean_text.replace_range(start..block_end, "");
-            } else {
-                break;
             }
+            clean_text.truncate(start);
         }
         (clean_text.trim().to_string(), tools)
     }
 
     pub async fn enhance_report(&self, report_json: &str, tools: Option<String>) -> anyhow::Result<(String, Vec<serde_json::Value>, String)> {
         let mut ctx = PromptContext::new(0).with_audio(motif_prompt::UntrustedText::new(report_json));
+        let has_tools = tools.is_some();
         if let Some(t) = tools {
             ctx = ctx.with_tools(Some(t));
         }
         let p = self.preview(PromptKind::HumanizerEnhance, &ctx);
         let prompt_text = p.joined();
         
-        let text = self.llm.generate(&prompt_text, "İşte analiz raporu:", &[]).await?;
+        let user_prompt = if has_tools {
+            "İşte analiz raporu. Durumu incele ve profesyonelce açıkla. Eğer müdahale için bir araç kullanman GEREKİYORSA, cevabının EN SON SATIRINA KESİNLİKLE şu formatta ilgili aracı ekle:\n[TOOL_CALL]\n{\"action\": \"arac_ismi\", \"params\": {}}"
+        } else {
+            "İşte analiz raporu:"
+        };
+
+        let text = self.llm.generate(&prompt_text, user_prompt, &[]).await?;
         let (clean, extracted_tools) = self.extract_tools(&text).await;
         Ok((clean, extracted_tools, prompt_text))
     }
