@@ -12,7 +12,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     tracing_subscriber::registry()
         .with(
             tracing_subscriber::EnvFilter::try_from_default_env()
-                .unwrap_or_else(|_| "inference=debug,tower_http=debug".into()),
+                .unwrap_or_else(|_| "sonic=debug,tower_http=debug".into()),
         )
         .with(tracing_subscriber::fmt::layer())
         .init();
@@ -72,7 +72,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(cors);
 
     let listener = tokio::net::TcpListener::bind((cfg.host, cfg.port)).await?;
-    tracing::info!("inference servisi {} adresinde dinliyor", listener.local_addr()?);
+    tracing::info!("sonic servisi {} adresinde dinliyor", listener.local_addr()?);
     axum::serve(listener, app).await?;
 
     Ok(())
