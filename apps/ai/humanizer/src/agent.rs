@@ -31,13 +31,23 @@ impl HumanizerAgent {
         if let Some(start) = clean_text.find("[TOOL_CALL]") {
             let json_str = clean_text[start + 11..].trim();
             
-            // Try to find the end of the JSON object, or just parse the rest
-            if let Some(end_idx) = json_str.rfind('}') {
-                let valid_json = &json_str[..=end_idx];
-                if let Ok(parsed) = serde_json::from_str::<serde_json::Value>(valid_json) {
-                    tracing::info!("Araç çağrısı yakalandı: {}", parsed);
-                    tools.push(parsed);
+            // LLM'ler JSON'ı bazen markdown code block içine alabiliyor (```json ... ```).
+            // Bu yüzden ilk '{' ile son '}' arasını almak en güvenlisidir.
+            if let (Some(first_brace), Some(last_brace)) = (json_str.find('{'), json_str.rfind('}')) {
+                if first_brace <= last_brace {
+                    let valid_json = &json_str[first_brace..=last_brace];
+                    match serde_json::from_str::<serde_json::Value>(valid_json) {
+                        Ok(parsed) => {
+                            tracing::info!("Araç çağrısı yakalandı: {}", parsed);
+                            tools.push(parsed);
+                        }
+                        Err(e) => {
+                            tracing::error!("Araç çağrısı JSON parse hatası: {}. JSON str: '{}'", e, valid_json);
+                        }
+                    }
                 }
+            } else {
+                tracing::warn!("Araç çağrısı JSON objesi sınırları ({{, }}) bulunamadı: {}", json_str);
             }
             clean_text.truncate(start);
         }
