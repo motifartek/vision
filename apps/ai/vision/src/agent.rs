@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use motif_event_sdk::{AnalysisReport, ClipRef, DetectedEvent, RiskLevel, SCHEMA_VERSION};
-use motif_optics::{fits_in_one_request, segment_plan};
+use motif_optics::fits_in_one_request;
 use motif_prompt::{PromptContext, PromptKind, PromptRegistry, RenderedPrompt, UntrustedText};
 
 use crate::stream_client::ClipSource;
@@ -36,6 +36,27 @@ pub const ZOOM_BUDGET: usize = 48;
 
 /// Uzun kenar sınırı. Token maliyeti kare alanıyla doğru orantılı.
 pub const MAX_DIM: u32 = 768;
+
+/// Uzun kayıt parçalarının varsayılan azami süresi.
+///
+/// **Servis tavanı değil, ölçülmüş tercih.** Tavan 260 sn (520 kare / 2 fps)
+/// ama orada kalmak pahalıya mal oluyor: EVREN'in piksel bütçesi tüm video
+/// için tek bir toplam, yani parça uzadıkça çözünürlük düşüyor (rehber: 720p
+/// 77 sn üstünde, 540p 134 sn üstünde küçülmeye başlıyor).
+///
+/// Ölçüldü — 10 dakikalık gerçek kayıt, 13 etiketli olay, 3 tekrar:
+///
+/// | parça | yakalanan | süre |
+/// |---|---|---|
+/// | 260 sn | 3,0/13 (%23) | 98 sn |
+/// | 120 sn | **10,0/13 (%77)** | 154 sn |
+///
+/// Fark +7 olay, gürültü bandının (4) çok üstünde. Bedeli iki katı çağrı ve
+/// %57 daha uzun süre; kapsama üç katına çıktığı için ödenir.
+///
+/// Daha kısa parça daha da iyi olabilir (rehberin tablosu 77 sn'yi işaret
+/// ediyor) ama ölçülmedi.
+pub const PARCA_AZAMI_MS: u64 = 120_000;
 
 /// Ardışık parçaların örtüşme payı.
 ///
@@ -84,6 +105,12 @@ pub struct VisionAgent {
     vlm: Arc<dyn VlmProvider>,
     /// Prompt kataloğu. Metinler artık burada, `packages/prompt` içinde.
     prompts: Arc<PromptRegistry>,
+    /// Uzun kayıt parçalarının azami süresi.
+    ///
+    /// `None` iken [`PARCA_AZAMI_MS`] kullanılıyor. Ölçüm için
+    /// değiştirilebiliyor: `bench prompts --parca-boylari` iki boyu aynı
+    /// koşuda karşılaştırıyor.
+    parca_ms: Option<u64>,
 }
 
 impl VisionAgent {
@@ -96,7 +123,14 @@ impl VisionAgent {
             stream,
             vlm,
             prompts,
+            parca_ms: None,
         }
+    }
+
+    /// Parça süresini sabitler (ölçüm için).
+    pub fn with_parca_ms(mut self, parca_ms: Option<u64>) -> Self {
+        self.parca_ms = parca_ms;
+        self
     }
 
     /// Prompt kataloğu — arayüz uçları için.
@@ -135,8 +169,13 @@ impl VisionAgent {
         let basladi = std::time::Instant::now();
         let info = self.stream.video_info(video_id).await?;
 
+        // Parça tavanı: verilmişse o, yoksa ölçülmüş varsayılan.
+        let tavan = self.parca_ms.unwrap_or(PARCA_AZAMI_MS);
+        let tek_istege_sigar =
+            fits_in_one_request(info.duration_ms) && info.duration_ms <= tavan;
+
         // Kısa kayıt: tek pencere, bugünkü davranış birebir korunuyor.
-        if fits_in_one_request(info.duration_ms) {
+        if tek_istege_sigar {
             return self
                 .pencereyi_coz(video_id, 0, info.duration_ms, &isitsel, &tools, 0, basladi)
                 .await;
@@ -147,7 +186,7 @@ impl VisionAgent {
         // Ölçüldü: 10 dakikalık bir kayıt `413 Request Entity Too Large` ile
         // tamamen reddediliyordu — kırpılmıyor, bozulmuyor, hiç rapor
         // üretilmiyordu. Parçalama bunu çalışır hâle getiriyor.
-        let parcalar = segment_plan(info.duration_ms, PARCA_ORTUSMESI_MS);
+        let parcalar = parcala(info.duration_ms, tavan, PARCA_ORTUSMESI_MS);
         tracing::info!(
             video_id,
             sure_sn = info.duration_ms / 1000,
@@ -390,6 +429,29 @@ impl VisionAgent {
             steps,
         })
     }
+}
+
+/// Verilen tavana göre örtüşmeli parça planı.
+///
+/// `segment_plan` servis tavanını (260 sn) kullanıyor; bu ise ölçüm için
+/// istenen bir tavanı. Mantık aynı, tek fark sınırın nereden geldiği.
+fn parcala(duration_ms: u64, tavan_ms: u64, ortusme_ms: u64) -> Vec<(u64, u64)> {
+    let tavan = tavan_ms.max(1);
+    if duration_ms <= tavan {
+        return vec![(0, duration_ms)];
+    }
+    let adim = tavan.saturating_sub(ortusme_ms).max(1);
+    let mut parcalar = Vec::new();
+    let mut t = 0u64;
+    while t < duration_ms {
+        let bitis = (t + tavan).min(duration_ms);
+        parcalar.push((t, bitis));
+        if bitis >= duration_ms {
+            break;
+        }
+        t += adim;
+    }
+    parcalar
 }
 
 /// Parça raporlarını tek şartname raporuna indirger.
@@ -1013,6 +1075,35 @@ mod tests {
         );
         // Sıralı olmalı; birleştirme zamana göre diziyor.
         assert!(zamanlar.windows(2).all(|w| w[0] <= w[1]), "{zamanlar:?}");
+    }
+
+    /// Servis tavanına sığan ama ölçülmüş tavanı aşan kayıt da parçalanmalı.
+    ///
+    /// 200 saniyelik bir kayıt 520 kare sınırının altında, yani teknik olarak
+    /// tek istekte gönderilebilir. Yine de parçalanıyor: ölçüm 260 sn'lik
+    /// parçaların %23, 120 sn'liklerin %77 yakaladığını gösterdi. Sığmak
+    /// yetmiyor, iyi sonuç vermesi gerekiyor.
+    #[tokio::test]
+    async fn tavana_sigan_ama_uzun_kayit_da_parcalanir() {
+        let kaynak = Arc::new(UzunKaynak {
+            pencereler: Mutex::new(Vec::new()),
+            sure_ms: 200_000,
+        });
+        let model = Arc::new(SahteModel {
+            kararlar: Mutex::new((0..6).map(|_| rapor("00:05")).collect()),
+        });
+
+        let ajan = VisionAgent::new(kaynak.clone(), model, Arc::new(katalog()));
+        ajan.analyze("v1", None, None).await.unwrap();
+
+        let p = kaynak.pencereler.lock().unwrap().clone();
+        assert!(
+            p.len() > 1,
+            "200 sn tek pencerede kalmış; ölçüm bunun kötü olduğunu gösterdi: {p:?}"
+        );
+        for (a, b) in &p {
+            assert!(b - a <= PARCA_AZAMI_MS, "parça {a}-{b} tavanı aşıyor");
+        }
     }
 
     /// Kısa kayıt parçalanmamalı: bugünkü davranış birebir korunmalı.

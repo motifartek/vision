@@ -334,6 +334,7 @@ async fn videoyu_sil(http: &reqwest::Client, stream_url: &str, kimlik: &str) {
 }
 
 /// Bir varyantı tüm küme üzerinde koşar.
+#[allow(clippy::too_many_arguments)]
 async fn varyanti_kosl(
     ad: &str,
     katalog: Option<&Path>,
@@ -341,6 +342,7 @@ async fn varyanti_kosl(
     dataset_dizin: &Path,
     stream_url: &str,
     taze: bool,
+    parca_ms: Option<u64>,
 ) -> Result<Ozet> {
     let prompts = Arc::new(match katalog {
         Some(d) => PromptRegistry::from_dir(d)
@@ -350,7 +352,7 @@ async fn varyanti_kosl(
 
     let stream = Arc::new(StreamClient::new(stream_url)?);
     let vlm = Arc::new(EvrenProvider::from_env()?);
-    let ajan = VisionAgent::new(stream, vlm, prompts.clone());
+    let ajan = VisionAgent::new(stream, vlm, prompts.clone()).with_parca_ms(parca_ms);
 
     // Sürüm damgası: hangi metinle ölçtüğümüz raporda görünsün.
     let surum = prompts
@@ -444,6 +446,7 @@ fn sema_gecerli(r: &motif_event_sdk::AnalysisReport) -> bool {
 }
 
 /// `bench prompts` girişi.
+#[allow(clippy::too_many_arguments)]
 pub fn calistir(
     dataset: &Path,
     variants: Option<&str>,
@@ -452,6 +455,7 @@ pub fn calistir(
     stream_url: &str,
     tekrar: usize,
     rapor: Option<&Path>,
+    parca_boylari: Option<&str>,
 ) -> Result<()> {
     // Dışa aktarım ölçümden bağımsız: yalnızca metni sabitler.
     if let Some(hedef) = export {
@@ -464,8 +468,28 @@ pub fn calistir(
         }
     }
 
-    let varyantlar = varyantlari_coz(variants)?;
+    let temel = varyantlari_coz(variants)?;
     let kume = kume_yukle(dataset, videos)?;
+
+    // Parça boyu verilmişse her boy ayrı varyant oluyor. Ayrı `bench`
+    // koşularında karşılaştırmak yanlış olurdu: gürültü bandı oturumlar
+    // arasında değişiyor (Faz 4'te ölçüldü, 1'e karşı 5 olay).
+    let varyantlar: Vec<(String, Option<PathBuf>, Option<u64>)> = match parca_boylari {
+        None => temel.into_iter().map(|(a, d)| (a, d, None)).collect(),
+        Some(ham) => {
+            let mut c = Vec::new();
+            for parca in ham.split(',') {
+                let ms: u64 = parca
+                    .trim()
+                    .parse()
+                    .with_context(|| format!("parça boyu sayı olmalı: {parca}"))?;
+                for (a, d) in &temel {
+                    c.push((format!("{a}-parca{}", ms / 1000), d.clone(), Some(ms)));
+                }
+            }
+            c
+        }
+    };
     let tekrar = tekrar.max(1);
 
     println!(
@@ -479,7 +503,7 @@ pub fn calistir(
     let rt = tokio::runtime::Runtime::new()?;
     let mut ozetler = Vec::new();
 
-    for (ad, katalog) in &varyantlar {
+    for (ad, katalog, parca) in &varyantlar {
         println!("── {ad} ──");
         let mut kosumlar = Vec::new();
 
@@ -496,6 +520,7 @@ pub fn calistir(
                 dataset,
                 stream_url,
                 tekrar > 1,
+                *parca,
             ))?;
 
             for s in &ozet.sonuclar {

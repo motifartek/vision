@@ -123,6 +123,13 @@ enum Command {
         /// Commit'lenebilir markdown raporunu buraya yaz.
         #[arg(long)]
         rapor: Option<PathBuf>,
+        /// Uzun kayıt parça boyları (ms), virgülle: `260000,120000`.
+        ///
+        /// Her boy ayrı varyant olur ve **aynı koşuda** karşılaştırılır;
+        /// ayrı koşularda ölçmek yanlış olurdu, gürültü bandı oturumlar
+        /// arasında değişiyor.
+        #[arg(long)]
+        parca_boylari: Option<String>,
     },
 
     /// Bir parametreyi süpürüp etkisini ölçer.
@@ -182,6 +189,7 @@ fn main() -> Result<()> {
             stream_url,
             tekrar,
             rapor,
+            parca_boylari,
         } => prompts::calistir(
             &dataset,
             variants.as_deref(),
@@ -190,6 +198,7 @@ fn main() -> Result<()> {
             &stream_url,
             tekrar,
             rapor.as_deref(),
+            parca_boylari.as_deref(),
         )?,
 
         Command::Sweep {
