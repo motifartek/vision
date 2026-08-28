@@ -31,10 +31,18 @@ export function AssistantPanel({ videoId, rawJson, autoApprove = false }: { vide
     fetch("/api/tools")
       .then(res => res.json())
       .then(body => {
+        if (!body.tools) {
+          console.warn("Araçlar yüklenemedi (toolbox kapalı olabilir):", body);
+          setToolsString("");
+          return;
+        }
         const str = body.tools.map((t: any) => `- ${t.name}: ${t.description}`).join("\n");
         setToolsString(str);
       })
-      .catch(err => console.error("Tools fetch error:", err));
+      .catch(err => {
+        console.error("Tools fetch error:", err);
+        setToolsString("");
+      });
   }, []);
 
   // Otomatik üretim tetikleyicisi

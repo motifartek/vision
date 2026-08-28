@@ -85,7 +85,7 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
   useEffect(() => {
     // Gateway üzerinden ToolAlerts'leri (ve diğer olayları) SSE ile dinleyelim
     // streamId henüz null olabilir, videoId ile bağlanıyoruz (çünkü gateway doğrudan o string üzerinden yönlendiriyor)
-    const sse = new EventSource(`http://localhost:8000/api/videos/${videoId}/events`)
+    const sse = new EventSource(`/api/videos/${videoId}/events`)
     
     sse.addEventListener("report", (event) => {
       try {
