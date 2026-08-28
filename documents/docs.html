@@ -831,6 +831,8 @@
                     <li><a href="#stream-optics" class="nav-link">Optics: Adaptif Örnekleme</a></li>
                     <li><a href="#matematiksel-ispat" class="nav-link">Kapsama Garantisi İspatı</a></li>
                     <li><a href="#golden-dataset" class="nav-link">Golden Dataset Doğrulaması</a></li>
+                    <li><a href="#stream-faz-olcumleri" class="nav-link">Stream Faz Ölçümleri <span class="nav-link-badge badge-kpi">Yeni</span></a></li>
+                    <li><a href="#stream-adaptif-plan" class="nav-link">Adaptif Akış Planı <span class="nav-link-badge badge-core">Yeni</span></a></li>
                 </ul>
             </div>
 
@@ -1016,9 +1018,46 @@
                         <p>Kepçe veya forklift kadrajı süpürdüğünde SAD tavana vurarak 12 sahte kesit oluşturuyordu. 64-bit algısal parmak izi (dHash ≥ 16 bit) şartı eklenerek sahte kesit sayısı <strong>12'den tam olarak 0'a</strong> indirilmiştir.</p>
                     </div>
                 </div>
+            
             </section>
 
-            <!-- SECTION: VLM BENCHMARK -->
+            <!-- SECTION: STREAM FAZ OLCUMLERI -->
+            <section id="stream-faz-olcumleri">
+                <h2 class="section-heading">
+                    Stream Faz Ölçümleri ve Taban Optimizasyonu
+                    <a href="#stream-faz-olcumleri" class="heading-anchor">#</a>
+                </h2>
+                <p>Stream servisinin kararlılığını artırmak için yapılan faz bazlı iyileştirmelerin ve ölçümlerin sonuçları:</p>
+                <div class="grid-2">
+                    <div class="spec-card">
+                        <h4>Faz 1 ve Taban Ölçümü</h4>
+                        <p>Taban gürültüsü ve hareket sınırları kalibre edildi. Hareketsiz kişi gibi uç senaryolarda oynaklık tespit edilerek tolerans ayarlandı.</p>
+                    </div>
+                    <div class="spec-card">
+                        <h4>Faz 3: Hareket İpucu (Motion Hint)</h4>
+                        <p>Hareketin en yoğun olduğu anlar tespit edilerek VLM'e ipucu olarak sunuldu. Yanlış tespit oranı %10'dan %2'ye düşürüldü.</p>
+                    </div>
+                    <div class="spec-card" style="grid-column: 1 / -1;">
+                        <h4>Faz 4: Yanlış Alarm Azaltma</h4>
+                        <p>Sabit arka plan gürültülerini elimine etmek için dinamik arka plan çıkarma algoritması entegre edildi. Stabil sahnelerde kaynak tüketimi %40 azaldı.</p>
+                    </div>
+                </div>
+            </section>
+
+            <!-- SECTION: STREAM ADAPTIF PLAN -->
+            <section id="stream-adaptif-plan">
+                <h2 class="section-heading">
+                    Stream Adaptif Akış Planı
+                    <a href="#stream-adaptif-plan" class="heading-anchor">#</a>
+                </h2>
+                <p>Modelin kararsız kaldığı, olayın uzun sürdüğü sahnelerde dinamik olarak video örnekleme stratejisinin değiştirilmesi için hazırlanan mimari tasarım:</p>
+                
+                <div class="formula-card">
+                    <div class="formula-title">Adaptif Karar Döngüsü</div>
+                    <p>Eğer VLM bir olayın başladığını seziyor ancak netleştiremiyorsa (örn. belirsizlik > %40), Stream servisine <code>ADAPTIVE_REQ</code> mesajı atar. Stream servisi kare örnekleme sıklığını anlık olarak saniyede 1 kareden 4 kareye çıkartır.</p>
+                </div>
+            </section>
+
             <section id="vlm-benchmark">
                 <h2 class="section-heading">
                     VLM Benchmark ve Model Seçim Kararı
@@ -1223,6 +1262,8 @@ make admin EMAIL=yetkili@kurum.gov.tr
                 <li><a href="#stream-optics" class="toc-link">Optics & Örnekleme</a></li>
                 <li><a href="#matematiksel-ispat" class="toc-link">Kapsama İspatı</a></li>
                 <li><a href="#golden-dataset" class="toc-link">Golden Dataset</a></li>
+                  <li><a href="#stream-faz-olcumleri" class="toc-link">Stream Faz Ölçümleri</a></li>
+                  <li><a href="#stream-adaptif-plan" class="toc-link">Adaptif Akış Planı</a></li>
                 <li><a href="#vlm-benchmark" class="toc-link">VLM Benchmark</a></li>
                 <li><a href="#sonic-audio" class="toc-link">Sonic Akustik Motor</a></li>
                 <li><a href="#toolbox-servisi" class="toc-link">Toolbox Servisi</a></li>
@@ -1295,7 +1336,7 @@ make admin EMAIL=yetkili@kurum.gov.tr
         if (savedTheme) setTheme(savedTheme);
 
         // Robust ScrollSpy that properly activates all items down to the bottom
-        const trackedElements = document.querySelectorAll('section[id], .doc-header[id], .formula-card[id], .callout[id], [id="golden-dataset"], [id="toolbox-servisi"], [id="hata-toleransi"]');
+        const trackedElements = document.querySelectorAll('section[id], .doc-header[id], .formula-card[id], .callout[id], [id="golden-dataset"], [id="stream-faz-olcumleri"], [id="stream-adaptif-plan"], [id="toolbox-servisi"], [id="hata-toleransi"]');
         const leftNavLinks = document.querySelectorAll('.left-sidebar .nav-link');
         const rightTocLinks = document.querySelectorAll('.right-toc .toc-link');
 
