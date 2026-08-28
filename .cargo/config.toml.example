@@ -3,9 +3,6 @@
 # Kullanım:
 #   cp .cargo/config.toml.example .cargo/config.toml
 #   # sonra anahtarları doldurun
-#
-# `.cargo/config.toml` bilerek takip DIŞI: sır içeriyor. Bir kez commit'lenip
-# herkese açık depoya pushlandı, anahtarlar yenilenmek zorunda kaldı.
 
 [env]
 # Ortak Veritabanı ve Mesajlaşma

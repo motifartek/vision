@@ -91,3 +91,5 @@ Utilities/golden-dataset/videos/
 
 # bench girdisi (to_bench.py ile yeniden uretilir)
 Utilities/golden-dataset/videos/*.json
+
+.cargo/config.toml

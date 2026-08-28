@@ -6,7 +6,7 @@ COPY . .
 RUN cargo chef prepare --recipe-path recipe.json
 
 FROM chef AS builder
-# Kurulum gereksinimleri (sonic dahil tüm servisler için ortak)
+# Kurulum gereksinimleri (tüm servisler için ortak)
 RUN apt-get update && \
     apt-get install -y pkg-config libssl-dev build-essential clang lld cmake && \
     rm -rf /var/lib/apt/lists/*
