@@ -1,0 +1,39 @@
+﻿[package]
+name = "humanizer"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+description = "Metin gÃ¼Ã§lendirici ajan: LLM kullanarak VLM raporlarÄ±nÄ± gÃ¼Ã§lendirir ve chatbot Ã¶zelliÄŸi sunar"
+
+[lib]
+name = "humanizer"
+path = "src/lib.rs"
+
+[[bin]]
+name = "humanizer"
+path = "src/main.rs"
+
+[dependencies]
+motif-core.workspace = true
+motif-event-sdk.workspace = true
+motif-observer.workspace = true
+motif-prompt.workspace = true
+motif-database.workspace = true
+
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+
+async-trait = "0.1"
+base64 = "0.22"
+reqwest = { version = "0.12", default-features = false, features = ["json", "rustls-tls"] }
+async-nats = "0.36"
+sqlx.workspace = true

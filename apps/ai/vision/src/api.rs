@@ -149,6 +149,7 @@ async fn preview_prompt(
         "kind": match kind {
             PromptKind::VisionIlkBakis => "ilk_bakis",
             PromptKind::VisionYakinlastirma => "yakinlastirma",
+            PromptKind::HumanizerEnhance | PromptKind::HumanizerChat | PromptKind::HumanizerDilekce | PromptKind::HumanizerTutanak => unreachable!(),
         },
         "prefix": p.prefix,
         "suffix": p.suffix,

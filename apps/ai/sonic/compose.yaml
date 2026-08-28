@@ -16,8 +16,8 @@ services:
       - SONIC_MEDIA_ROOT=/media
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
     volumes:
-      # Modellerin saklandigi yer (minio de kullanilabilirdi ama simdilik local baglayalim)
-      - sonic-models:/app/models
+      # Modellerin saklandigi yer
+      - ./models:/app/models:ro
       # `stream`in yazdigi ham videolar. Salt okunur: sonic yalnizca okur.
       - ../../../data/stream:/media:ro
     restart: unless-stopped
@@ -25,5 +25,4 @@ services:
       - default
       - observability
 
-volumes:
-  sonic-models:
+

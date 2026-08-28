@@ -16,10 +16,11 @@ import { MotionStrip } from "./motion-strip"
 import { NowPlayingPanel } from "./now-playing-panel"
 import { SafetyPanel } from "./safety-panel"
 import { usePlayback } from "./use-playback"
+import { AssistantPanel } from "./assistant-panel"
 import { VisionPanel, PayloadSection, RawResponseSection } from "./vision-panel"
 import { playbackSrc, useHeatmap, useStreamVideo, useVisionAnalysis } from "./vision-analysis"
 
-function EditorNav({ videoId, playing, onToggle, autoApprove, setAutoApprove }: { videoId: string; playing: boolean; onToggle: () => void; autoApprove: boolean; setAutoApprove: (v: boolean) => void }) {
+function EditorNav({ videoId, onAnalyze, running, ready, autoApprove, setAutoApprove }: { videoId: string; onAnalyze: () => void; running: boolean; ready: boolean; autoApprove: boolean; setAutoApprove: (v: boolean) => void }) {
   return (
     <header className="flex h-14 shrink-0 items-center justify-between border-b bg-card px-3 md:px-5">
       <div className="flex min-w-0 items-center gap-3">
@@ -36,9 +37,8 @@ function EditorNav({ videoId, playing, onToggle, autoApprove, setAutoApprove }: 
           <Switch id="auto-approve" checked={autoApprove} onCheckedChange={setAutoApprove} />
           <Label htmlFor="auto-approve" className="text-xs font-medium">Otomatik Onayla</Label>
         </div>
-        <Button variant="outline" onClick={onToggle}>
-          {playing ? <Pause data-icon="inline-start" /> : <Play data-icon="inline-start" />}
-          {playing ? "Duraklat" : "Oynat"}
+        <Button onClick={onAnalyze} disabled={running || !ready}>
+          {running ? "İşleniyor..." : "Görsel Analizi Başlat"}
         </Button>
       </div>
     </header>
@@ -55,9 +55,9 @@ function EditorNav({ videoId, playing, onToggle, autoApprove, setAutoApprove }: 
  * karşılaşmasın.
  */
 const PROFILES = [
-  { id: "hassas", label: "Hassas", hint: "±0,25 sn — kısa ve ani sesler; en pahalı, uzun kayıtlarda dakikalar sürer" },
-  { id: "dengeli", label: "Dengeli", hint: "±0,5 sn — çoğu video için doğru seçim" },
-  { id: "isabetli", label: "Geniş", hint: "±2,5 sn — sürekli sesler; uzun kayıtlarda en hızlı" },
+  { id: "hassas", label: "Hassas", hint: "Â±0,25 sn — kısa ve ani sesler; en pahalı, uzun kayıtlarda dakikalar sürer" },
+  { id: "dengeli", label: "Dengeli", hint: "Â±0,5 sn — çoğu video için doğru seçim" },
+  { id: "isabetli", label: "Geniş", hint: "Â±2,5 sn — sürekli sesler; uzun kayıtlarda en hızlı" },
 ]
 
 export function VideoDetailView({ videoId }: { videoId: string }) {
@@ -189,7 +189,14 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
           </div>
         ))}
       </div>
-      <EditorNav videoId={videoId} playing={playing} onToggle={toggle} autoApprove={autoApprove} setAutoApprove={setAutoApprove} />
+      <EditorNav 
+        videoId={videoId} 
+        onAnalyze={vision.analyze} 
+        running={vision.running} 
+        ready={Boolean(streamId)} 
+        autoApprove={autoApprove} 
+        setAutoApprove={setAutoApprove} 
+      />
 
       <main className="grid min-h-0 flex-1 grid-cols-[minmax(0,1fr)_280px] gap-3 p-3 xl:grid-cols-[minmax(0,1fr)_330px]">
         {/* sol: video üstte, zaman çizelgesi altta */}
@@ -262,8 +269,9 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
         <Tabs defaultValue="gorsel" className="flex min-h-0 flex-col gap-3">
           <TabsList className="shrink-0">
             <TabsTrigger value="gorsel">Görsel</TabsTrigger>
+            <TabsTrigger value="asistan" disabled={!vision.outcome && !vision.running}>Asistan</TabsTrigger>
+            <TabsTrigger value="veri" disabled={!vision.outcome && !vision.running}>Veri</TabsTrigger>
             <TabsTrigger value="ses">Ses</TabsTrigger>
-            <TabsTrigger value="veri">Veri</TabsTrigger>
           </TabsList>
 
           <TabsContent value="gorsel" keepMounted className="flex min-h-0 flex-1 flex-col data-[hidden]:hidden">
@@ -282,7 +290,11 @@ export function VideoDetailView({ videoId }: { videoId: string }) {
             />
           </TabsContent>
 
-          <TabsContent value="veri" keepMounted className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto data-[hidden]:hidden">
+          <TabsContent value="asistan" keepMounted className="flex min-h-0 flex-1 flex-col data-[hidden]:hidden">
+  <AssistantPanel videoId={videoId} rawJson={vision.outcome} />
+</TabsContent>
+
+<TabsContent value="veri" keepMounted className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto data-[hidden]:hidden">
             <PayloadSection 
               payload={vision.payload} 
               prompt={vision.prompt} 

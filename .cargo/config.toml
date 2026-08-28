@@ -1,0 +1,22 @@
+[env]
+# Ortak Veritabanı ve Mesajlaşma
+DATABASE_URL = "postgres://motif:motif@localhost:5433/motif"
+NATS_URL = "nats://localhost:4222"
+
+# Gateway Servisi
+GATEWAY_KRATOS_URL = "http://localhost:4433"
+GATEWAY_KETO_URL = "http://localhost:4466"
+GATEWAY_STREAM_URL = "http://localhost:8100"
+TOOLBOX_URL = "http://localhost:8116"
+
+# Vision ve Diğer Servisler
+STREAM_URL = "http://localhost:8100"
+
+# Stream Servisi
+STREAM_STORAGE_ROOT = "./data/stream"
+
+# Teknofest API ve Vektor DB
+EVREN_KEY = "sk-evren-team40-8bcea34f0ffd8f6039f8ca9c9630d398"
+EVREN_LLM_URL = "https://evren-llmapi.ssyz.org.tr/v1/chat/completions"
+QDRANT_URL = "https://evren-vektor.ssyz.org.tr/team40/"
+QDRANT_KEY = "qdr-team40-ca848324524056afa24d5df2548000a9"

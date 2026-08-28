@@ -24,3 +24,17 @@ INSERT INTO external_tools (name, title, description) VALUES
 ('notify_police', 'Polise Haber Ver', 'Güvenlik ihlali veya şiddet durumunda kolluk kuvvetlerine otomatik bildirim yapar.'),
 ('lock_doors', 'Kapıları Kilitle', 'Tehlike anında tüm elektronik kapıları otomatik olarak kilitler.')
 ON CONFLICT (name) DO NOTHING;
+
+CREATE TABLE IF NOT EXISTS chat_sessions (
+    id VARCHAR(255) PRIMARY KEY,
+    video_id VARCHAR(255) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE IF NOT EXISTS chat_messages (
+    id SERIAL PRIMARY KEY,
+    session_id VARCHAR(255) REFERENCES chat_sessions(id) ON DELETE CASCADE,
+    role VARCHAR(50) NOT NULL,
+    content TEXT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);

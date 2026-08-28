@@ -2,7 +2,10 @@ services:
   toolbox:
     build:
       context: ../../
-      dockerfile: apps/toolbox/Dockerfile
+      dockerfile: Dockerfile
+      target: toolbox
+    ports:
+      - "8116:8116"
     environment:
       - DATABASE_URL=${DATABASE_URL:-postgres://motif:motif@postgres:5432/motif}
       - NATS_URL=${NATS_URL:-nats://nats:4222}

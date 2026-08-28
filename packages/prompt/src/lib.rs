@@ -39,6 +39,7 @@ pub use store::{MemoryStore, PromptOverride, PromptStore, StoreError, Validation
 
 /// Gömülü katalog. Derleme zamanında ikiliye giriyor.
 const VISION_TEMPLATE: &str = include_str!("../templates/vision.toml");
+const HUMANIZER_TEMPLATE: &str = include_str!("../templates/humanizer.toml");
 
 #[derive(Debug, thiserror::Error)]
 pub enum PromptError {
@@ -72,12 +73,21 @@ pub enum PromptKind {
     VisionIlkBakis,
     /// Ajanın istediği aralığın klibi.
     VisionYakinlastirma,
+    /// VLM raporunu metinsel olarak zenginleştirme.
+    HumanizerEnhance,
+    /// Zenginleştirilmiş rapor üzerinden kullanıcıyla sohbet.
+    HumanizerChat,
+    /// VLM raporuna dayanarak dilekçe oluşturma.
+    HumanizerDilekce,
+    /// VLM raporuna dayanarak tutanak oluşturma.
+    HumanizerTutanak,
 }
 
 impl PromptKind {
     pub fn agent(self) -> &'static str {
         match self {
             PromptKind::VisionIlkBakis | PromptKind::VisionYakinlastirma => "vision",
+            PromptKind::HumanizerEnhance | PromptKind::HumanizerChat | PromptKind::HumanizerDilekce | PromptKind::HumanizerTutanak => "humanizer",
         }
     }
 }
@@ -189,12 +199,19 @@ impl PromptRegistry {
         // Ajan başına bir katalog. Şimdilik yalnız vision; orchestrator
         // eklendiğinde bu listeye girecek.
         let mut catalogs = BTreeMap::new();
-        let katalog: Catalog =
+        let katalog_vision: Catalog =
             toml::from_str(VISION_TEMPLATE).map_err(|source| PromptError::Parse {
                 agent: "vision".into(),
                 source,
             })?;
-        catalogs.insert(katalog.meta.agent.clone(), katalog);
+        catalogs.insert(katalog_vision.meta.agent.clone(), katalog_vision);
+
+        let katalog_humanizer: Catalog =
+            toml::from_str(HUMANIZER_TEMPLATE).map_err(|source| PromptError::Parse {
+                agent: "humanizer".into(),
+                source,
+            })?;
+        catalogs.insert(katalog_humanizer.meta.agent.clone(), katalog_humanizer);
 
         let registry = Self {
             catalogs,
@@ -465,6 +482,30 @@ text = \"\"\"
                         "sozlesme",
                     ],
                     son,
+                )
+            }
+            PromptKind::HumanizerEnhance => {
+                (
+                    vec!["rol"],
+                    vec!["analiz", "arac_kullanimi"],
+                )
+            }
+            PromptKind::HumanizerChat => {
+                (
+                    vec!["sohbet_rol", "arac_kullanimi"],
+                    vec![],
+                )
+            }
+            PromptKind::HumanizerDilekce => {
+                (
+                    vec!["rol"],
+                    vec!["dilekce_olustur"],
+                )
+            }
+            PromptKind::HumanizerTutanak => {
+                (
+                    vec!["rol"],
+                    vec!["tutanak_olustur"],
                 )
             }
         };

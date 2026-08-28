@@ -9,7 +9,7 @@ use auth::{AuthState, AuthenticatedUser};
 use authz::{check_permission, AuthzState, keto::check_service_client::CheckServiceClient};
 use axum::{
     extract::{Path, State},
-    http::{header, HeaderValue, Method},
+    http::Method,
     routing::{get, any},
     Router,
     response::sse::{Event, Sse},
@@ -217,7 +217,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         authz: authz_state,
         sonic: sonic_state,
         stream_url: env_or("GATEWAY_STREAM_URL", "http://127.0.0.1:8100"),
-        toolbox_url: env_or("TOOLBOX_URL", "http://127.0.0.1:8115"),
+        toolbox_url: env_or("TOOLBOX_URL", "http://127.0.0.1:8116"),
         // Klip üretimi ffmpeg çalıştırıyor; uzun videoda dakikaları bulabiliyor.
         stream_client: Client::builder()
             .timeout(Duration::from_secs(1800))

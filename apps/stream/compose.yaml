@@ -2,7 +2,8 @@ services:
   stream:
     build:
       context: ../../
-      dockerfile: apps/stream/Dockerfile
+      dockerfile: Dockerfile
+      target: stream
     ports:
       - "8100:8100"
     environment:

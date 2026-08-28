@@ -22,6 +22,7 @@ const VISION = process.env.NEXT_PUBLIC_VISION_API ?? "/api/vision";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "/api";
 
 type Fragment = {
+  agent: string;
   fragment: string;
   editable: boolean;
   embedded: string;
@@ -29,8 +30,10 @@ type Fragment = {
 };
 
 type Preview = {
-  prefix: string;
-  suffix: string;
+  prefix?: string;
+  suffix?: string;
+  text?: string;
+  kind?: string;
   version: { number: number; hash: string; source: unknown };
   text_tokens: number;
 };
@@ -53,13 +56,29 @@ export function PromptsView() {
   const yukle = useCallback(async () => {
     setDurum("yukleniyor");
     try {
-      const r = await fetch(`${VISION}/v1/prompts`);
-      if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      const d = (await r.json()) as { fragments: Fragment[] };
-      setFragments(d.fragments);
+      const [vRes, hRes] = await Promise.all([
+        fetch(`${VISION}/v1/prompts`).catch(() => null),
+        fetch(`/api/humanizer/v1/prompts`).catch(() => null)
+      ]);
+      
+      let all: Fragment[] = [];
+      if (vRes && vRes.ok) {
+        const d = await vRes.json();
+        all = all.concat(d.fragments.map((f: any) => ({ ...f, agent: 'vision' })));
+      }
+      if (hRes && hRes.ok) {
+        const d = await hRes.json();
+        all = all.concat(d.fragments.map((f: any) => ({ ...f, agent: 'humanizer' })));
+      }
+      
+      if (all.length === 0 && (!vRes || !hRes)) {
+         throw new Error("Görüntü ve Asistan ajanlarına ulaşılamıyor.");
+      }
+      
+      setFragments(all);
       setHata(null);
-    } catch {
-      setHata("Görüntü ajanına ulaşılamıyor.");
+    } catch (err) {
+      setHata((err as Error).message);
       setFragments([]);
     } finally {
       setDurum("hazir");
@@ -71,18 +90,22 @@ export function PromptsView() {
   }, [yukle]);
 
   const aktif = useMemo(
-    () => fragments.find((f) => f.fragment === secili) ?? null,
+    () => fragments.find((f) => `${f.agent}:${f.fragment}` === secili) ?? null,
     [fragments, secili],
   );
 
   // Parça değişince taslak o parçanın etkin metniyle başlar.
   useEffect(() => {
-    if (aktif) setTaslak(etkinMetin(aktif));
+    if (aktif) {
+      setTaslak(etkinMetin(aktif));
+      setPreview(null);
+    }
   }, [aktif]);
 
   const kirli = aktif != null && taslak !== etkinMetin(aktif);
 
   const onizle = useCallback(async () => {
+    if (!aktif) return;
     try {
       let toolsText: string | null = null;
       try {
@@ -99,25 +122,36 @@ export function PromptsView() {
         console.error("Araçlar alınamadı", e);
       }
 
-      const r = await fetch(`${VISION}/v1/prompts/preview`, {
+      const isHumanizer = aktif.agent === "humanizer";
+      const endpoint = isHumanizer ? `/api/humanizer/v1/prompts/preview` : `${VISION}/v1/prompts/preview`;
+      const body = isHumanizer 
+        ? JSON.stringify({ kind: aktif.fragment, isitsel: null, tools: toolsText })
+        : JSON.stringify({ duration_ms: 35_000, tools: toolsText });
+
+      const r = await fetch(endpoint, {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ duration_ms: 35_000, tools: toolsText }),
+        body,
       });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
-      setPreview((await r.json()) as Preview);
+      const data = await r.json();
+      // Humanizer returns { text, kind }, Vision returns { prefix, suffix }
+      setPreview(data as Preview);
       setHata(null);
     } catch {
       setHata("Önizleme alınamadı.");
     }
-  }, []);
+  }, [aktif]);
 
   const kaydet = useCallback(async () => {
     if (!aktif) return;
     setDurum("kaydediliyor");
     try {
-      const r = await fetch(
-        `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`,
+      const endpoint = aktif.agent === "humanizer" 
+        ? `/api/humanizer/v1/prompts/humanizer/${encodeURIComponent(aktif.fragment)}`
+        : `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`;
+        
+      const r = await fetch(endpoint,
         {
           method: "PUT",
           headers: { "content-type": "application/json; charset=utf-8" },
@@ -145,10 +179,11 @@ export function PromptsView() {
     if (!aktif) return;
     setDurum("kaydediliyor");
     try {
-      const r = await fetch(
-        `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`,
-        { method: "DELETE" },
-      );
+      const endpoint = aktif.agent === "humanizer" 
+        ? `/api/humanizer/v1/prompts/humanizer/${encodeURIComponent(aktif.fragment)}`
+        : `${VISION}/v1/prompts/vision/${encodeURIComponent(aktif.fragment)}`;
+
+      const r = await fetch(endpoint, { method: "DELETE" });
       if (!r.ok) throw new Error(`HTTP ${r.status}`);
       setHata(null);
       await yukle();
@@ -186,16 +221,17 @@ export function PromptsView() {
           )}
           {fragments.map((f) => (
             <button
-              key={f.fragment}
+              key={`${f.agent}:${f.fragment}`}
               type="button"
-              onClick={() => setSecili(f.fragment)}
+              onClick={() => setSecili(`${f.agent}:${f.fragment}`)}
               className={`flex items-center justify-between gap-2 rounded-md px-3 py-2 text-left text-sm transition-colors ${
-                secili === f.fragment ? "bg-accent" : "hover:bg-accent/60"
+                secili === `${f.agent}:${f.fragment}` ? "bg-accent" : "hover:bg-accent/60"
               }`}
             >
-              <span className="truncate font-mono text-[12px]">
-                {f.fragment}
-              </span>
+              <div className="flex flex-col min-w-0">
+                <span className="truncate font-mono text-[12px]">{f.fragment}</span>
+                <span className="text-[10px] text-muted-foreground uppercase">{f.agent}</span>
+              </div>
               <span className="flex shrink-0 items-center gap-1.5">
                 {f.override && (
                   <Badge variant="secondary" className="h-4 px-1 text-[9px]">
@@ -220,7 +256,10 @@ export function PromptsView() {
             <>
               <div className="flex flex-col gap-3 rounded-xl border bg-card px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <span className="font-mono text-sm">{aktif.fragment}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-sm">{aktif.fragment}</span>
+                    <Badge variant="outline" className="text-[10px] h-5 px-1.5">{aktif.agent}</Badge>
+                  </div>
                   {aktif.override ? (
                     <span className="text-[11px] text-muted-foreground">
                       {aktif.override.author} ·{" "}
@@ -309,18 +348,20 @@ export function PromptsView() {
                   <div className="flex items-baseline justify-between gap-2">
                     <span className="text-xs font-medium">
                       Modele gidecek metin
-                      <span className="ml-1 font-normal text-muted-foreground">
-                        — ön ek videodan önce, son ek sonra
+                    </span>
+                    {preview.version && (
+                      <span className="font-mono text-[10px] text-muted-foreground">
+                        v{preview.version.number} · {preview.version.hash} {preview.text_tokens ? `· ${preview.text_tokens} token` : ''}
                       </span>
-                    </span>
-                    <span className="font-mono text-[10px] text-muted-foreground">
-                      v{preview.version.number} · {preview.version.hash} ·{" "}
-                      {preview.text_tokens} token
-                    </span>
+                    )}
                   </div>
                   <pre className="max-h-72 overflow-auto whitespace-pre-wrap rounded-md bg-muted/50 p-3 font-mono text-[11px] leading-snug">
-                    {preview.prefix}
-                    {preview.suffix ? `\n\n──────────\n${preview.suffix}` : ""}
+                    {preview.text ? preview.text : (
+                      <>
+                        {preview.prefix}
+                        {preview.suffix ? `\n\n──────────\n${preview.suffix}` : ""}
+                      </>
+                    )}
                   </pre>
                 </div>
               )}

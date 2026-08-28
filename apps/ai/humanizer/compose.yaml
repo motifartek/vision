@@ -1,17 +1,19 @@
 services:
-  orchestrator:
+  humanizer:
     build:
       context: ../../../
       dockerfile: Dockerfile
-      target: orchestrator
-    image: docker-orchestrator
+      target: humanizer
+    ports:
+      - "8115:8115"
     environment:
+      - HUMANIZER_BIND=0.0.0.0:8115
       - NATS_URL=nats://nats:4222
       - DATABASE_URL=postgres://motif:motif@postgres:5432/motif
-      - SONIC_URL=http://sonic:8081
-      - VISION_URL=http://vision:8110
+      # Anahtar depoda tutulmaz; kabuktan aktarılır.
+      - EVREN_KEY=${EVREN_KEY:?EVREN_KEY tanımlı değil}
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
-      - OTEL_SERVICE_NAME=orchestrator
+      - OTEL_SERVICE_NAME=humanizer
     depends_on:
       - nats
       - postgres

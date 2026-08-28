@@ -1,0 +1,29 @@
+services:
+  gateway:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/gateway -w packages -x "run -p gateway"
+  stream:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/stream -w packages -x "run -p stream"
+  vision:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/ai/vision -w packages -x "run -p vision"
+  humanizer:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/ai/humanizer -w packages -x "run -p humanizer"
+  orchestrator:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/ai/orchestrator -w packages -x "run -p orchestrator"
+  toolbox:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/toolbox -w packages -x "run -p toolbox"
+  sonic:
+    volumes:
+      - ../../:/app
+    command: cargo watch -w apps/ai/sonic -w packages -x "run -p sonic"

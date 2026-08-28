@@ -1,7 +1,7 @@
 use axum::{
     extract::{Path, State},
     response::IntoResponse,
-    routing::{delete, get, post, put},
+    routing::{get, post, put},
     Json, Router,
 };
 use futures::StreamExt;
@@ -83,7 +83,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .layer(CorsLayer::permissive())
         .with_state(state);
 
-    let bind = "0.0.0.0:8115";
+    let bind = "0.0.0.0:8116";
     let listener = tokio::net::TcpListener::bind(bind).await?;
     info!("Toolbox API {} uzerinde dinliyor", bind);
     axum::serve(listener, app).await?;

@@ -34,7 +34,7 @@ help:
 # yazılmak zorunda; sonrakiler arayüzden yapılabilir.
 admin:
 	@test -n "$(EMAIL)" || { echo "kullanım: make admin EMAIL=eposta@ornek.com" >&2; exit 1; }
-	@./scripts/admin-yetkilendir.sh "$(EMAIL)"
+	@./scripts/grant-admin.sh "$(EMAIL)"
 
 # Docker altyapısı — platform/docker/compose.yaml üzerinden yönetilir.
 COMPOSE_FILE := platform/docker/compose.yaml
@@ -48,6 +48,7 @@ infra\:up:
 	@echo "  Keto Read      → http://127.0.0.1:4466"
 	@echo "  Keto Write     → http://127.0.0.1:4467"
 	@echo "  MailSlurper    → http://127.0.0.1:4436"
+	@echo "  And More..."
 
 infra\:down:
 	@echo "Stopping infrastructure services..."
@@ -56,8 +57,7 @@ infra\:down:
 infra\:logs:
 	docker compose -f $(COMPOSE_FILE) logs -f
 
-# Start the development environment.
-#
+# Start the development environment using Docker.
 # Usage examples:
 #   make run:dev
 #   make run:dev dashboard
@@ -84,25 +84,15 @@ run\:dev:
 	if [ -n "$$excluded" ]; then \
 		selected_apps="$$(printf '%s\n' "$$selected_apps" | tr ' ' '\n' | grep -vx "$$excluded" | tr '\n' ' ' | sed 's/ *$$//')"; \
 	fi; \
-	mkdir -p .make/logs; \
-	log_dir="$(CURDIR)/.make/logs"; \
-	for app in $$selected_apps; do \
-		case "$$app" in \
-			dashboard) \
-				echo "Starting dashboard in development mode..."; \
-				(cd "$(CURDIR)/apps/dashboard" && nohup pnpm dev > "$$log_dir/dashboard.log" 2>&1 &) ;; \
-			gateway) \
-				echo "Starting gateway in development mode..."; \
-				(cd "$(CURDIR)/apps/gateway" && nohup cargo run > "$$log_dir/gateway.log" 2>&1 &) ;; \
-			identity) \
-				echo "Starting identity in development mode..."; \
-				(cd "$(CURDIR)/apps/identity" && nohup cargo run > "$$log_dir/identity.log" 2>&1 &) ;; \
-			stream) \
-				echo "Starting stream in development mode..."; \
-				(cd "$(CURDIR)/apps/stream" && nohup cargo run > "$$log_dir/stream.log" 2>&1 &) ;; \
-			*) \
-				echo "Unknown development application: $$app" >&2; \
-				exit 1 ;; \
-		esac; \
-	done; \
-	echo "Development services launched. Logs are available under $$log_dir."
+	echo "Starting Docker services: $$selected_apps"; \
+	docker compose -f $(COMPOSE_FILE) up -d $$selected_apps
+
+# Shortcut for running cargo watch natively with .cargo/config.toml variables
+# Usage: make watch APP=humanizer
+watch:
+ifndef APP
+	$(error Lütfen bir servis adı verin: make watch APP=humanizer)
+endif
+	@echo "Lokal geliştirme modu (cargo watch) başlatılıyor: $(APP)"
+	@docker compose -f $(COMPOSE_FILE) stop $(APP)
+	cargo watch -w apps/$(if $(filter vision humanizer orchestrator sonic,$(APP)),ai/$(APP),$(if $(filter dashboard,$(APP)),dashboard,$(APP))) -w packages -x "run -p $(APP)"

@@ -47,40 +47,9 @@ export function VisionPanel({
 }) {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-      <div className="flex shrink-0 flex-col gap-2.5 rounded-xl border bg-card px-4 py-3">
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-medium">Görsel analiz</span>
-          {outcome?.report.processing_ms != null && (
-            <span className="font-mono text-[10px] text-muted-foreground tabular-nums">
-              {(outcome.report.processing_ms / 1000).toFixed(1)} sn
-            </span>
-          )}
-        </div>
-
-        <Button
-          size="sm"
-          variant="outline"
-          className="w-full"
-          disabled={running || !ready}
-          onClick={onAnalyze}
-        >
-          {running ? (
-            <Loader2 className="animate-spin" data-icon="inline-start" />
-          ) : (
-            <Sparkles data-icon="inline-start" />
-          )}
-          {running ? "Analiz ediliyor…" : outcome ? "Yeniden analiz et" : "Videoyu analiz et"}
-        </Button>
-
-        {!ready && (
-          <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive">
-            Görüntü servisi videoyu henüz hazır etmedi, analiz başlatılamaz.
-          </p>
-        )}
-        {error && <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive">{error}</p>}
-      </div>
-
-      {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} autoApprove={autoApprove} />}
+      {error && <p className="mt-1 flex items-start gap-2 text-[11px] text-destructive px-2">{error}</p>}
+      
+      {outcome && <Report videoId={videoId} outcome={outcome} onSeek={onSeek} />}
     </div>
   )
 }
@@ -91,71 +60,7 @@ const RISK_RENK: Record<string, string> = {
   Düşük: "bg-emerald-500/15 text-emerald-600 border-emerald-500/30 dark:text-emerald-400",
 }
 
-function ActionCard({ videoId, action, autoApprove }: { videoId: string, action: string, autoApprove?: boolean }) {
-  const [status, setStatus] = useState<"idle" | "running" | "success" | "error">("idle")
-  const executedRef = useRef(false)
-
-  const handleExecute = async () => {
-    if (executedRef.current) return
-    executedRef.current = true
-    setStatus("running")
-    try {
-      const r = await fetch("/api/tools/execute", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          video_id: videoId,
-          tool_name: action,
-          payload: {}
-        })
-      })
-      if (!r.ok) throw new Error("Hata")
-      setStatus("success")
-    } catch (e) {
-      setStatus("error")
-      setTimeout(() => {
-        setStatus("idle")
-        executedRef.current = false
-      }, 2000)
-    }
-  }
-
-  useEffect(() => {
-    if (autoApprove && status === "idle" && !executedRef.current) {
-      handleExecute()
-    }
-  }, [autoApprove, status])
-
-  return (
-    <div className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2">
-      <div className="flex min-w-0 items-center gap-2">
-        <span className="mt-[2px] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
-        <span className="truncate text-xs font-medium">{action}</span>
-      </div>
-      <div className="flex shrink-0 gap-1.5">
-        <Button 
-          size="sm" 
-          variant={status === "success" ? "secondary" : "default"} 
-          disabled={status !== "idle"}
-          onClick={handleExecute}
-          className="h-6 text-[10px]"
-        >
-          {status === "idle" && "Onayla ve Çalıştır"}
-          {status === "running" && "Çalıştırılıyor..."}
-          {status === "success" && "Çalıştırıldı"}
-          {status === "error" && "Hata!"}
-        </Button>
-        {status === "idle" && (
-           <Button size="sm" variant="ghost" className="h-6 text-[10px] text-muted-foreground hover:text-destructive">
-             Reddet
-           </Button>
-        )}
-      </div>
-    </div>
-  )
-}
-
-function Report({ videoId, outcome, onSeek, autoApprove }: { videoId: string; outcome: Outcome; onSeek: (s: number) => void; autoApprove?: boolean }) {
+function Report({ videoId, outcome, onSeek }: { videoId: string; outcome: Outcome; onSeek: (s: number) => void }) {
   const { report, steps } = outcome
 
   return (
@@ -206,10 +111,13 @@ function Report({ videoId, outcome, onSeek, autoApprove }: { videoId: string; ou
       </div>
 
       <div className="flex shrink-0 flex-col gap-2 rounded-xl border bg-card px-4 py-3">
-        <span className="text-xs font-medium">Aksiyon Önerileri</span>
+        <span className="text-xs font-medium">Aksiyon Önerileri (VLM)</span>
         <div className="flex flex-col gap-2">
           {report.actions.map((a, i) => (
-            <ActionCard key={i} videoId={videoId} action={a} autoApprove={autoApprove} />
+            <div key={i} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
+              <span className="mt-[2px] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
+              <span className="truncate text-xs font-medium">{a}</span>
+            </div>
           ))}
         </div>
       </div>

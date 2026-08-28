@@ -59,6 +59,11 @@ const nextConfig = {
           source: '/api/tools/:path*',
           destination: `${process.env.TOOLS_URL ?? (process.env.GATEWAY_BASE_URL ? process.env.GATEWAY_BASE_URL + "/api/tools" : "http://127.0.0.1:8000/api/tools")}/:path*`,
         },
+        // Humanizer LLM Ajanı
+        {
+          source: '/api/humanizer/:path*',
+          destination: `${process.env.HUMANIZER_URL ?? "http://127.0.0.1:8115"}/:path*`,
+        },
       ]
     }
   },

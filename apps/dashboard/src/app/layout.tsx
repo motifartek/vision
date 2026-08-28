@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { TooltipProvider } from "@/components/ui/tooltip"
+import { QueryProvider } from "@/components/query-provider"
 import "./globals.css"
 
 // Fontlar `geist` paketiyle yerelden geliyor. `next/font/google` derleme anında
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="tr" className="bg-background dark">
       <body className={`${GeistSans.variable} ${GeistMono.variable} font-sans antialiased`}>
-        <TooltipProvider>{children}</TooltipProvider>
+        <QueryProvider>
+          <TooltipProvider>{children}</TooltipProvider>
+        </QueryProvider>
       </body>
     </html>
   )

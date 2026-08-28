@@ -8,12 +8,14 @@ use reqwest::Client;
 use serde::Deserialize;
 use crate::error::GatewayError;
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct KratosIdentity {
     pub id: String,
     pub schema_id: String,
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Deserialize, Clone)]
 pub struct KratosSession {
     pub id: String,
