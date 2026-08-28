@@ -233,12 +233,34 @@ export function useVisionAnalysis(videoId: string | null, durationMs: number) {
     setRunning(true)
     setError(null)
     try {
-      await iste(`${STREAM}/v1/videos/${videoId}/analyze`, {
-        method: "POST"
+      let toolsText = null
+      try {
+        const tRes = await fetch("/api/tools")
+        if (tRes.ok) {
+          const body = await tRes.json() as {tools: {name: string, title: string, description: string}[]}
+          const toolsList = body.tools
+          if (toolsList && toolsList.length > 0) {
+            toolsText = toolsList.map(t => `- ${t.name} (${t.title}): ${t.description}`).join("\n")
+          }
+        }
+      } catch {
+        // Ignore tools fetch error
+      }
+
+      const res = await iste<Outcome>(`${VISION}/v1/analyze`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          video_id: videoId,
+          tools: toolsText,
+        }),
       })
-      // Sonuç SSE üzerinden 'report' eventi ile gelecek, o yüzden setRunning(false) yapmıyoruz.
+      if (res) {
+        setOutcome(res)
+      }
     } catch (e) {
       setError((e as Error).message)
+    } finally {
       setRunning(false)
     }
   }, [videoId])
