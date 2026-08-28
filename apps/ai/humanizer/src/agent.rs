@@ -45,15 +45,17 @@ impl HumanizerAgent {
         (clean_text.trim().to_string(), tools)
     }
 
-    pub async fn enhance_report(&self, report_json: &str, tools: Option<String>) -> anyhow::Result<(String, Vec<serde_json::Value>)> {
+    pub async fn enhance_report(&self, report_json: &str, tools: Option<String>) -> anyhow::Result<(String, Vec<serde_json::Value>, String)> {
         let mut ctx = PromptContext::new(0).with_audio(motif_prompt::UntrustedText::new(report_json));
         if let Some(t) = tools {
             ctx = ctx.with_tools(Some(t));
         }
         let p = self.preview(PromptKind::HumanizerEnhance, &ctx);
+        let prompt_text = p.joined();
         
-        let text = self.llm.generate(&p.joined(), "İşte analiz raporu:", &[]).await?;
-        Ok(self.extract_tools(&text).await)
+        let text = self.llm.generate(&prompt_text, "İşte analiz raporu:", &[]).await?;
+        let (clean, extracted_tools) = self.extract_tools(&text).await;
+        Ok((clean, extracted_tools, prompt_text))
     }
 
     pub async fn generate_document(&self, report_json: &str, kind: PromptKind) -> anyhow::Result<(String, Vec<serde_json::Value>)> {

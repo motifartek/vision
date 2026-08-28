@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
+import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import {
@@ -63,6 +64,15 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
 
       if (!res.ok) throw new Error("Enhance request failed");
       const data = await res.json();
+      
+      // Update llmRequest to show the actual prompt that went to the LLM
+      if (data.prompt) {
+        setLlmRequest({
+          ...requestBody,
+          actual_generated_prompt: data.prompt
+        });
+      }
+      
       setLlmResponse(data);
       setEnrichedReport(data.result);
     } catch (err) {
@@ -142,14 +152,14 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
         )}
         
         {enrichedReport && (
-          <div className="bg-stone-100 dark:bg-stone-800/80 rounded-2xl rounded-tl-sm p-4 text-stone-800 dark:text-stone-200 whitespace-pre-wrap leading-relaxed max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-stone-300 dark:scrollbar-thumb-stone-600 shadow-sm">
-            {enrichedReport}
+          <div className="bg-stone-100 dark:bg-stone-800/80 rounded-2xl rounded-tl-sm p-4 text-stone-800 dark:text-stone-200 max-h-[400px] overflow-y-auto scrollbar-thin scrollbar-thumb-stone-300 dark:scrollbar-thumb-stone-600 shadow-sm prose prose-sm dark:prose-invert prose-stone">
+            <ReactMarkdown>{enrichedReport}</ReactMarkdown>
           </div>
         )}
       </div>
 
       {/* Butonlar */}
-      <div className="flex gap-3 py-2">
+      <div className="flex gap-3 pt-1">
         <Button onClick={() => handleGenerateDocument("dilekce")} disabled={loading} variant="default" className="flex-1 font-semibold rounded-xl">
           Dilekçe
         </Button>
@@ -158,18 +168,18 @@ export function AssistantPanel({ videoId, rawJson }: { videoId: string; rawJson:
         </Button>
       </div>
 
-      <div className="flex gap-3 py-2 mt-4">
-        <Button onClick={() => { setDocumentContent({ kind: 'Dönen JSON (LLM)', data: llmResponse || { message: "Henüz yanıt yok." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
-          Dönen JSON
+      <div className="flex gap-3 pb-2 pt-1">
+        <Button onClick={() => { setDocumentContent({ kind: 'Gelen Veri (LLM)', data: llmResponse || { message: "Henüz yanıt yok." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
+          Gelen Veri
         </Button>
-        <Button onClick={() => { setDocumentContent({ kind: 'Giden JSON (LLM)', data: llmRequest || { message: "Henüz istek yapılmadı." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
-          Giden JSON
+        <Button onClick={() => { setDocumentContent({ kind: 'Giden Veri (LLM)', data: llmRequest || { message: "Henüz istek yapılmadı." } }); setDialogOpen(true); }} variant="outline" className="flex-1 text-xs">
+          Giden Veri
         </Button>
       </div>
 
       {/* Dialog Gösterimi */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-5xl max-h-[90vh] flex flex-col">
+        <DialogContent className="max-w-[90vw] lg:max-w-[1200px] w-full max-h-[90vh] flex flex-col">
           <DialogHeader className="shrink-0 flex flex-row items-center justify-between">
             <DialogTitle className="capitalize text-xl">
               {documentContent?.kind === "tutanak" ? "Rapor (Tutanak)" : documentContent?.kind || "Belge"}

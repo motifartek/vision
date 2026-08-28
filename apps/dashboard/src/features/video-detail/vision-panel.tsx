@@ -114,9 +114,9 @@ function Report({ videoId, outcome, onSeek }: { videoId: string; outcome: Outcom
         <span className="text-xs font-medium">Aksiyon Önerileri (VLM)</span>
         <div className="flex flex-col gap-2">
           {report.actions.map((a, i) => (
-            <div key={i} className="flex items-center gap-2 rounded-lg border bg-background px-3 py-2">
-              <span className="mt-[2px] h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
-              <span className="truncate text-xs font-medium">{a}</span>
+            <div key={i} className="flex items-start gap-2 rounded-lg border bg-background px-3 py-2">
+              <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-foreground/40" />
+              <span className="text-xs font-medium whitespace-normal leading-relaxed">{a}</span>
             </div>
           ))}
         </div>

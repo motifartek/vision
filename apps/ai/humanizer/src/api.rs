@@ -59,8 +59,8 @@ async fn enhance(
     State(agent): State<Arc<HumanizerAgent>>,
     Json(body): Json<EnhanceBody>,
 ) -> Result<Json<serde_json::Value>, String> {
-    let (text, tool_calls) = agent.enhance_report(&body.report_json, body.tools).await.map_err(|e| e.to_string())?;
-    Ok(Json(json!({ "result": text, "tool_calls": tool_calls })))
+    let (text, tool_calls, prompt) = agent.enhance_report(&body.report_json, body.tools).await.map_err(|e| e.to_string())?;
+    Ok(Json(json!({ "result": text, "tool_calls": tool_calls, "prompt": prompt })))
 }
 
 async fn chat(
