@@ -17,7 +17,7 @@
 
 [meta]
 agent = "vision"
-version = 3
+version = 4
 
 # --- düzenlenebilir parçalar ---
 
@@ -89,13 +89,25 @@ editable = false
 text = """
 Yalnızca JSON döndür, başka hiçbir şey yazma.
 
-Emin değilsen ve bir aralığa yakından bakman gerekiyorsa:
-{"zoom": {"t0_ms": <başlangıç>, "t1_ms": <bitiş>}}
-
-Emin olduğunda raporu ver:
+Raporu şu biçimde ver:
 {"summary": "kısa Türkçe özet",
  "events": [{"time": "MM:SS", "event": "olay açıklaması", "severity": "Düşük|Orta|Yüksek"}],
  "risk": "Düşük|Orta|Yüksek",
  "actions": ["operatörün hemen uygulayabileceği somut öneri"]}
 
 actions boş bırakılamaz ve genel geçer olmamalı; sahnede gördüğüne dayanmalı."""
+
+# ÖN EK. Yalnızca yakınlaştırma hakkı kalmışken eklenir.
+#
+# Ayrı parça olmasının sebebi ölçüldü: son turda istem "artık yakınlaştırma
+# isteme" derken şema hâlâ zoom sunuyordu. İstem kendisiyle çelişince model
+# şemayı takip etti ve hiç rapor vermedi — 30 koşum-videonun 10'u boş döndü.
+#
+# Yasak artık şemada: son turda bu parça hiç render edilmiyor, yani zoom
+# dalı modele gösterilmiyor. Rapor biçimi tek yerde (`sozlesme`) durduğu için
+# ikisi birbirinden ayrışamıyor.
+[fragment.zoom_secenegi]
+editable = false
+text = """
+Emin değilsen ve bir aralığa yakından bakman gerekiyorsa, rapor yerine bunu ver:
+{"zoom": {"t0_ms": <başlangıç>, "t1_ms": <bitiş>}}"""

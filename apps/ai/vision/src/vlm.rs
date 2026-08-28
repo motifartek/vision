@@ -233,28 +233,68 @@ impl VlmProvider for EvrenProvider {
             "temperature": 0.2
         });
 
-        let res = self
-            .client
-            .post(format!("{}/chat/completions", self.base_url))
-            .bearer_auth(&self.api_key)
-            .json(&body)
-            .send()
-            .await
-            .map_err(|e| VlmError::Transport(e.to_string()))?;
+        // Geçici arızada bir kez yeniden deneniyor.
+        //
+        // Ölçümde görüldü: aynı istek bir koşuda `502` aldı, tekrarında `200`
+        // döndü. Yeniden deneme olmadığı için o analiz tamamen kaybolmuştu.
+        // İstek gövdesi değişmediğinden tekrar güvenli; yan etkisi yok.
+        //
+        // Yalnız **geçici** sayılan hatalar tekrarlanıyor: ağ arızası ve 5xx.
+        // 4xx istemcinin hatası, tekrarlamak aynı cevabı getirir.
+        let mut son_hata: Option<VlmError> = None;
+        let mut value: Option<Value> = None;
 
-        let status = res.status();
-        if !status.is_success() {
-            let body = res.text().await.unwrap_or_default();
-            return Err(VlmError::Status {
-                status: status.as_u16(),
-                body: body.chars().take(600).collect(),
-            });
+        for deneme in 0..2 {
+            if deneme > 0 {
+                tracing::warn!(
+                    hata = ?son_hata,
+                    "çıkarım isteği geçici olarak düştü, bir kez daha deneniyor"
+                );
+                tokio::time::sleep(std::time::Duration::from_secs(2)).await;
+            }
+
+            let res = match self
+                .client
+                .post(format!("{}/chat/completions", self.base_url))
+                .bearer_auth(&self.api_key)
+                .json(&body)
+                .send()
+                .await
+            {
+                Ok(r) => r,
+                Err(e) => {
+                    son_hata = Some(VlmError::Transport(e.to_string()));
+                    continue;
+                }
+            };
+
+            let status = res.status();
+            if !status.is_success() {
+                let govde = res.text().await.unwrap_or_default();
+                let hata = VlmError::Status {
+                    status: status.as_u16(),
+                    body: govde.chars().take(600).collect(),
+                };
+                if status.is_server_error() {
+                    son_hata = Some(hata);
+                    continue;
+                }
+                return Err(hata);
+            }
+
+            match res.json().await {
+                Ok(v) => {
+                    value = Some(v);
+                    break;
+                }
+                Err(e) => return Err(VlmError::Decode(e.to_string())),
+            }
         }
 
-        let value: Value = res
-            .json()
-            .await
-            .map_err(|e| VlmError::Decode(e.to_string()))?;
+        let value: Value = match value {
+            Some(v) => v,
+            None => return Err(son_hata.unwrap_or_else(|| VlmError::Transport("bilinmeyen".into()))),
+        };
 
         let icerik = value
             .pointer("/choices/0/message/content")

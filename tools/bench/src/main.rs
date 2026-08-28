@@ -112,6 +112,17 @@ enum Command {
         export: Option<PathBuf>,
         #[arg(long, default_value = "http://127.0.0.1:8100")]
         stream_url: String,
+        /// Her varyantı kaç kez koş.
+        ///
+        /// Model aynı girdiye koşudan koşuya farklı cevap veriyor. Tek koşuluk
+        /// bir fark, değişikliğin etkisi de olabilir modelin oynaklığı da.
+        /// Tekrarlı koşum terazinin kendi gürültüsünü ölçüyor; karşılaştırma
+        /// yapılacaksa en az 3 kullanın.
+        #[arg(long, default_value_t = 1)]
+        tekrar: usize,
+        /// Commit'lenebilir markdown raporunu buraya yaz.
+        #[arg(long)]
+        rapor: Option<PathBuf>,
     },
 
     /// Bir parametreyi süpürüp etkisini ölçer.
@@ -169,12 +180,16 @@ fn main() -> Result<()> {
             videos,
             export,
             stream_url,
+            tekrar,
+            rapor,
         } => prompts::calistir(
             &dataset,
             variants.as_deref(),
             videos,
             export.as_deref(),
             &stream_url,
+            tekrar,
+            rapor.as_deref(),
         )?,
 
         Command::Sweep {

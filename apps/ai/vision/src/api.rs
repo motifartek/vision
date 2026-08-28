@@ -149,7 +149,11 @@ async fn preview_prompt(
         "kind": match kind {
             PromptKind::VisionIlkBakis => "ilk_bakis",
             PromptKind::VisionYakinlastirma => "yakinlastirma",
-            PromptKind::HumanizerEnhance | PromptKind::HumanizerChat | PromptKind::HumanizerDilekce | PromptKind::HumanizerTutanak => unreachable!(),
+            PromptKind::VisionSonTur => "son_tur",
+            PromptKind::HumanizerEnhance
+            | PromptKind::HumanizerChat
+            | PromptKind::HumanizerDilekce
+            | PromptKind::HumanizerTutanak => unreachable!(),
         },
         "prefix": p.prefix,
         "suffix": p.suffix,
@@ -292,6 +296,7 @@ mod tests {
         AnalyzeBody {
             video_id: "v1".into(),
             isitsel_baglam: ses.map(str::to_string),
+            tools: None,
         }
     }
 
